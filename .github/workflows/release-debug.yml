@@ -1,0 +1,53 @@
+name: Android Debug Release APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set variables
+        id: set_vars
+        run: |
+          VER=$(grep -E -o 'versionName ".*"' app/build.gradle | sed 's/versionName //g' | tr -d '"')
+          SHA=${{ github.sha }}
+          VERSION="$VER.${SHA:0:7}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Cook KeyStore
+        run: echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: |
+          ./gradlew assembleDebug \
+            -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/signing-key.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=key0 \
+            -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: v${{ steps.set_vars.outputs.version }}
+          name: Saikou Beta ${{ steps.set_vars.outputs.version }}
+          body_path: beta.md
+          prerelease: true
+          files: app/build/outputs/apk/debug/app-debug.apk
