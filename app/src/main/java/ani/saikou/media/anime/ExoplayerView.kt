@@ -1426,13 +1426,13 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
     }
 
     private fun buildExoplayer(finalMediaSource: MediaSource) {
-        // Player load control (unchanged – good settings)
+
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                DefaultLoadControl.DEFAULT_MIN_BUFFER_MS, // ~5000ms default
-                50000,                                    // max buffer
-                2500,                                     // buffer for playback start
-                2500                                      // buffer for playback after rebuffer
+                30000,   // 30s min
+                300000,  // 5 minutes max
+                1500,    // start after 1.5s
+                2000     // rebuffer after 2s
             )
             .setBackBuffer(120000, true)                  // keep 2 minutes of played content
             .setTargetBufferBytes(DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES)

@@ -4,6 +4,7 @@ package ani.saikou.parsers.anime.extractors
 import ani.saikou.*
 import ani.saikou.parsers.*
 import kotlinx.serialization.InternalSerializationApi
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 
@@ -39,7 +40,8 @@ class Kwik(override val server: VideoServer) : VideoExtractor() {
 
     @Serializable
     data class Headers(
-        val Referer: String
+        @SerialName("Referer")
+        val referer: String
     )
 
     override suspend fun extract(): VideoContainer {
@@ -47,11 +49,16 @@ class Kwik(override val server: VideoServer) : VideoExtractor() {
             val response = client.get(server.embed.url)
                 .parsed<SourceResponse>()
 
+            val videoReferer = response.headers.referer
+            val origin = videoReferer.removeSuffix("/")
+
             val baseHeaders = mapOf(
                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0",
                 "Accept" to "*/*",
                 "Accept-Language" to "en-US,en;q=0.5",
                 "Accept-Encoding" to "gzip, deflate, br, zstd",
+                "Origin" to origin,
+                "Referer" to videoReferer,
                 "Connection" to "keep-alive",
                 "Sec-Fetch-Dest" to "empty",
                 "Sec-Fetch-Mode" to "cors",
@@ -73,14 +80,14 @@ class Kwik(override val server: VideoServer) : VideoExtractor() {
                 Video(
                     quality = sourceItem.quality.removeSuffix("p").toIntOrNull(),
                     format = VideoType.M3U8,
-                    file = FileUrl(sourceItem.url),
+                    file = FileUrl(sourceItem.url,baseHeaders),
                     extraNote = sourceItem.quality
                 )
             }
 
 
 
-            return VideoContainer(videos,)
+            return VideoContainer(videos)
         } catch (e: Exception) {
             return VideoContainer(emptyList())
         }
