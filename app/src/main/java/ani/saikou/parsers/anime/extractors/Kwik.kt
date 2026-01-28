@@ -77,9 +77,12 @@ class Kwik(override val server: VideoServer) : VideoExtractor() {
 
                 specificHeaders["Host"] = host
 
+                val numericString = Regex("\\d+").find(sourceItem.quality.toString())?.value
+
+                val finalNumber = numericString?.toIntOrNull()
                 Video(
-                    quality = sourceItem.quality.removeSuffix("p").toIntOrNull(),
-                    format = VideoType.M3U8,
+                    quality = finalNumber,
+                    format = VideoType.CONTAINER,
                     file = FileUrl(sourceItem.url,baseHeaders),
                     extraNote = sourceItem.quality
                 )
