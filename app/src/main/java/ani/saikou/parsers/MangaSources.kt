@@ -6,20 +6,21 @@ import ani.saikou.parsers.manga.*
 
 object MangaSources : MangaReadSources() {
     override val list: List<Lazier<BaseParser>> = lazyList(
-        "MangaKakalot" to ::MangaKakalot,
+        "Comix" to ::Comix,
+//        "MangaKakalot" to ::MangaKakalot, //looks dead maybe domain changed
         "MangaBuddy" to ::MangaBuddy,
         "MangaPill" to ::MangaPill,
         "MangaDex" to ::MangaDex,
-        "MangaReaderTo" to ::MangaReaderTo,
-        "AllAnime" to ::AllAnime,
-        "Toonily" to ::Toonily,
+//        "MangaReaderTo" to ::MangaReaderTo,
+//        "AllAnime" to ::AllAnime, needs fixing graphql api
+        "Toonily" to ::Toonily, /// will need to check the parsers
 //        "MangaHub" to ::MangaHub,
         "MangaKatana" to ::MangaKatana,
-        "MangaKomi" to ::MangaKomi,
-        "Manga4Life" to ::Manga4Life,
+//        "MangaKomi" to ::MangaKomi, /// dead source
+//        "Manga4Life" to ::Manga4Life, /// moved to weebcentral covered by cloudflare fk htmx
         "MangaRead" to ::MangaRead,
-        "ComickFun" to ::ComickFun,
-        "ColoredManga" to ::ColoredManga,
+
+//        "ColoredManga" to ::ColoredManga, /// domain is not resolving probably dead
     )
 }
 
