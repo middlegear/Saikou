@@ -1,14 +1,12 @@
 ## Version 1.2.5-beta
 
+### Features
 
-### Bug Fixes.
+- **Comix**
+  - Added **Comix** manga provider
 
-- **Discord**
-    - Fixed login and rich presence for anime (use at your own risk)
-    
-- **Subtitles**
-    - Bump exoplayer version to fix decoding(showing binary data when playing Mu Shen Ji).
+### Bug Fixes
 
-
-
-   
+- **Manga**
+  - Fixed **AllManga** provider
+  - Removed dead manga sources
