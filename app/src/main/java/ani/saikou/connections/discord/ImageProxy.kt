@@ -1,5 +1,6 @@
 package ani.saikou.connections.discord
 
+import android.annotation.SuppressLint
 import android.util.Log
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -17,12 +18,13 @@ class ImageProxy(
 ) {
     private val TAG = "RPC"
 
+    @SuppressLint("UnsafeOptInUsageError")
     @Serializable
     data class WorkerRequest(
         val imageUrl: String,
         val userToken: String? = null
     )
-
+    @SuppressLint("UnsafeOptInUsageError")
     @Serializable
     data class WorkerResponse(
         val uri: String?,

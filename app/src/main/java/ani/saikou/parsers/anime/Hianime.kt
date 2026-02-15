@@ -2,7 +2,7 @@ package ani.saikou.parsers.anime
 
 import ani.saikou.FileUrl
 import ani.saikou.client
-import ani.saikou.parsers.DirectApiParser
+import ani.saikou.parsers.AnimeApiParser
 import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.parsers.VideoExtractor
@@ -14,7 +14,7 @@ import kotlinx.serialization.Serializable
 import java.net.URLEncoder
 
 @OptIn(InternalSerializationApi::class)
-class Hianime : DirectApiParser() {
+class Hianime : AnimeApiParser() {
 
     override val name = "hianime"
     override val saveName = "hianime"

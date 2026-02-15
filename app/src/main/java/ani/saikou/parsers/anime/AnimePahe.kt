@@ -3,7 +3,7 @@ package ani.saikou.parsers.anime
 import ani.saikou.FileUrl
 import ani.saikou.client
 
-import ani.saikou.parsers.DirectApiParser
+import ani.saikou.parsers.AnimeApiParser
 import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.parsers.VideoExtractor
@@ -15,7 +15,7 @@ import kotlinx.serialization.Serializable
 import kotlin.collections.mapOf
 
 @OptIn(InternalSerializationApi::class)
-class AnimePahe : DirectApiParser() {
+class AnimePahe : AnimeApiParser() {
 
     override val name = "AnimePahe"
     override val saveName = "animepahe"

@@ -2,6 +2,7 @@ package ani.saikou.parsers.manga
 
 import ani.saikou.FileUrl
 import ani.saikou.client
+import ani.saikou.parsers.MangaApiParser
 import ani.saikou.parsers.MangaChapter
 import ani.saikou.parsers.MangaImage
 import ani.saikou.parsers.MangaParser
@@ -12,10 +13,10 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @OptIn(InternalSerializationApi::class)
-class AllManga : MangaParser() {
+class AllManga : MangaApiParser() {
     override val name = "AllManga"
     override val saveName = "AllManga"
-
+    override val providerName: String = "allmanga"
     private val posterImageReferer: String = "https://allmanga.to/"
 
 
@@ -27,7 +28,7 @@ class AllManga : MangaParser() {
 
             response.data.map {
                 ShowResponse(
-                    name = it.name ?: it.romaji ?: it.native as String,///should not do this
+                    name = it.name ?: it.romaji ?: it.native ?:" Unknown title",
                     link = it.id,
                     coverUrl = FileUrl(
                         url = it.posterImage as String,

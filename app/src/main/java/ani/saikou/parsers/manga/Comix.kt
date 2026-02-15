@@ -3,9 +3,9 @@ package ani.saikou.parsers.manga
 
 import ani.saikou.FileUrl
 import ani.saikou.client
+import ani.saikou.parsers.MangaApiParser
 import ani.saikou.parsers.MangaChapter
 import ani.saikou.parsers.MangaImage
-import ani.saikou.parsers.MangaParser
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.tryWithSuspend
 import kotlinx.serialization.InternalSerializationApi
@@ -13,13 +13,13 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @OptIn(InternalSerializationApi::class)
-class Comix : MangaParser() {
+class Comix : MangaApiParser() {
     override val saveName: String = "Comix"
     override val name: String = "Comix"
+    override val providerName: String = "comix"
 
-    override val hostUrl: String = "https://kenjitsu.vercel.app"
     override suspend fun search(query: String): List<ShowResponse> {
-        return tryWithSuspend(post = false, snackbar = false) {
+        return tryWithSuspend(post = false, snackbar = true) {
             if (query.isEmpty()) return@tryWithSuspend emptyList()
             val response =
                 client.get("$hostUrl/api/comix/manga/search?q=$query").parsed<SearchApiResponse>()

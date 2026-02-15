@@ -1,16 +1,5 @@
 package ani.saikou.parsers.anime
 
-import ani.saikou.FileUrl
-import ani.saikou.client
-import ani.saikou.parsers.DirectApiParser
-import ani.saikou.parsers.ShowResponse
-import ani.saikou.parsers.VideoExtractor
-import ani.saikou.parsers.VideoServer
-import ani.saikou.parsers.anime.extractors.MegaCloud
-import ani.saikou.parsers.anime.extractors.RapidCloud
-import kotlinx.serialization.InternalSerializationApi
-import kotlinx.serialization.Serializable
-import java.net.URLEncoder
 //@OptIn(InternalSerializationApi::class)
 //class Anizone : DirectApiParser() {
 //

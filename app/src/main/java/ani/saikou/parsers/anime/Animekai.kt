@@ -2,7 +2,7 @@ package ani.saikou.parsers.anime
 
 import ani.saikou.FileUrl
 import ani.saikou.client
-import ani.saikou.parsers.DirectApiParser
+import ani.saikou.parsers.AnimeApiParser
 import ani.saikou.parsers.Episode
 
 import ani.saikou.parsers.ShowResponse
@@ -16,7 +16,7 @@ import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 
 @OptIn(InternalSerializationApi::class)
-class Animekai : DirectApiParser() {
+class Animekai : AnimeApiParser() {
 
     override val name = "AnimeKai"
     override val providerName = "animekai"

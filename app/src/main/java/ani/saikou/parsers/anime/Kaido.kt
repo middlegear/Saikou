@@ -2,7 +2,7 @@ package ani.saikou.parsers.anime
 
 import ani.saikou.FileUrl
 import ani.saikou.client
-import ani.saikou.parsers.DirectApiParser
+import ani.saikou.parsers.AnimeApiParser
 import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.parsers.VideoExtractor
@@ -12,7 +12,7 @@ import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import java.net.URLEncoder
 @OptIn(InternalSerializationApi::class)
-class Kaido : DirectApiParser() {
+class Kaido : AnimeApiParser() {
 
     override val name = "Kaido"
     override val saveName = "Kaido"

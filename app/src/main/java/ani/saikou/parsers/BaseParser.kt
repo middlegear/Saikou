@@ -131,7 +131,7 @@ data class ShowResponse(
     val coverUrl: FileUrl,
 
     // Optional pre-loaded episodes – very useful for direct-mapped API parsers
-    val episodes: List<Episode>? = null,
+    val episodes: List<Episode>? = emptyList(),
 
     // Alternative titles/synonyms – improves search matching and display
     val otherNames: List<String> = emptyList(),

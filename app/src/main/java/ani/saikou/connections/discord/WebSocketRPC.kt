@@ -219,7 +219,7 @@ class WebSocketRPC(private val context: Context) {
                     assetManager?.fetchDiscordUri(it)
                 }
                 val discordSmall = assetManager?.fetchDiscordUri(
-                    "https://m3jz13d05b.ufs.sh/f/dLgmbGNJLXerI3KZ6zXJPde7rahbE820lpFL69nWIXjuv5gq"
+                    "https://cdn.discordapp.com/icons/1091762044946092105/a_b485448e33d24a7bb35e3d63a4a4539c.gif?size=1024"
                 )
                 val activity = Activity(
                     applicationId = applicationId,
