@@ -1,11 +1,9 @@
 
 ##  Version 1.2.5-beta
 
+###  other 
 
-
-###  UI & Discovery Changes
-
-* **Anime:** Replaced the **Top Rated** section with **Recently Updated*.
+* **Anime:** Enabled  Kaido.
 
 
 

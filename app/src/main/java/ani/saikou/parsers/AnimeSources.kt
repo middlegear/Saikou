@@ -19,7 +19,7 @@ object AnimeSources : WatchSources() {
         "H!Anime" to ::Hianime,
         "AnimePahe" to ::AnimePahe,
         "Animekai" to ::Animekai,
-//        "Kaido" to ::Kaido,
+        "Kaido" to ::Kaido,
         "AllAnime" to ::AllAnime,
 //        "Anizone" to ::Anizone, 
     )

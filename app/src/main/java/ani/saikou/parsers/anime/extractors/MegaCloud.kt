@@ -28,7 +28,6 @@ class MegaCloud(override val server: VideoServer) : VideoExtractor() {
     data class Subtitle(
         val url: String,
         val lang: String,
-//        val kind:String, fix the api stuff
         val default: Boolean
     )
 

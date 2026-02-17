@@ -14,7 +14,6 @@ import ani.saikou.parsers.anime.extractors.FileMoon
 import ani.saikou.parsers.anime.extractors.MegaCloud
 import ani.saikou.parsers.anime.extractors.Mp4Upload
 import ani.saikou.parsers.anime.extractors.OkRu
-import ani.saikou.parsers.anime.extractors.RapidCloud
 import ani.saikou.parsers.anime.extractors.StreamTape
 import ani.saikou.saveData
 import ani.saikou.tryWithSuspend
@@ -86,7 +85,7 @@ abstract class AnimeParser : BaseParser() {
 
         val extractor: VideoExtractor? = when (domain) {
             "filemoon.to", "filemoon.sx"    -> FileMoon(server)
-            "rapid-cloud.co"                -> RapidCloud(server)
+
             "streamtape.com", "watchsb.com" -> StreamTape(server)
 
             "mp4upload.com"                 -> Mp4Upload(server)
