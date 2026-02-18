@@ -2,6 +2,7 @@ package ani.saikou.connections.discord
 
 import android.content.Context
 import android.util.Log
+import ani.saikou.R
 import ani.saikou.connections.discord.rpc.RpcRepository
 import ani.saikou.connections.discord.rpc.serializers.*
 import ani.saikou.connections.discord.auth.DiscordRepository
@@ -35,7 +36,6 @@ class WebSocketRPC(private val context: Context) {
     private var lastEndUnix: Long? = null
     private var totalDurationMs: Long? = null
     private var isClosed = false
-
 
     data class RPCConfig(
         val title: String,
@@ -234,9 +234,11 @@ class WebSocketRPC(private val context: Context) {
                     assets = if (isPlaying) Assets(
                         largeImage = discordLarge,
                         largeText = config.title,
+                        largeUrl = config.shareLink?.takeIf { !it.isBlank() },
                         smallImage = discordSmall,
-                        smallText = "Saikou"
-                    ) else null,
+                        smallText = "Saikou",
+                        smallUrl = "https://github.com/saikou-app/saikou"
+                    ) else null
                 )
 
                 sendToGateway(3, Presence(listOf(activity), status = "online", afk = !isPlaying))

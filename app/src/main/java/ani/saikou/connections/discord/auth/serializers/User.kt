@@ -20,21 +20,11 @@ data class User(
     val discriminator: String? = "0"
 ) {
 
-    fun getAvatarUrl(): String {
-        
-        val userId = id ?: return "https://cdn.discordapp.com/embed/avatars/0.png"
-        return if (avatar != null) {
-            val extension = if (avatar.startsWith("a_")) "gif" else "png"
-            "https://cdn.discordapp.com/avatars/$userId/$avatar.$extension"
-        } else {
+    fun getAvatarUrl(size: Int = 128): String? {
+        val uid = id ?: return null
+        val hash = avatar ?: return null
 
-            val index = if (discriminator == "0" || discriminator == null) {
-
-                (userId.toLongOrNull()?.let { it shr 22 } ?: 0L) % 6
-            } else {
-                (discriminator.toIntOrNull() ?: 0) % 5
-            }
-            "https://cdn.discordapp.com/embed/avatars/$index.png"
-        }
+        val extension = if (hash.startsWith("a_")) "gif" else "png"
+        return "https://cdn.discordapp.com/avatars/$uid/$hash.$extension?size=$size"
     }
 }
