@@ -9,9 +9,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class User(
     @SerialName("id")
-    val id: String,
+    val id: String?=null,
     @SerialName("username")
-    val username: String,
+    val username: String?=null,
     @SerialName("global_name")
     val globalName: String? = null,
     @SerialName("avatar")
@@ -21,15 +21,18 @@ data class User(
 ) {
 
     fun getAvatarUrl(): String {
+        
+        val userId = id ?: return "https://cdn.discordapp.com/embed/avatars/0.png"
         return if (avatar != null) {
-
-            "https://cdn.discordapp.com/avatars/$id/$avatar.png"
+            val extension = if (avatar.startsWith("a_")) "gif" else "png"
+            "https://cdn.discordapp.com/avatars/$userId/$avatar.$extension"
         } else {
 
             val index = if (discriminator == "0" || discriminator == null) {
-                (id.toLong() shr 22) % 6
+
+                (userId.toLongOrNull()?.let { it shr 22 } ?: 0L) % 6
             } else {
-                discriminator.toInt() % 5
+                (discriminator.toIntOrNull() ?: 0) % 5
             }
             "https://cdn.discordapp.com/embed/avatars/$index.png"
         }
