@@ -1,9 +1,9 @@
 
 ##  Version 1.2.5-beta
 
-###  Fixes
+###  other
 
-* **Updater:** Enhance using timestamp based checks.
+* **rpc:** disable by default.
 
 
 
