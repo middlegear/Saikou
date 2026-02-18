@@ -1,6 +1,7 @@
 package ani.saikou
 
 import android.animation.ObjectAnimator
+import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Animatable
 import android.net.Uri
@@ -45,6 +46,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import nl.joery.animatedbottombar.AnimatedBottomBar
 import java.io.Serializable
+import androidx.core.content.edit
 
 
 class MainActivity : AppCompatActivity() {
@@ -183,31 +185,48 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (loadData<Boolean>("allow_opening_links", this) != true) {
-                    CustomBottomDialog.newInstance().apply {
-                        title = "Allow Saikou to automatically open Anilist & MAL Links?"
-                        val md = "Open settings & click +Add Links & select Anilist & Mal urls"
-                        addView(TextView(this@MainActivity).apply {
-                            val markWon =
-                                Markwon.builder(this@MainActivity).usePlugin(SoftBreakAddsNewLinePlugin.create()).build()
-                            markWon.setMarkdown(this, md)
-                        })
 
-                        setNegativeButton(this@MainActivity.getString(R.string.no)) {
-                            saveData("allow_opening_links", true, this@MainActivity)
-                            dismiss()
-                        }
+                if (!isDialogDisabled(this)) {
 
-                        setPositiveButton(this@MainActivity.getString(R.string.yes)) {
-                            saveData("allow_opening_links", true, this@MainActivity)
-                            tryWith(true) {
-                                startActivity(
-                                    Intent(Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS)
-                                        .setData(Uri.parse("package:$packageName"))
-                                )
+                    val manager = getSystemService(android.content.pm.verify.domain.DomainVerificationManager::class.java)
+                    val userState = manager.getDomainVerificationUserState(packageName)
+
+                    val isLinkHandlingAllowed = userState?.isLinkHandlingAllowed ?: false
+                    val domains = userState?.hostToStateMap?.values
+                    val allSelected = domains?.isNotEmpty() == true && domains.all {
+                        it == android.content.pm.verify.domain.DomainVerificationUserState.DOMAIN_STATE_SELECTED ||
+                                it == android.content.pm.verify.domain.DomainVerificationUserState.DOMAIN_STATE_VERIFIED
+                    }
+
+
+                    if (!isLinkHandlingAllowed || !allSelected) {
+                        CustomBottomDialog.newInstance().apply {
+                            title = "Allow Saikou to automatically open Anilist & MAL Links?"
+                            val md = "Open settings & click **+Add Links** & select Anilist & Mal urls"
+
+                            addView(TextView(this@MainActivity).apply {
+                                Markwon.builder(this@MainActivity)
+                                    .usePlugin(SoftBreakAddsNewLinePlugin.create())
+                                    .build()
+                                    .setMarkdown(this, md)
+                            })
+
+                            setNegativeButton(this@MainActivity.getString(R.string.no)) {
+                                disableLinkDialog(this@MainActivity)
+                                dismiss()
                             }
-                        }
-                    }.show(supportFragmentManager, "dialog")
+
+                            setPositiveButton(this@MainActivity.getString(R.string.yes)) {
+                                tryWith(true) {
+                                    startActivity(
+                                        Intent(Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS)
+                                            .setData(Uri.parse("package:$packageName"))
+                                    )
+                                }
+                                dismiss()
+                            }
+                        }.show(supportFragmentManager, "dialog")
+                    }
                 }
             }
         }
@@ -229,4 +248,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+    fun isDialogDisabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences("saikou_prefs", Context.MODE_PRIVATE)
+        return prefs.getBoolean("disable_link_dialog", false)
+    }
+
+    fun disableLinkDialog(context: Context) {
+        val prefs = context.getSharedPreferences("saikou_prefs", Context.MODE_PRIVATE)
+        prefs.edit { putBoolean("disable_link_dialog", true) }
+    }
 }

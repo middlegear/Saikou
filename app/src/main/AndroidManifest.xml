@@ -33,6 +33,7 @@
         android:usesCleartextTraffic="true"
         tools:ignore="AllowBackup"
         tools:targetApi="m">
+
         <activity
             android:name="ani.saikou.media.novel.novelreader.NovelReaderActivity"
             android:configChanges="orientation|screenSize"
@@ -40,41 +41,31 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="application/x-mobipocket-ebook" />
                 <data android:mimeType="application/vnd.amazon.ebook" />
                 <data android:mimeType="application/fb2+zip" />
                 <data android:mimeType="application/vnd.comicbook+zip" />
-
                 <data android:pathPattern=".*\\.epub" />
                 <data android:pathPattern=".*\\.mobi" />
                 <data android:pathPattern=".*\\.kf8" />
                 <data android:pathPattern=".*\\.fb2" />
                 <data android:pathPattern=".*\\.cbz" />
-
                 <data android:scheme="content" />
                 <data android:scheme="file" />
             </intent-filter>
         </activity>
+
         <activity android:name=".settings.FAQActivity" />
         <activity android:name=".settings.ReaderSettingsActivity" />
         <activity android:name=".settings.UserInterfaceSettingsActivity" />
         <activity android:name=".settings.PlayerSettingsActivity" />
-        <activity
-            android:name=".settings.SettingsActivity"
-            android:parentActivityName=".MainActivity" />
-        <activity
-            android:name=".others.imagesearch.ImageSearchActivity"
-            android:parentActivityName=".MainActivity" />
-        <activity
-            android:name=".media.SearchActivity"
-            android:parentActivityName=".MainActivity" />
+        <activity android:name=".settings.SettingsActivity" android:parentActivityName=".MainActivity" />
+        <activity android:name=".others.imagesearch.ImageSearchActivity" android:parentActivityName=".MainActivity" />
+        <activity android:name=".media.SearchActivity" android:parentActivityName=".MainActivity" />
         <activity android:name=".media.StudioActivity" />
         <activity android:name=".media.AuthorActivity" />
-        <activity
-            android:name=".media.CalendarActivity"
-            android:parentActivityName=".MainActivity" />
+        <activity android:name=".media.CalendarActivity" android:parentActivityName=".MainActivity" />
         <activity android:name="ani.saikou.media.user.ListActivity" />
         <activity
             android:name="ani.saikou.media.manga.mangareader.MangaReaderActivity"
@@ -89,6 +80,7 @@
             android:theme="@style/Theme.Saikou.NeverCutout" />
         <activity android:name=".media.CharacterDetailsActivity" />
         <activity android:name=".home.NoInternet" />
+
         <activity
             android:name="ani.saikou.media.anime.ExoplayerView"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation"
@@ -98,6 +90,7 @@
             android:launchMode="singleTask"
             android:supportsPictureInPicture="true"
             tools:targetApi="n" />
+
         <activity
             android:name="ani.saikou.connections.anilist.Login"
             android:configChanges="orientation|screenSize|layoutDirection"
@@ -106,15 +99,12 @@
             android:launchMode="singleTask">
             <intent-filter android:label="Anilist Login for Saikou">
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="anilist"
-                    android:scheme="saikou" />
+                <data android:host="anilist" android:scheme="saikou" />
             </intent-filter>
         </activity>
+
         <activity
             android:name="ani.saikou.connections.mal.Login"
             android:configChanges="orientation|screenSize|layoutDirection"
@@ -123,13 +113,9 @@
             android:launchMode="singleTask">
             <intent-filter android:label="Myanimelist Login for Saikou">
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="mal"
-                    android:scheme="saikou" />
+                <data android:host="mal" android:scheme="saikou" />
             </intent-filter>
         </activity>
 
@@ -140,10 +126,8 @@
             android:launchMode="singleTask">
             <intent-filter android:label="Discord Login for Saikou">
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data android:scheme="saikou"/>
                 <data android:scheme="http" />
                 <data android:scheme="https" />
@@ -157,24 +141,22 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:launchMode="singleTask">
-            <intent-filter android:label="@string/read_on_saikou">
-                <action android:name="android.intent.action.VIEW" />
 
+            <intent-filter android:label="@string/read_on_saikou" android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:host="anilist.co" />
                 <data android:host="myanimelist.net" />
                 <data android:pathPrefix="/manga" />
             </intent-filter>
-            <intent-filter android:label="@string/watch_on_saikou">
-                <action android:name="android.intent.action.VIEW" />
 
+            <intent-filter android:label="@string/watch_on_saikou" android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:host="anilist.co" />
@@ -182,13 +164,13 @@
                 <data android:pathPrefix="/anime" />
             </intent-filter>
         </activity>
+
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|layoutDirection"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>

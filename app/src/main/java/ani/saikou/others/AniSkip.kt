@@ -1,5 +1,6 @@
 package ani.saikou.others
 
+import android.annotation.SuppressLint
 import ani.saikou.client
 import ani.saikou.tryWithSuspend
 import kotlinx.serialization.Serializable
@@ -21,6 +22,7 @@ object AniSkip {
         }
     }
 
+    @SuppressLint("UnsafeOptInUsageError")
     @Serializable
     data class AniSkipResponse(
         val found: Boolean,
@@ -29,6 +31,7 @@ object AniSkip {
         val statusCode: Int
     )
 
+    @SuppressLint("UnsafeOptInUsageError")
     @Serializable
     data class Stamp(
         val interval: AniSkipInterval,
@@ -49,6 +52,7 @@ object AniSkip {
         }
     }
 
+    @SuppressLint("UnsafeOptInUsageError")
     @Serializable
     data class AniSkipInterval(
         val startTime: Double,

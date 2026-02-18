@@ -28,83 +28,104 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 object AppUpdater {
-    suspend fun check(activity: FragmentActivity, post:Boolean=false) {
-        if(post) snackString(currContext()?.getString(R.string.checking_for_update))
+    suspend fun check(activity: FragmentActivity, post: Boolean = false) {
+        if (post) snackString(currContext()?.getString(R.string.checking_for_update))
         val repo = activity.getString(R.string.repo)
+
         tryWithSuspend {
-            val (md, version) = if(BuildConfig.DEBUG){
+
+            var remoteTimestamp: Long = 0
+
+            val (md, version) = if (BuildConfig.DEBUG) {
                 val res = client.get("https://api.github.com/repos/$repo/releases")
                     .parsed<JsonArray>().map {
                         Mapper.json.decodeFromJsonElement<GithubResponse>(it)
                     }
+
                 val r = res.filter { it.prerelease }.maxByOrNull {
                     it.timeStamp()
                 } ?: throw Exception("No Pre Release Found")
-                val v = r.tagName.substringAfter("v","")
+
+                remoteTimestamp = r.timeStamp()
+                val v = r.tagName.substringAfter("v", "")
                 (r.body ?: "") to v.ifEmpty { throw Exception("Weird Version : ${r.tagName}") }
-            }else{
-                val res =
-                    client.get("https://raw.githubusercontent.com/$repo/main/stable.md").text
+            } else {
+                val res = client.get("https://raw.githubusercontent.com/$repo/main/stable.md").text
                 res to res.substringAfter("# ").substringBefore("\n")
             }
 
-            logger("Git Version : $version")
-            val dontShow = loadData("dont_ask_for_update_$version") ?: false
-            if (compareVersion(version) && !dontShow && !activity.isDestroyed) activity.runOnUiThread {
-                CustomBottomDialog.newInstance().apply {
-                    setTitleText("${if (BuildConfig.DEBUG) "Beta " else ""}Update " + currContext()!!.getString(R.string.available))
-                    addView(
-                        TextView(activity).apply {
-                            val markWon = Markwon.builder(activity).usePlugin(SoftBreakAddsNewLinePlugin.create()).build()
-                            markWon.setMarkdown(this, md)
-                        }
-                    )
+            logger("Git Version : $version | Build Time: ${BuildConfig.BUILD_TIME} | Remote Time: $remoteTimestamp")
 
-                    setCheck(currContext()!!.getString(R.string.dont_show_again, version), false) { isChecked ->
-                        if (isChecked) {
-                            saveData("dont_ask_for_update_$version", true)
-                        }
-                    }
-                    setPositiveButton(currContext()!!.getString(R.string.lets_go)) {
-                        MainScope().launch(Dispatchers.IO) {
-                            try {
-                                client.get("https://api.github.com/repos/$repo/releases/tags/v$version")
-                                    .parsed<GithubResponse>().assets?.find {
-                                    it.browserDownloadURL.endsWith("apk")
-                                }?.browserDownloadURL.apply {
-                                    if (this != null) activity.downloadUpdate(version, this)
-                                    else openLinkInBrowser("https://github.com/repos/$repo/releases/tag/v$version")
-                                }
-                            } catch (e: Exception) {
-                                logError(e)
-                            }
-                        }
-                        dismiss()
-                    }
-                    setNegativeButton(currContext()!!.getString(R.string.cope)) {
-                        dismiss()
-                    }
-                    show(activity.supportFragmentManager, "dialog")
-                }
+            val dontShow = loadData("dont_ask_for_update_$version") ?: false
+
+            /// additional check using build time comparison
+            val isActualUpdate = if (BuildConfig.DEBUG) {
+                compareVersion(version) && (remoteTimestamp > BuildConfig.BUILD_TIME)
+            } else {
+                compareVersion(version)
             }
-            else{
-                if(post) snackString(currContext()?.getString(R.string.no_update_found))
+
+            if (isActualUpdate && !dontShow && !activity.isDestroyed) {
+                activity.runOnUiThread {
+                    CustomBottomDialog.newInstance().apply {
+                        setTitleText(
+                            "${if (BuildConfig.DEBUG) "Beta " else ""}Update " + currContext()!!.getString(
+                                R.string.available
+                            )
+                        )
+                        addView(
+                            TextView(activity).apply {
+                                val markWon = Markwon.builder(activity)
+                                    .usePlugin(SoftBreakAddsNewLinePlugin.create()).build()
+                                markWon.setMarkdown(this, md)
+                            }
+                        )
+
+                        setCheck(
+                            currContext()!!.getString(R.string.dont_show_again, version),
+                            false
+                        ) { isChecked ->
+                            if (isChecked) saveData("dont_ask_for_update_$version", true)
+                        }
+
+                        setPositiveButton(currContext()!!.getString(R.string.lets_go)) {
+                            MainScope().launch(Dispatchers.IO) {
+                                try {
+                                    client.get("https://api.github.com/repos/$repo/releases/tags/v$version")
+                                        .parsed<GithubResponse>().assets?.find {
+                                            it.browserDownloadURL.endsWith("apk")
+                                        }?.browserDownloadURL.apply {
+                                            if (this != null) activity.downloadUpdate(version, this)
+                                            else openLinkInBrowser("https://github.com/repos/$repo/releases/tag/v$version")
+                                        }
+                                } catch (e: Exception) {
+                                    logError(e)
+                                }
+                            }
+                            dismiss()
+                        }
+                        setNegativeButton(currContext()!!.getString(R.string.cope)) { dismiss() }
+                        show(activity.supportFragmentManager, "dialog")
+                    }
+                }
+            } else {
+                if (post) snackString(currContext()?.getString(R.string.no_update_found))
             }
         }
     }
 
     private fun compareVersion(version: String): Boolean {
 
-        if(BuildConfig.DEBUG)
+        if (BuildConfig.DEBUG)
             return BuildConfig.VERSION_NAME != version
         else {
             fun toDouble(list: List<String>): Double {
                 return list.mapIndexed { i: Int, s: String ->
                     when (i) {
-                        0    -> s.toDouble() * 100
-                        1    -> s.toDouble() * 10
-                        2    -> s.toDouble()
-                        else -> s.toDoubleOrNull()?: 0.0
+                        0 -> s.toDouble() * 100
+                        1 -> s.toDouble() * 10
+                        2 -> s.toDouble()
+                        else -> s.toDoubleOrNull() ?: 0.0
                     }
                 }.sum()
             }
@@ -118,7 +139,6 @@ object AppUpdater {
 
     //Blatantly kanged from https://github.com/LagradOst/CloudStream-3/blob/master/app/src/main/java/com/lagradost/cloudstream3/utils/InAppUpdater.kt
     private fun Activity.downloadUpdate(version: String, url: String): Boolean {
-
         toast(getString(R.string.downloading_update, version))
 
         val downloadManager = this.getSystemService<DownloadManager>()!!
@@ -138,40 +158,54 @@ object AppUpdater {
             downloadManager.enqueue(request)
         } catch (e: Exception) {
             logError(e)
-            -1
+            -1L
         }
+
         if (id == -1L) return true
-        registerReceiver(
-            object : BroadcastReceiver() {
-                @SuppressLint("Range")
-                override fun onReceive(context: Context?, intent: Intent?) {
-                    try {
-                        val downloadId = intent?.getLongExtra(
-                            DownloadManager.EXTRA_DOWNLOAD_ID, id
-                        ) ?: id
 
-                        val query = DownloadManager.Query()
-                        query.setFilterById(downloadId)
-                        val c = downloadManager.query(query)
 
-                        if (c.moveToFirst()) {
-                            val columnIndex = c.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                            if (DownloadManager.STATUS_SUCCESSFUL == c
-                                    .getInt(columnIndex)
-                            ) {
-                                c.getColumnIndex(DownloadManager.COLUMN_MEDIAPROVIDER_URI)
-                                val uri = Uri.parse(
-                                    c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI))
-                                )
-                                openApk(this@downloadUpdate, uri)
+        val receiver = object : BroadcastReceiver() {
+            @SuppressLint("Range")
+            override fun onReceive(context: Context?, intent: Intent?) {
+                try {
+                    val downloadId = intent?.getLongExtra(
+                        DownloadManager.EXTRA_DOWNLOAD_ID, id
+                    ) ?: id
+
+                    val query = DownloadManager.Query().setFilterById(downloadId)
+                    val c = downloadManager.query(query)
+
+                    if (c != null && c.moveToFirst()) {
+                        val status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS))
+                        if (DownloadManager.STATUS_SUCCESSFUL == status) {
+                            val uriString =
+                                c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI))
+                            if (uriString != null) {
+                                openApk(this@downloadUpdate, Uri.parse(uriString))
                             }
                         }
+                        c.close()
+                    }
+                } catch (e: Exception) {
+                    logError(e)
+                } finally {
+
+                    try {
+                        context?.unregisterReceiver(this)
                     } catch (e: Exception) {
                         logError(e)
                     }
                 }
-            }, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+            }
+        }
+
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            receiver,
+            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+            androidx.core.content.ContextCompat.RECEIVER_EXPORTED
         )
+
         return true
     }
 
@@ -198,6 +232,7 @@ object AppUpdater {
 
     val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
 
+    @SuppressLint("UnsafeOptInUsageError")
     @Serializable
     data class GithubResponse(
         @SerialName("html_url")
@@ -206,7 +241,7 @@ object AppUpdater {
         val tagName: String,
         val prerelease: Boolean,
         @SerialName("created_at")
-        val createdAt : String,
+        val createdAt: String,
         val body: String? = null,
         val assets: List<Asset>? = null
     ) {

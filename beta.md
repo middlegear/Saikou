@@ -3,7 +3,7 @@
 
 ###  Fixes
 
-* **Updater:** Change url to match releases page.
+* **Updater:** Enhance using timestamp based checks.
 
 
 

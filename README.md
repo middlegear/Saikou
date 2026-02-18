@@ -28,8 +28,6 @@ Saikou is crafted based on simplistic yet state-of-the-art elegance. It is an [A
 
 - Bulk Download
 
-- Novel Reader
-
 ## Rejected Stuff
 
 - Sources of any language except English
