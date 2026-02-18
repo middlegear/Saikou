@@ -24,7 +24,8 @@ android {
         versionCode ((System.currentTimeMillis() / 60000).toInteger())
         versionName "1.2.5"
         signingConfig signingConfigs.debug
-        buildConfigField "long", "BUILD_TIME", "${System.currentTimeMillis()}L"
+        buildConfigField "long", "BUILD_TIME", "System.currentTimeMillis()"
+
     }
 
     buildTypes {

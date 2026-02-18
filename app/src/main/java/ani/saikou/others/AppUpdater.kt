@@ -96,7 +96,7 @@ object AppUpdater {
                                             it.browserDownloadURL.endsWith("apk")
                                         }?.browserDownloadURL.apply {
                                             if (this != null) activity.downloadUpdate(version, this)
-                                            else openLinkInBrowser("https://github.com/repos/$repo/releases/tag/v$version")
+                                            else openLinkInBrowser("https://github.com/$repo/releases/tag/v$version")
                                         }
                                 } catch (e: Exception) {
                                     logError(e)
@@ -161,7 +161,7 @@ object AppUpdater {
             -1L
         }
 
-        if (id == -1L) return true
+        if (id == -1L) return false
 
 
         val receiver = object : BroadcastReceiver() {
