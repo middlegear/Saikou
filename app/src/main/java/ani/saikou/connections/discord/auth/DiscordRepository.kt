@@ -107,7 +107,7 @@ data class DiscordUiState(
     val isLoggedIn: Boolean = false,
     val username: String? = null,
     val avatarUrl: String? = null,
-    val isRpcEnabled: Boolean = true,
+    val isRpcEnabled: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null
 )
