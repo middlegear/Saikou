@@ -32,7 +32,7 @@ Saikou is crafted based on simplistic yet state-of-the-art elegance. It is an [A
 
 - Sources of any language except English
 
-- News Section in the App
+- News Section
 
 - Comment Section
 
