@@ -42,7 +42,7 @@ class DiscordViewModel(
 
 
             val user = repository.fetchUserData(token)
-            if (user != null) {
+            if (user?.id != null )  {
                 updateState {
                     it.copy(
                         isLoggedIn = true,
