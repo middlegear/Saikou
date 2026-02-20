@@ -3,7 +3,5 @@
 
 ### Fixes
 
-**Manga**
-
-* **Comix:** Images not loading.
+* **Comix:** Switch to local scraping.
 
