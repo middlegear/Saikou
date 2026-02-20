@@ -37,7 +37,7 @@ abstract class MangaApiParser : MangaParser() {
             val response =
                 client.get(
                     "$hostUrl/api/anilist/manga/mappings/${anilistId}?provider=$providerName",
-                    headers = mapOf("x-api-key" to apiKey)
+                    headers = mapOf("x-api-key" to apiKey), timeout = 10L
                 ).parsed<MangaProvider>()
 
             val title = response.provider.run { name ?: romaji ?: "Unknown Title" }

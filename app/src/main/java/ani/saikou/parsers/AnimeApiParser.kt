@@ -33,7 +33,8 @@ abstract class AnimeApiParser : AnimeParser() {
             setUserText("Searching: ${mediaObj.name ?: mediaObj.userPreferredName ?: mediaObj.nameRomaji}")
 
             val url = "$hostUrl/api/anilist/episodes/$anilistId?provider=$providerName"
-            val res = client.get(url, headers = mapOf("x-api-key" to apiKey)).parsed<ApiResponse>()
+            val res = client.get(url, headers = mapOf("x-api-key" to apiKey), timeout = 10L)
+                .parsed<ApiResponse>()
 
             val mappedEpisodes = res.providerEpisodes.map { ep ->
                 Episode(
