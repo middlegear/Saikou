@@ -1,7 +1,5 @@
-
-## Version 1.2.5-beta**
+## Version 1.2.5-beta
 
 ### Fixes
 
-* **Comix:** Switch to local scraping.
-
+- **Animepahe:** Sources were not loading.
