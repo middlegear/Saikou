@@ -15,8 +15,7 @@ abstract class MangaApiParser : MangaParser() {
     override val hostUrl: String = BuildConfig.SERVER_URL
     abstract val providerName: String
 
-
-    open val  apiKey:String=BuildConfig.MY_CUSTOM_API_KEY
+    open val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
 
 
     private val providerCache = mutableMapOf<String, ShowResponse>()

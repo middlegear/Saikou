@@ -1,9 +1,9 @@
 
 ## Version 1.2.5-beta**
 
-### Fixes**
+### Fixes
 
 **Manga**
 
-* **Comix:** Minor patches.
+* **Comix:** Images not loading.
 

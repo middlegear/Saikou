@@ -73,9 +73,18 @@ class Comix : MangaApiParser() {
             )
                 .parsed<ChapterImageResponse>()
 
+            val referer = response.headers.referer
+            val headers = mapOf(
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko/20100101 Firefox/147.0",
+                "Accept" to "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5",
+                "Accept-Language" to "en-US,en;q=0.5",
+                "Accept-Encoding" to "gzip, deflate, br, zstd",
+                "Referer" to referer,
+                "Connection" to "keep-alive",
+            )
             val images = response.data.map {
                 MangaImage(
-                    url = FileUrl(it.url),
+                    url = FileUrl(it.url, headers = headers),
                     useTransformation = false
                 )
             }
