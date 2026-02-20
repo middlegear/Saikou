@@ -32,6 +32,7 @@ android {
             debuggable true
             versionNameSuffix "." + gitCommitHash
             buildConfigField "String", "MY_CUSTOM_API_KEY", "\"${project.findProperty('API_KEY')}\""
+            buildConfigField "String", "SERVER_URL", "\"${project.findProperty('HOST_URL') ?: ""}\""
             buildConfigField "long", "BUILD_TIME", "${System.currentTimeMillis()}L"
         }
         release {

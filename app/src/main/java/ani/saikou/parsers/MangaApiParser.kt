@@ -12,7 +12,7 @@ import kotlinx.serialization.Serializable
 @OptIn(InternalSerializationApi::class)
 abstract class MangaApiParser : MangaParser() {
 
-    override val hostUrl: String = "https://kenjitsu.vercel.app"
+    override val hostUrl: String = BuildConfig.SERVER_URL
     abstract val providerName: String
 
 

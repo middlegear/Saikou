@@ -1,15 +1,9 @@
-## Version 1.2.5-beta
 
-### Fixes
+## Version 1.2.5-beta**
 
-**App Updater**
+### Fixes**
 
-- Resolved bugs preventing the updater from detecting new versions accurately.
+**Manga**
 
-### Enhancements
+* **Comix:** Minor patches.
 
-**Discord Rich Presence**
-
-- Disabled by default.
-- Fixed serialization errors that occurred when the application attempted to update status while the user was logged out.
-- Added support for clickable image URLs.

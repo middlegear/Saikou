@@ -50,6 +50,7 @@ jobs:
             -Pandroid.injected.signing.key.alias=key0 \
             -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }} \
             -PAPI_KEY="${{ secrets.KEN_API_KEY }}" \
+            -PHOST_URL="${{ secrets.APP_SERVER_URL }}"
 
         shell: bash
 
