@@ -2,4 +2,4 @@
 
 ### Fixes
 
-- **Animepahe:** Sources were not loading.
+- **AllManga:** Stability improvements.
