@@ -234,8 +234,17 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
 
 
     private lateinit var discordRPC: WebSocketRPC
+
+
+    fun isVideoActuallyPlaying(): Boolean {
+        return isInitialized &&
+                exoPlayer.playbackState == Player.STATE_READY &&
+                exoPlayer.playWhenReady &&
+                exoPlayer.playbackParameters.speed > 0f
+    }
+
     private fun buildRPCConfig(): WebSocketRPC.RPCConfig {
-        if (!::episode.isInitialized ) {
+        if (!::episode.isInitialized) {
 
             return WebSocketRPC.RPCConfig(
                 title = "Saikou",
@@ -252,7 +261,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
 
 
         return WebSocketRPC.RPCConfig(
-            title = media.userPreferredName ?: media.nameRomaji?:media.name ?: "Unknown Anime",
+            title = media.userPreferredName ?: media.nameRomaji ?: media.name ?: "Unknown Anime",
             episode = epNumber,
             episodeTitle = epTitle,
             totalEpisodes = media.anime?.totalEpisodes?.toString(),
@@ -261,8 +270,6 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
             episodeThumbnail = episode.thumb?.url
         )
     }
-
-
 
 
     // Add in onCreate: exoAudioTrack = playerView.findViewById(R.id.exo_audio)
@@ -508,7 +515,6 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
         //BackButton
         playerView.findViewById<ImageButton>(R.id.exo_back).setOnClickListener {
             onBackPressedDispatcher.onBackPressed()
-            discordRPC.onPlaybackChanged(false,exoPlayer.currentPosition)
         }
 
         //TimeStamps
@@ -1087,7 +1093,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
 
                 discordRPC.updateEpisode(
                     config = buildRPCConfig(),
-                    isCurrentlyPlaying = false
+                    isCurrentlyPlaying = isVideoActuallyPlaying()
                 )
                 initPlayer()
                 preloading = false
@@ -1451,8 +1457,6 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
     }
 
 
-
-
     private fun buildExoplayer(finalMediaSource: MediaSource) {
 
         val loadControl = DefaultLoadControl.Builder()
@@ -1507,7 +1511,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
         isPlayerPlaying = exoPlayer.playWhenReady
         playbackPosition = exoPlayer.currentPosition
         exoPlayer.release()
-        discordRPC.onPlaybackChanged(isPlayerPlaying,playbackPosition)
+        discordRPC.close()
         VideoCache.release()
         mediaSession?.release()
 
@@ -1548,6 +1552,10 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
         orientationListener?.disable()
         if (isInitialized) {
             playerView.player?.pause()
+            discordRPC.updateEpisode(
+                buildRPCConfig(),
+                isCurrentlyPlaying = isVideoActuallyPlaying()
+            )
             saveData(
                 "${media.id}_${media.anime!!.selectedEpisode}",
                 exoPlayer.currentPosition,
@@ -1562,9 +1570,16 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
         super.onResume()
         orientationListener?.enable()
         hideSystemBars()
+
         if (isInitialized) {
             playerView.onResume()
             playerView.useController = true
+
+
+            if (isVideoActuallyPlaying()) {
+                discordRPC.connect()
+            }
+//
         }
 
 
@@ -1573,6 +1588,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
     override fun onStop() {
         playerView.player?.pause()
         super.onStop()
+        discordRPC.close()
 
     }
 
@@ -1596,7 +1612,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
             playerView.keepScreenOn = isPlaying
             (exoPlay.drawable as Animatable?)?.start()
 
-            discordRPC.onPlaybackChanged(isPlaying, currentPos)
+            discordRPC.onPlaybackChanged(isVideoActuallyPlaying(), currentPos)
 
             if (!this.isDestroyed) Glide.with(this)
                 .load(if (isPlaying) R.drawable.anim_play_to_pause else R.drawable.anim_pause_to_play)
@@ -1629,7 +1645,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
             exoPlayer.seekTo(0)
 
         if (!isTimeStampsLoaded && settings.timeStampsEnabled) {
-            val dur = exoPlayer.duration
+
             lifecycleScope.launch(Dispatchers.IO) {
                 model.loadTimeStamps(
                     media.idMAL,
@@ -1786,7 +1802,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
 
     override fun onDestroy() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        discordRPC.close()
+
         CoroutineScope(Dispatchers.IO).launch {
             tryWithSuspend(true) {
                 extractor?.onVideoStopped(video)
@@ -1794,6 +1810,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
         }
 
         if (isInitialized) {
+            discordRPC.close()
             updateAniProgress()
             releasePlayer()
         }

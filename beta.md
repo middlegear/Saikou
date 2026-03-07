@@ -2,4 +2,4 @@
 
 ### Fixes
 
-- **AllManga:** Stability improvements.
+- **RPC:** Stability improvements.

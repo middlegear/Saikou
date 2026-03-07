@@ -15,6 +15,7 @@ data class Activity(
     val state: String? = null,
     val timestamps: Timestamps? = null,
     val assets: Assets? = null,
-//    val buttons: List<Button>?=emptyList()
+    val buttons: List<String>? = null,
+    val metadata: Metadata? = null
 
 )
