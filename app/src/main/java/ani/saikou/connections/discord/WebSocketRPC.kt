@@ -15,6 +15,14 @@ import java.util.concurrent.TimeUnit
 class WebSocketRPC(private val context: Context) {
 
 
+    sealed class ConnectionState {
+        object Disconnected : ConnectionState()
+        object Connecting : ConnectionState()
+        object Connected : ConnectionState()
+        object Ready : ConnectionState()
+        object Closed : ConnectionState()
+    }
+
     private val rpcRepository: RpcRepository by lazy { RpcRepository(context) }
     private val discordRepository: DiscordRepository by lazy { DiscordRepository(context) }
 
@@ -27,38 +35,17 @@ class WebSocketRPC(private val context: Context) {
     private var webSocket: WebSocket? = null
     private var heartbeatJob: Job? = null
     private var lastSequence: Int? = null
+    private var presenceUpdateJob: Job? = null
 
     private var assetManager: ImageProxy? = null
     private var currentConfig: RPCConfig? = null
-    private var sentInitialPresence = false
     private var lastStartUnix: Long? = null
     private var lastEndUnix: Long? = null
     private var totalDurationMs: Long? = null
-    private var isClosed = false
 
-    private var isConnecting = false
-
-    private var isReady = false
+    private var connectionState: ConnectionState = ConnectionState.Disconnected
+    private var sentInitialPresence = false
     private var pendingPresence: Presence? = null
-
-    private fun handleConnectionLoss() {
-        webSocket = null
-        heartbeatJob?.cancel()
-        sentInitialPresence = false
-    }
-
-    private fun resetSession() {
-        heartbeatJob?.cancel()
-        heartbeatJob = null
-        lastSequence = null
-        sentInitialPresence = false
-    }
-    fun disconnect() {
-        webSocket?.close(1000, "RPC disabled by user")
-        webSocket = null
-        resetSession()
-        isClosed = true
-    }
 
     data class RPCConfig(
         val title: String,
@@ -69,6 +56,192 @@ class WebSocketRPC(private val context: Context) {
         val shareLink: String?,
         val episodeThumbnail: String? = null,
     )
+
+
+    private fun isConnected(): Boolean =
+        connectionState is ConnectionState.Connected || connectionState is ConnectionState.Ready
+
+    private fun isReadyForPresence(): Boolean =
+        connectionState is ConnectionState.Ready
+
+    private fun canAttemptConnection(): Boolean =
+        connectionState is ConnectionState.Disconnected
+
+
+    private fun setConnectionState(newState: ConnectionState) {
+        val oldState = connectionState
+        connectionState = newState
+        Log.d("RPC", "State transition: ${oldState::class.simpleName} → ${newState::class.simpleName}")
+    }
+
+    private fun handleConnectionLoss() {
+        Log.d("RPC", "Connection lost, resetting to Disconnected")
+        webSocket = null
+        heartbeatJob?.cancel()
+        presenceUpdateJob?.cancel()
+        setConnectionState(ConnectionState.Disconnected)
+    }
+
+    private fun resetSession() {
+        Log.d("RPC", "Resetting session")
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+        presenceUpdateJob?.cancel()
+        presenceUpdateJob = null
+        lastSequence = null
+        sentInitialPresence = false
+        pendingPresence = null
+    }
+
+
+    fun connect() {
+        if (!rpcRepository.loadRpcPreference()) {
+            Log.d("RPC", "Connection aborted: RPC is disabled in settings.")
+            setConnectionState(ConnectionState.Closed)
+            return
+        }
+
+        if (!canAttemptConnection()) {
+            Log.d("RPC", "Cannot connect: current state is ${connectionState::class.simpleName}")
+            return
+        }
+        setConnectionState(ConnectionState.Connecting)
+        resetSession()
+
+        Log.d("RPC", "Connecting to Discord Gateway...")
+
+        val request = Request.Builder()
+            .url("wss://gateway.discord.gg/?v=10&encoding=json")
+            .build()
+
+        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                Log.d("RPC", "WebSocket connected (waiting for Hello)")
+                setConnectionState(ConnectionState.Connected)
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                handleGatewayMessage(text)
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                Log.e("RPC", "WebSocket Error: ${t.message}")
+                handleConnectionLoss()
+            }
+
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d("RPC", "Gateway closing: $code")
+                handleConnectionLoss()
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d("RPC", "WebSocket closed")
+                if (connectionState !is ConnectionState.Closed) {
+                    handleConnectionLoss()
+                }
+            }
+        })
+    }
+
+    fun close() {
+        if (connectionState is ConnectionState.Closed) {
+            Log.d("RPC", "Already closed, ignoring close()")
+            return
+        }
+
+        Log.d("RPC", "Closing connection")
+        presenceUpdateJob?.cancel()
+
+        if (webSocket != null && isReadyForPresence()) {
+            scope.launch {
+                try {
+
+                    val clearPresence = Presence(activities = emptyList(), status = "online", afk = true)
+                    webSocket?.send(json.encodeToString(
+                        GatewayPayload(op = 3, d = clearPresence)
+                    ))
+                    Log.d("RPC", "Cleared presence on Discord")
+                } catch (e: Exception) {
+                    Log.e("RPC", "Error clearing presence: ${e.message}")
+                } finally {
+                    performClose()
+                }
+            }
+        } else {
+            performClose()
+        }
+    }
+
+    private fun performClose() {
+        webSocket?.close(1000, "Normal closure")
+        webSocket = null
+        resetSession()
+        assetManager = null
+        setConnectionState(ConnectionState.Closed)
+    }
+
+    fun onDurationReady(
+        config: RPCConfig,
+        durationMs: Long,
+        currentPosMs: Long
+    ) {
+        if (durationMs <= 0 || !rpcRepository.loadRpcPreference()) {
+            Log.d("RPC", "Skipping onDurationReady: invalid duration or RPC disabled")
+            return
+        }
+
+        if (sentInitialPresence) {
+            Log.d("RPC", "Initial presence already sent, skipping")
+            return
+        }
+
+        Log.d("RPC", "onDurationReady: ${durationMs / 1000}s")
+
+        this.currentConfig = config
+        this.totalDurationMs = durationMs
+
+        updateTimestamps(currentPosMs)
+        updatePresence(isPlaying = true)
+
+        sentInitialPresence = true
+    }
+
+    fun onPlaybackChanged(isPlaying: Boolean, currentPosMs: Long) {
+        if (!rpcRepository.loadRpcPreference() || !sentInitialPresence || !isConnected()) {
+            Log.d("RPC", "Ignoring onPlaybackChanged: presence not initialized or disconnected")
+            return
+        }
+
+        if (isPlaying) {
+            updateTimestamps(currentPosMs)
+        }
+
+        Log.d("RPC", "onPlaybackChanged: isPlaying=$isPlaying")
+        updatePresence(isPlaying)
+    }
+
+    fun updateEpisode(config: RPCConfig, isCurrentlyPlaying: Boolean = true) {
+        if (!rpcRepository.loadRpcPreference()) {
+            Log.d("RPC", "RPC disabled, skipping update")
+            return
+        }
+
+        this.currentConfig = config
+
+        when {
+            !isConnected() && canAttemptConnection() -> {
+                Log.w("RPC", "Not connected, initiating connection for episode update")
+                connect()
+            }
+            isConnected() && sentInitialPresence -> {
+                updatePresence(isPlaying = isCurrentlyPlaying)
+            }
+            else -> {
+                Log.d("RPC", "Episode updated — waiting for first duration to send initial presence")
+            }
+        }
+    }
+
 
     private fun handleGatewayMessage(text: String) {
         try {
@@ -87,16 +260,19 @@ class WebSocketRPC(private val context: Context) {
                 9 -> { // Invalid Session
                     Log.w("RPC", "Invalid Session Opcode received. Resetting.")
                     handleConnectionLoss()
-                    connect()
+
+                    scope.launch {
+                        delay(1000)
+                        connect()
+                    }
                 }
 
                 0 -> {
                     if (payload["t"]?.jsonPrimitive?.content == "READY") {
                         Log.d("RPC", "Gateway Ready")
-                        isReady = true
+                        setConnectionState(ConnectionState.Ready)
 
                         pendingPresence?.let {
-                            Log.d("RPC", "Flushing cached presence...")
                             sendToGateway(3, it)
                             pendingPresence = null
                         }
@@ -108,60 +284,9 @@ class WebSocketRPC(private val context: Context) {
         }
     }
 
-
-    fun connect() {
-
-        if (!rpcRepository.loadRpcPreference()) {
-            Log.d("RPC", "Connection aborted: RPC is disabled in settings.")
-            disconnect()
-            return
-        }
-
-        isConnecting = true
-        isClosed = false
-        resetSession()
-
-
-        Log.d("RPC", "Connecting to Discord Gateway...")
-
-        val request = Request.Builder()
-            .url("wss://gateway.discord.gg/?v=10&encoding=json")
-            .build()
-
-        webSocket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                isConnecting = false
-                Log.d("RPC", "WebSocket connected")
-            }
-
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                handleGatewayMessage(text)
-            }
-
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                isConnecting = false
-                Log.e("RPC", "WebSocket Error (Broken Pipe?): ${t.message}")
-                handleConnectionLoss()
-            }
-
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                isConnecting = false
-                Log.d("RPC", "Gateway is closing connection: $code")
-                handleConnectionLoss()
-            }
-
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                isConnecting = false
-                Log.d("RPC", "WebSocket closed")
-            }
-
-        })
-    }
-
     private fun sendIdentify() {
         scope.launch {
             try {
-
                 val userToken = discordRepository.getSavedToken()
 
                 if (userToken != null) {
@@ -196,64 +321,6 @@ class WebSocketRPC(private val context: Context) {
         lastEndUnix = now + (duration - currentPosMs)
     }
 
-
-    fun onDurationReady(
-        config: RPCConfig,
-        durationMs: Long,
-        currentPosMs: Long
-    ) {
-        if (sentInitialPresence || durationMs <= 0 || !rpcRepository.loadRpcPreference()) {
-            Log.d("RPC", "Skipping onDurationReady")
-            return
-        }
-
-        Log.d("RPC", "onDurationReady: ${durationMs / 1000}s")
-
-        this.currentConfig = config
-        this.totalDurationMs = durationMs
-
-        updateTimestamps(currentPosMs)
-        updatePresence(isPlaying = true)
-
-        sentInitialPresence = true
-    }
-
-
-    fun onPlaybackChanged(isPlaying: Boolean, currentPosMs: Long) {
-        if (!rpcRepository.loadRpcPreference() || !sentInitialPresence) {
-            Log.d("RPC", "Ignoring onPlaybackChanged: presence not initialized")
-            return
-        }
-
-        if (isPlaying) {
-            updateTimestamps(currentPosMs)
-        }
-
-        Log.d("RPC", "onPlaybackChanged: isPlaying=$isPlaying")
-        updatePresence(isPlaying)
-    }
-
-    fun updateEpisode(config: RPCConfig, isCurrentlyPlaying: Boolean = true) {
-        if (!rpcRepository.loadRpcPreference()) {
-            Log.d("RPC", "RPC disabled, skipping update")
-            return
-        }
-
-        if (webSocket == null || isClosed) {
-            Log.w("RPC", "WebSocket not connected → reconnecting")
-            connect()
-            return
-        }
-
-        this.currentConfig = config
-
-        if (sentInitialPresence) {
-            updatePresence(isPlaying = isCurrentlyPlaying)
-        } else {
-            Log.d("RPC", "Episode updated — waiting for first duration to send initial presence")
-        }
-    }
-
     private fun updatePresence(isPlaying: Boolean) {
         if (!rpcRepository.loadRpcPreference()) {
             Log.d("RPC", "RPC disabled in settings, closing")
@@ -266,60 +333,45 @@ class WebSocketRPC(private val context: Context) {
             return
         }
 
-        if (webSocket == null) {
-            Log.d("RPC", "Socket null during update. Reconnecting...")
+
+        if (connectionState is ConnectionState.Closed) {
+            Log.d("RPC", "RPC was closed but is re-enabled, reconnecting...")
+            setConnectionState(ConnectionState.Disconnected)
             connect()
             return
         }
 
 
+        if (!isConnected() && !canAttemptConnection()) {
+            Log.w("RPC", "Cannot update presence: state is ${connectionState::class.simpleName}")
+            return
+        }
 
-        scope.launch {
+        if (!isConnected()) {
+            Log.d("RPC", "Not connected, attempting to connect...")
+            connect()
+            return
+        }
+
+
+        presenceUpdateJob?.cancel()
+        presenceUpdateJob = scope.launch {
+            delay(200)
             try {
-                val largeImgUrl = config.episodeThumbnail ?: config.coverUrl
+                val presence = buildPresenceData(config, isPlaying)
 
-                val discordLarge = largeImgUrl?.let {
-                    assetManager?.fetchDiscordUri(it)
+                when {
+                    isReadyForPresence() && webSocket != null -> {
+                        sendToGateway(3, presence)
+                    }
+                    isConnected() -> {
+                        Log.d("RPC", "Connected but not ready")
+                        pendingPresence = presence
+                    }
+                    else -> {
+                        Log.w("RPC", "Invalid state for presence update: ${connectionState::class.simpleName}")
+                    }
                 }
-                val discordSmall = assetManager?.fetchDiscordUri(
-                    "https://cdn.discordapp.com/icons/1091762044946092105/a_b485448e33d24a7bb35e3d63a4a4539c.gif?size=1024"
-                )
-                val activity = Activity(
-                    applicationId = applicationId,
-                    name = if (isPlaying) config.title else null,
-                    type = 3,
-                    details = if (isPlaying) buildEpisodeString(config) else null, // removed config.title
-//                    state = if (isPlaying) buildEpisodeString(config) else null,
-                    timestamps = if (isPlaying) Timestamps(
-                        start = lastStartUnix,
-                        end = lastEndUnix
-                    ) else null,
-                    assets = if (isPlaying) Assets(
-                        largeImage = discordLarge,
-                        largeText = config.title,
-                        largeUrl = config.shareLink?.takeIf { !it.isBlank() },
-                        smallImage = discordSmall,
-                        smallText = "Saikou",
-//                        smallUrl = "https://github.com/saikou-app/saikou"
-                    ) else null,
-                    buttons = listOf("View on AniList", "Get Saikou"),
-                    metadata = Metadata(
-                        buttonUrls = listOf(
-                            config.shareLink ?: "https://anilist.co/",
-                            "https://github.com/middlegear/Saikou"
-                        )
-                    )
-                )
-                val presence = Presence(listOf(activity), status = "online", afk = !isPlaying)
-
-                if (isReady && webSocket != null) {
-                    sendToGateway(3, presence)
-                } else {
-                    Log.d("RPC", "Not ready yet, caching presence update")
-                    pendingPresence = presence
-                    if (webSocket == null && !isConnecting) connect()
-                }
-
             } catch (e: Exception) {
                 Log.e("RPC", "Error updating presence: ${e.message}")
                 handleConnectionLoss()
@@ -327,10 +379,46 @@ class WebSocketRPC(private val context: Context) {
         }
     }
 
+    private suspend fun buildPresenceData(config: RPCConfig, isPlaying: Boolean): Presence {
+        val largeImgUrl = config.episodeThumbnail ?: config.coverUrl
+
+        val discordLarge = largeImgUrl?.let {
+            assetManager?.fetchDiscordUri(it)
+        }
+        val discordSmall = assetManager?.fetchDiscordUri(
+            "https://cdn.discordapp.com/icons/1091762044946092105/a_b485448e33d24a7bb35e3d63a4a4539c.gif?size=1024"
+        )
+
+        val activity = Activity(
+            applicationId = applicationId,
+            name = if (isPlaying) config.title else null,
+            type = 3,
+            details = if (isPlaying) buildEpisodeString(config) else null,
+            timestamps = if (isPlaying) Timestamps(
+                start = lastStartUnix,
+                end = lastEndUnix
+            ) else null,
+            assets = if (isPlaying) Assets(
+                largeImage = discordLarge,
+                largeText = config.title,
+                largeUrl = config.shareLink?.takeIf { !it.isBlank() },
+                smallImage = discordSmall,
+                smallText = "Saikou",
+            ) else null,
+            buttons = listOf("View on AniList", "Get Saikou"),
+            metadata = Metadata(
+                buttonUrls = listOf(
+                    config.shareLink ?: "https://anilist.co/",
+                    "https://github.com/middlegear/Saikou"
+                )
+            )
+        )
+
+        return Presence(listOf(activity), status = "online", afk = !isPlaying)
+    }
+
     private fun buildEpisodeString(c: RPCConfig): String {
-
         val titlePart = if (!c.episodeTitle.isNullOrBlank()) " ${c.episodeTitle}" else ""
-
         return " $titlePart"
     }
 
@@ -361,26 +449,4 @@ class WebSocketRPC(private val context: Context) {
             Log.e("RPC", "Failed to send payload (op=$op): ${e.message}")
         }
     }
-
-
-    fun close() {
-
-        if (isClosed || webSocket == null) return
-        isClosed = true
-
-        Log.d("RPC", "Closing RPC connection")
-
-        heartbeatJob?.cancel()
-        heartbeatJob = null
-
-        webSocket?.close(1000, "Normal closure")
-        webSocket = null
-
-        sentInitialPresence = false
-        assetManager = null
-        isReady = false
-        pendingPresence = null
-        isConnecting = false
-    }
-
 }

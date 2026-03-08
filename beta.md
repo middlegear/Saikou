@@ -2,5 +2,5 @@
 
 ### Fixes
 
-- **RPC:** Stability improvements.
-- **AnimeKai:** Lets see what happens.
+- **RPC:** Stability Improvements,maybe?.
+- **AnimeKai:** Lets see what happens...

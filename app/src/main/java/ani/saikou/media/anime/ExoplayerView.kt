@@ -1575,9 +1575,9 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
             playerView.onResume()
             playerView.useController = true
 
-
             if (isVideoActuallyPlaying()) {
                 discordRPC.connect()
+                discordRPC.onDurationReady(buildRPCConfig(),exoPlayer.duration,exoPlayer.currentPosition)
             }
 //
         }
@@ -1751,9 +1751,6 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
                 episodeLength = exoPlayer.duration.toFloat()
             }
 
-//            if (exoPlayer.isPlaying && !isBuffering) {
-//
-//            }
         }
 
         isBuffering = playbackState == Player.STATE_BUFFERING

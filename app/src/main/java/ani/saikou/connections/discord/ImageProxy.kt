@@ -40,7 +40,7 @@ class ImageProxy(
         }
 
         if (!imageUrl.startsWith("http") && !imageUrl.startsWith("https")) {
-            Log.w(TAG, "Invalid image URL, skipping worker: $imageUrl")
+            Log.w(TAG, "Invalid image URL, skipping: $imageUrl")
             return null
         }
 
@@ -52,7 +52,7 @@ class ImageProxy(
         )
         val jsonBody = json.encodeToString(payload)
 
-        Log.d(TAG, "Sending payload: $jsonBody")
+
 
         val result = runCatching {
             val response = client.newCall(
@@ -63,7 +63,6 @@ class ImageProxy(
                     .build()
             ).await()
 
-            Log.d(TAG, "Worker response code: ${response.code}")
 
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string() ?: "No error body"
@@ -83,7 +82,7 @@ class ImageProxy(
         }
 
         val finalUri = result?.uri?.takeIf { it.startsWith("mp:") } ?: "mp:$imageUrl"
-        Log.d(TAG, "Final URI for $imageUrl: $finalUri")
+
         return finalUri
     }
 
