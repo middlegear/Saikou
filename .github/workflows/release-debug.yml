@@ -50,7 +50,8 @@ jobs:
             -Pandroid.injected.signing.key.alias=key0 \
             -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }} \
             -PAPI_KEY="${{ secrets.KEN_API_KEY }}" \
-            -PHOST_URL="${{ secrets.APP_SERVER_URL }}"
+            -PHOST_URL="${{ secrets.APP_SERVER_URL }}"\
+            -PSERVER_HELLO="${{ secrets.FERRARI_WDC }}"
 
         shell: bash
 

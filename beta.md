@@ -3,3 +3,4 @@
 ### Fixes
 
 - **RPC:** Stability improvements.
+- **AnimeKai:** Lets see what happens.

@@ -21,7 +21,7 @@ object AnimeSources : WatchSources() {
         "AllAnime" to ::AllAnime,
         "AnimePahe" to ::AnimePahe,
 //        "Anizone" to ::Anizone,
-//        "Animekai" to ::Animekai,
+        "Animekai" to ::Animekai,
     )
 }
 
