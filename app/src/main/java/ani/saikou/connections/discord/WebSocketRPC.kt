@@ -276,6 +276,19 @@ class WebSocketRPC(private val context: Context) {
                             sendToGateway(3, it)
                             pendingPresence = null
                         }
+
+
+                        if (currentConfig != null && sentInitialPresence) {
+                            scope.launch {
+                                try {
+                                    val presence = buildPresenceData(currentConfig!!, isPlaying = true)
+                                    sendToGateway(3, presence)
+                                    Log.d("RPC", "Sent presence on gateway ready (reconnect)")
+                                } catch (e: Exception) {
+                                    Log.e("RPC", "Error sending presence on ready: ${e.message}")
+                                }
+                            }
+                        }
                     }
                 }
             }

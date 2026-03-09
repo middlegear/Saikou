@@ -2,5 +2,4 @@
 
 ### Fixes
 
-- **RPC:** Stability Improvements,maybe?.
-- **AnimeKai:** Lets see what happens...
+- **RPC:** Enhancement and other fixes for anime.

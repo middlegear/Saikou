@@ -1046,6 +1046,12 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
                     false,
                     prev
                 )
+                discordRPC.connect()
+                discordRPC.onDurationReady(
+                    buildRPCConfig(),
+                    exoPlayer.duration,
+                    exoPlayer.currentPosition
+                )
             }
         }
 
@@ -1552,10 +1558,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
         orientationListener?.disable()
         if (isInitialized) {
             playerView.player?.pause()
-            discordRPC.updateEpisode(
-                buildRPCConfig(),
-                isCurrentlyPlaying = isVideoActuallyPlaying()
-            )
+            discordRPC.close()
             saveData(
                 "${media.id}_${media.anime!!.selectedEpisode}",
                 exoPlayer.currentPosition,
@@ -1577,7 +1580,11 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
 
             if (isVideoActuallyPlaying()) {
                 discordRPC.connect()
-                discordRPC.onDurationReady(buildRPCConfig(),exoPlayer.duration,exoPlayer.currentPosition)
+                discordRPC.onDurationReady(
+                    buildRPCConfig(),
+                    exoPlayer.duration,
+                    exoPlayer.currentPosition
+                )
             }
 //
         }
@@ -1587,8 +1594,9 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
 
     override fun onStop() {
         playerView.player?.pause()
-        super.onStop()
         discordRPC.close()
+        super.onStop()
+
 
     }
 
@@ -1741,6 +1749,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
             else
                 -> toast("Player Error ${error.errorCode} (${error.errorCodeName}) : ${error.message}")
         }
+        discordRPC.close()
     }
 
     private var isBuffering = true
