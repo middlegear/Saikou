@@ -24,22 +24,30 @@ class ImageProxy(
         val imageUrl: String,
         val userToken: String? = null
     )
+
     @SuppressLint("UnsafeOptInUsageError")
     @Serializable
     data class WorkerResponse(
         val uri: String?,
-        val cached: Boolean? = null,
         val error: String? = null
     )
 
-    suspend fun fetchDiscordUri(imageUrl: String?): String? {
+    private val cachedImages = mutableMapOf<String, String>()
+
+
+    suspend fun fetchDiscordUri(imageUrl: String?, cacheKey: String): String? {
         if (imageUrl.isNullOrBlank()) return null
+
+        cachedImages[cacheKey]?.let { convertedImage ->
+            Log.d(TAG, "Local Image cache hit: $cacheKey")
+            return convertedImage
+        }
 
         if (imageUrl.startsWith("mp:")) {
             return imageUrl
         }
 
-        if (!imageUrl.startsWith("http") && !imageUrl.startsWith("https")) {
+        if (!imageUrl.startsWith("http")) {
             Log.w(TAG, "Invalid image URL, skipping: $imageUrl")
             return null
         }
@@ -52,38 +60,36 @@ class ImageProxy(
         )
         val jsonBody = json.encodeToString(payload)
 
-
-
         val result = runCatching {
-            val response = client.newCall(
-                Request.Builder()
-                    .url("$workerUrl/convert-image")
-                    .header("Content-Type", "application/json")
-                    .post(jsonBody.toRequestBody("application/json".toMediaType()))
-                    .build()
-            ).await()
+            val request = Request.Builder()
+                .url("$workerUrl/convert-image")
+                .header("Content-Type", "application/json")
+                .post(jsonBody.toRequestBody("application/json".toMediaType()))
+                .build()
 
 
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string() ?: "No error body"
-                Log.w(TAG, "Worker returned ${response.code} – $errorBody")
-                return@runCatching null
+            client.newCall(request).await().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "Worker returned ${response.code}")
+                    return@runCatching null
+                }
+
+                val bodyStr = response.body?.string() ?: return@runCatching null
+                json.decodeFromString<WorkerResponse>(bodyStr)
             }
-
-            val bodyStr = response.body?.string() ?: return@runCatching null
-            Log.d(TAG, "Worker response body: $bodyStr")
-
-            val workerResponse = json.decodeFromString<WorkerResponse>(bodyStr)
-            Log.d(TAG, "Worker response: $workerResponse")
-            workerResponse
-        }.getOrElse {
+        }.onFailure {
             Log.e(TAG, "Failed to contact worker: ${it.message}", it)
+        }.getOrNull()
+
+        val finalUri = result?.uri
+        return if (!finalUri.isNullOrBlank()) {
+            Log.d(TAG, "Caching successful response for: $cacheKey")
+            cachedImages[cacheKey] = finalUri
+            finalUri
+        } else {
+            Log.w(TAG, "Worker failed or returned empty URI, NOT caching.")
             null
         }
-
-        val finalUri = result?.uri?.takeIf { it.startsWith("mp:") } ?: "mp:$imageUrl"
-
-        return finalUri
     }
 
     private suspend inline fun Call.await(): Response {
@@ -92,6 +98,7 @@ class ImageProxy(
                 override fun onFailure(call: Call, e: IOException) {
                     cont.resumeWith(Result.failure(e))
                 }
+
                 override fun onResponse(call: Call, response: Response) {
                     cont.resumeWith(Result.success(response))
                 }

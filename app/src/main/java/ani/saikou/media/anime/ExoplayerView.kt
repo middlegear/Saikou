@@ -1577,9 +1577,8 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
         if (isInitialized) {
             playerView.onResume()
             playerView.useController = true
-
+            discordRPC.connect()
             if (isVideoActuallyPlaying()) {
-                discordRPC.connect()
                 discordRPC.onDurationReady(
                     buildRPCConfig(),
                     exoPlayer.duration,
@@ -1596,21 +1595,20 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
         playerView.player?.pause()
         discordRPC.close()
         super.onStop()
-
-
     }
 
     private var wasPlaying = false
     override fun onWindowFocusChanged(hasFocus: Boolean) {
-        if (settings.focusPause && !epChanging) {
-            if (isInitialized && !hasFocus) wasPlaying = exoPlayer.isPlaying
-            if (hasFocus) {
-                if (isInitialized && wasPlaying) exoPlayer.play()
-            } else {
-                if (isInitialized) exoPlayer.pause()
+        super.onWindowFocusChanged(hasFocus)
+        if (settings.focusPause && isInitialized) {
+            if (!hasFocus) {
+                wasPlaying = exoPlayer.isPlaying
+                discordRPC.close()
+                exoPlayer.pause()
+            } else if (wasPlaying) {
+                exoPlayer.play()
             }
         }
-        super.onWindowFocusChanged(hasFocus)
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {

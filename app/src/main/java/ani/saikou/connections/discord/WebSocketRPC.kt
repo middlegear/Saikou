@@ -32,6 +32,7 @@ class WebSocketRPC(private val context: Context) {
     private val client = OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+
     private var webSocket: WebSocket? = null
     private var heartbeatJob: Job? = null
     private var lastSequence: Int? = null
@@ -71,7 +72,10 @@ class WebSocketRPC(private val context: Context) {
     private fun setConnectionState(newState: ConnectionState) {
         val oldState = connectionState
         connectionState = newState
-        Log.d("RPC", "State transition: ${oldState::class.simpleName} → ${newState::class.simpleName}")
+        Log.d(
+            "RPC",
+            "State transition: ${oldState::class.simpleName} → ${newState::class.simpleName}"
+        )
     }
 
     private fun handleConnectionLoss() {
@@ -105,6 +109,7 @@ class WebSocketRPC(private val context: Context) {
             Log.d("RPC", "Cannot connect: current state is ${connectionState::class.simpleName}")
             return
         }
+
         setConnectionState(ConnectionState.Connecting)
         resetSession()
 
@@ -156,10 +161,13 @@ class WebSocketRPC(private val context: Context) {
             scope.launch {
                 try {
 
-                    val clearPresence = Presence(activities = emptyList(), status = "online", afk = true)
-                    webSocket?.send(json.encodeToString(
-                        GatewayPayload(op = 3, d = clearPresence)
-                    ))
+                    val clearPresence =
+                        Presence(activities = emptyList(), status = "online", afk = true)
+                    webSocket?.send(
+                        json.encodeToString(
+                            GatewayPayload(op = 3, d = clearPresence)
+                        )
+                    )
                     Log.d("RPC", "Cleared presence on Discord")
                 } catch (e: Exception) {
                     Log.e("RPC", "Error clearing presence: ${e.message}")
@@ -233,11 +241,16 @@ class WebSocketRPC(private val context: Context) {
                 Log.w("RPC", "Not connected, initiating connection for episode update")
                 connect()
             }
+
             isConnected() && sentInitialPresence -> {
                 updatePresence(isPlaying = isCurrentlyPlaying)
             }
+
             else -> {
-                Log.d("RPC", "Episode updated — waiting for first duration to send initial presence")
+                Log.d(
+                    "RPC",
+                    "Episode updated — waiting for first duration to send initial presence"
+                )
             }
         }
     }
@@ -281,7 +294,8 @@ class WebSocketRPC(private val context: Context) {
                         if (currentConfig != null && sentInitialPresence) {
                             scope.launch {
                                 try {
-                                    val presence = buildPresenceData(currentConfig!!, isPlaying = true)
+                                    val presence =
+                                        buildPresenceData(currentConfig!!, isPlaying = true)
                                     sendToGateway(3, presence)
                                     Log.d("RPC", "Sent presence on gateway ready (reconnect)")
                                 } catch (e: Exception) {
@@ -377,12 +391,17 @@ class WebSocketRPC(private val context: Context) {
                     isReadyForPresence() && webSocket != null -> {
                         sendToGateway(3, presence)
                     }
+
                     isConnected() -> {
                         Log.d("RPC", "Connected but not ready")
                         pendingPresence = presence
                     }
+
                     else -> {
-                        Log.w("RPC", "Invalid state for presence update: ${connectionState::class.simpleName}")
+                        Log.w(
+                            "RPC",
+                            "Invalid state for presence update: ${connectionState::class.simpleName}"
+                        )
                     }
                 }
             } catch (e: Exception) {
@@ -396,10 +415,12 @@ class WebSocketRPC(private val context: Context) {
         val largeImgUrl = config.episodeThumbnail ?: config.coverUrl
 
         val discordLarge = largeImgUrl?.let {
-            assetManager?.fetchDiscordUri(it)
+            assetManager?.fetchDiscordUri(it, buildEpisodeString(config))
         }
+
         val discordSmall = assetManager?.fetchDiscordUri(
-            "https://cdn.discordapp.com/icons/1091762044946092105/a_b485448e33d24a7bb35e3d63a4a4539c.gif?size=1024"
+            "https://cdn.discordapp.com/icons/1091762044946092105/a_b485448e33d24a7bb35e3d63a4a4539c.gif?size=1024",
+            "Discord app icon attachment"
         )
 
         val activity = Activity(
