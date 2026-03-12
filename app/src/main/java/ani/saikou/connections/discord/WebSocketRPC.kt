@@ -383,7 +383,6 @@ class WebSocketRPC(private val context: Context) {
 
         presenceUpdateJob?.cancel()
         presenceUpdateJob = scope.launch {
-            delay(200)
             try {
                 val presence = buildPresenceData(config, isPlaying)
 

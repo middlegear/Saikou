@@ -1603,7 +1603,7 @@ class ExoplayerView : AppCompatActivity(), Player.Listener {
         if (settings.focusPause && isInitialized) {
             if (!hasFocus) {
                 wasPlaying = exoPlayer.isPlaying
-                discordRPC.close()
+                discordRPC.onPlaybackChanged(isVideoActuallyPlaying(),exoPlayer.currentPosition)
                 exoPlayer.pause()
             } else if (wasPlaying) {
                 exoPlayer.play()
