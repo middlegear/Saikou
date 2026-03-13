@@ -18,7 +18,7 @@ class Kaido : AnimeApiParser() {
 
     override val name = "Kaido"
     override val saveName = "Kaido"
-    override val providerName = "hianime"
+    override val providerName = "kaido"
 
     override val isDubAvailableSeparately = false
 

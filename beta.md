@@ -2,4 +2,4 @@
 
 ### Fixes
 
-- **RPC:** Enhancement and other fixes for anime.
+- **Kaido:** Fix kaido instability and enhance rpc.
