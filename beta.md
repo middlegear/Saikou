@@ -1,5 +1,5 @@
 ## Version 1.2.5-beta
 
-### Fixes
+### Features
 
-- **Kaido:** Fix kaido instability and enhance rpc.
+- **AniWatch:** Add Aniwatch provider
