@@ -31,7 +31,7 @@ android {
             applicationIdSuffix ".beta"
             debuggable true
             versionNameSuffix "." + gitCommitHash
-            buildConfigField "String", "SUPER_CLIPPING", "\"${project.findProperty('MUST_BE_THE_WATER') ?: ""}\""
+//            buildConfigField "String", "SUPER_CLIPPING", "\"${project.findProperty('MUST_BE_THE_WATER') ?: ""}\""
             buildConfigField "String", "MY_CUSTOM_API_KEY", "\"${project.findProperty('API_KEY')}\""
             buildConfigField "String", "SERVER_URL", "\"${project.findProperty('HOST_URL') ?: ""}\""
             buildConfigField "long", "BUILD_TIME", "${System.currentTimeMillis()}L"

@@ -1,5 +1,5 @@
 ## Version 1.2.5-beta
 
-### Features
+### Fixes
 
-- **AniWatch:** Add Aniwatch provider
+- **Anime:** Just update the app.
