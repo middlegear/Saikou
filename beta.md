@@ -2,4 +2,4 @@
 
 ### Fixes
 
-- **Anime:** Just update the app.
+- **AnimeKai:** Provider is very aggressive.
