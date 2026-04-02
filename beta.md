@@ -2,4 +2,4 @@
 
 ### Fixes
 
-- **AnimeKai:** Provider is very aggressive.
+- **AnimeKai:** add missing server url options.
