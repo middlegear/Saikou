@@ -6,16 +6,16 @@ import ani.saikou.FileUrl
 import ani.saikou.client
 import ani.saikou.parsers.AnimeApiParser
 import ani.saikou.parsers.Episode
-
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.parsers.VideoExtractor
 import ani.saikou.parsers.VideoServer
 import ani.saikou.parsers.anime.extractors.MegaUp
 import ani.saikou.tryWithSuspend
-
-
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
+import org.jsoup.Jsoup
+import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.*
 
 @OptIn(InternalSerializationApi::class)
 class Animekai : AnimeApiParser() {
@@ -25,21 +25,47 @@ class Animekai : AnimeApiParser() {
     override val saveName = "AnimeKai"
     override val isDubAvailableSeparately = false
     override val hostUrl: String = BuildConfig.SUPER_CLIPPING
-
+    val providerUrl = "https://anikai.to"
     override suspend fun search(query: String): List<ShowResponse> {
-        return tryWithSuspend(post = false, true) {
+        return tryWithSuspend(post = false, snackbar = true) {
             if (query.isBlank()) return@tryWithSuspend emptyList()
-            val res = client.get(
-                "$hostUrl/api/animekai/anime/search?q=$query",
-                headers = mapOf("x-api-key" to apiKey)
-            )
-                .parsed<SearchApiResponse>()
 
-            res.data.map {
+            val encodedQuery = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+            val searchUrl = "$providerUrl/browser?keyword=$encodedQuery"
+
+
+            val response = client.get(searchUrl).text
+            val document = Jsoup.parse(response)
+
+            val selector = "div.aitem-wrapper.regular div.aitem"
+            val elements = document.select(selector)
+
+
+            elements.map { element ->
+
+                val anchor = element.select("div.inner a").firstOrNull()
+
+
+                val name = element.select("div.inner a").text().trim().ifBlank {
+
+                    element.select(".title").text().trim()
+                }
+
+                val link = anchor?.attr("href")?.replace("/watch/", "")?.trim() ?: ""
+
+
+                val img = element.select("img").firstOrNull()
+                val posterUrl = when {
+                    !img?.attr("data-src").isNullOrBlank() -> img?.attr("data-src")
+                    !img?.attr("src").isNullOrBlank() -> img?.attr("src")
+                    else -> ""
+                }
+
+
                 ShowResponse(
-                    name = it.name,
-                    link = it.id,
-                    coverUrl = FileUrl(it.posterImage)
+                    name = name,
+                    link = link,
+                    coverUrl = FileUrl(posterUrl as String)
                 )
             }
         } ?: emptyList()
@@ -67,65 +93,79 @@ class Animekai : AnimeApiParser() {
         } ?: emptyList()
     }
 
-
     override suspend fun loadVideoServers(
         episodeLink: String,
         extra: Map<String, String>?
     ): List<VideoServer> {
+        return tryWithSuspend(post = false, snackbar = true) {
 
-        return tryWithSuspend(post = false, true) {
-            if (episodeLink.isEmpty()) return@tryWithSuspend emptyList()
-            val res = client.get(
-                "$hostUrl/api/animekai/episode/$episodeLink/servers",
-                headers = mapOf("x-api-key" to apiKey)
-            ).parsed<EpisodeServersResponse>()
+            val token = episodeLink.split("-token-").getOrNull(1)
+                ?: throw Exception("Invalid episodeId: $episodeLink")
 
-            val servers = mutableListOf<VideoServer>()
+            val generatedToken = MegaUp.generateToken(token)
+            val listUrl = "$providerUrl/ajax/links/list?token=$token&_=$generatedToken"
+            val htmlJson = client.get(listUrl).parsed<AjaxResultResponse>()
+            val document = Jsoup.parse(htmlJson.result)
 
-            fun addVersionIfAvailable(version: String, list: List<ServerItem>, label: String) {
-                list.forEach { item ->
-                    val sourceUrl =
-                        "$hostUrl/api/animekai/sources/$episodeLink?version=$version&server=${item.serverName}"
-                    servers += VideoServer(
-                        name = "$label - ${item.serverName}",
-                        embed = FileUrl(sourceUrl)
-                    )
+            val servers = CopyOnWriteArrayList<VideoServer>()
+
+
+            val categories = listOf(
+                "div.server-wrap div.server-items[data-id=\"sub\"] span.server" to "HardSub",
+                "div.server-wrap div.server-items[data-id=\"dub\"] span.server" to "Dub",
+                "div.server-wrap div.server-items[data-id=\"softsub\"] span.server" to "SoftSub"
+            )
+
+
+            coroutineScope {
+                val tasks = categories.flatMap { (selector, label) ->
+                    document.select(selector).map { element ->
+                        val mediaId = element.attr("data-lid")
+                        val serverName = element.text().trim()
+
+                        async {
+                            try {
+
+                                val mediaToken = MegaUp.generateToken(mediaId)
+                                val linkViewUrl =
+                                    "$providerUrl/ajax/links/view?id=$mediaId&_=$mediaToken"
+
+                                val linkResponse =
+                                    client.get(linkViewUrl).parsed<MegaUp.MegaTokenResult>()
+                                val decodedIframe = MegaUp.decodeIframe(linkResponse.result)
+
+                                if (decodedIframe != null) {
+                                    servers.add(
+                                        VideoServer(
+                                            name = "$label - $serverName",
+                                            embed = FileUrl(decodedIframe)
+                                        )
+                                    )
+                                }
+                                Unit
+                            } catch (e: Exception) {
+                                throw e
+                            }
+                        }
+                    }
                 }
+
+                tasks.awaitAll()
             }
 
-
-            addVersionIfAvailable("sub", res.data.sub, "HardSub")
-            addVersionIfAvailable("dub", res.data.dub, "Dub")
-            addVersionIfAvailable("raw", res.data.raw, "SoftSub")
-
-
-            servers.sortBy {
-                when {
-                    it.name.startsWith("Sub") -> 0
-                    it.name.startsWith("Dub") -> 1
-                    else -> 2
-                }
+            servers.sortedBy {
+                if (it.name.contains("HardSub")) 0
+                else if (it.name.contains("Dub")) 1
+                else 2
             }
-
-            servers
-
         } ?: emptyList()
     }
 
-    override suspend fun getVideoExtractor(server: VideoServer): VideoExtractor? {
+    override suspend fun getVideoExtractor(server: VideoServer): VideoExtractor {
         return MegaUp(server)
     }
 
 
-    @Serializable
-    private data class SearchApiResponse(val data: List<SearchItems>)
-
-    @Serializable
-    private data class SearchItems(
-        val id: String,
-        val name: String,
-        val posterImage: String
-    )
 
     @Serializable
     private data class EpisodesResponse(
@@ -142,22 +182,9 @@ class Animekai : AnimeApiParser() {
     )
 
     @Serializable
-    private data class EpisodeServersResponse(
-        val data: EpisodeServers
+    data class AjaxResultResponse(
+        val result: String
     )
 
-    @Serializable
-    private data class ServerItem(
-        val serverName: String,
-        val mediaId: String,
-        val serverId: Int
-    )
 
-    @Serializable
-    private data class EpisodeServers(
-        val sub: List<ServerItem> = emptyList(),
-        val dub: List<ServerItem> = emptyList(),
-        val raw: List<ServerItem> = emptyList(),
-        val episodeNumber: Int
-    )
 }
