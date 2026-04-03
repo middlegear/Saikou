@@ -2,4 +2,4 @@
 
 ### Fixes
 
-- **AnimeKai:** add missing server url options.
+- **Captions:** Incorrect labels and fix animepahe.
