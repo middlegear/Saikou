@@ -13,7 +13,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 @OptIn(InternalSerializationApi::class)
 class MegaUp(override val server: VideoServer) : VideoExtractor() {
-    private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0"
+    private val userAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0"
 
     override suspend fun extract(): VideoContainer {
         return tryWithSuspend(post = false, snackbar = true) {
@@ -27,9 +28,13 @@ class MegaUp(override val server: VideoServer) : VideoExtractor() {
             val decrypted = MegaUp.decrypt(response.result, userAgent)
                 ?: throw Exception("Sources decode failed")
 
-            val subtitles = decrypted.result.tracks.filter { it.kind != "thumbnails" }.map {
-                Subtitle(language = it.kind, url = it.file)
-            }
+            val subtitles = decrypted.result.tracks
+                .filter { it.kind != "thumbnails" }
+                .mapNotNull { track ->
+                    track.label?.let {
+                        Subtitle(language = it, url = track.file, type = SubtitleType.VTT)
+                    }
+                }
 
 
             val videos = decrypted.result.sources.map {
@@ -75,7 +80,6 @@ class MegaUp(override val server: VideoServer) : VideoExtractor() {
         }
 
 
-
         suspend fun decrypt(encryptedData: String, userAgent: String): FinalResult? {
             val url = DECODE_M3U8_URL
 
@@ -110,6 +114,7 @@ class MegaUp(override val server: VideoServer) : VideoExtractor() {
             }
         }
     }
+
     @Serializable
     data class DecryptPayload(
         val text: String,
@@ -138,10 +143,12 @@ class MegaUp(override val server: VideoServer) : VideoExtractor() {
         @SerialName("intro") val intro: List<Int> = emptyList(),
         @SerialName("outro") val outro: List<Int> = emptyList()
     )
+
     @Serializable
-    data class FinalResult (
-        @SerialName("result") val result : DecryptedResponse
+    data class FinalResult(
+        @SerialName("result") val result: DecryptedResponse
     )
+
     @Serializable
     data class DecryptedResponse(
         @SerialName("sources") val sources: List<SourceItem> = emptyList(),
@@ -157,6 +164,7 @@ class MegaUp(override val server: VideoServer) : VideoExtractor() {
     @Serializable
     data class TrackItem(
         @SerialName("kind") val kind: String,
-        @SerialName("file") val file: String
+        @SerialName("file") val file: String,
+        @SerialName("label") val label: String?=null
     )
 }
