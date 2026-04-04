@@ -5,7 +5,7 @@
    <a href="https://github.com/middlegear/Saikou/releases"><img src="https://img.shields.io/github/downloads/middlegear/Saikou/total?color=%233DDC84&logo=android&logoColor=%23fff&style=for-the-badge"></a>
 </p>
 
-Saikou is crafted based on simplistic yet state-of-the-art elegance. It is an [Anilist](https://anilist.co/) only client, which also lets you stream/download Anime & Manga.
+Saikou is crafted based on simplistic yet state-of-the-art elegance. It is an unofficial [Anilist](https://anilist.co/) only client, which also lets you stream/download Anime & Manga.
 <br><br>
 <i>Saikou (最高; Sai-kō) literally means the best in Japanese. Well, we would like to say this is the best open source app for anime and manga on Android, but hey, try it out yourself & judge!
 </i>
