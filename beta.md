@@ -2,4 +2,4 @@
 
 ### Fixes
 
-- **Animepahe:** Sources were not found.
+- **Animepahe:** Handle empty source results with m3u8 fallback.
