@@ -14,7 +14,7 @@ class Kwik(override val server: VideoServer) : VideoExtractor() {
     @Serializable
     data class SourceItem(
         val url: String,
-        val isM3u8: Boolean = true,
+        val isM3u8: Boolean,
         val type: String,
         val quality: String
     )
@@ -78,10 +78,11 @@ class Kwik(override val server: VideoServer) : VideoExtractor() {
 
                 val numericString = Regex("\\d+").find(sourceItem.quality)?.value
 
+                val videoType = if (sourceItem.isM3u8) VideoType.M3U8 else VideoType.CONTAINER
                 val finalNumber = numericString?.toIntOrNull()
                 Video(
                     quality = finalNumber,
-                    format = VideoType.CONTAINER,
+                    format = videoType,
                     file = FileUrl(sourceItem.url, baseHeaders),
                     extraNote = sourceItem.quality
                 )
