@@ -2,4 +2,4 @@
 
 ### Fixes
 
-- **Captions:** Incorrect labels and fix animepahe.
+- **Animepahe:** Sources were not found.
