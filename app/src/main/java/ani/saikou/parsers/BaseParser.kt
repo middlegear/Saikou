@@ -2,7 +2,6 @@ package ani.saikou.parsers
 
 import ani.saikou.*
 import ani.saikou.media.Media
-import java.io.Serializable
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -18,6 +17,9 @@ abstract class BaseParser {
      * **/
     open val saveName: String = ""
 
+    /** * Set to false for sites with rotating/temporary IDs to skip caching
+     **/
+    open val useCache = true
     /**
      * The main URL of the Site
      * **/
@@ -48,18 +50,17 @@ abstract class BaseParser {
     open suspend fun autoSearch(mediaObj: Media): ShowResponse? {
         var response = loadSavedShowResponse(mediaObj.id)
 
-        val titles =  mediaObj.name?: mediaObj.nameRomaji
+        if (response != null) {
+
+            saveShowResponse(mediaObj.id, response, selected = true)
+            return response
+        }
+        val title = mediaObj.name ?: mediaObj.nameRomaji
+        setUserText("Searching : $title")
+
+        response = search(title).firstOrNull()
 
         if (response != null) {
-            saveShowResponse(mediaObj.id, response, true)
-        } else {
-            setUserText("Searching : $titles")
-            response = search(titles).let { if (it.isNotEmpty()) it[0] else null }
-
-            if (response == null) {
-                setUserText("Searching : $titles")
-                response = search(titles).let { if (it.isNotEmpty()) it[0] else null }
-            }
             saveShowResponse(mediaObj.id, response)
         }
         return response
@@ -69,6 +70,7 @@ abstract class BaseParser {
      * Used to get an existing Search Response which was selected by the user.
      * **/
     open suspend fun loadSavedShowResponse(mediaId: Int): ShowResponse? {
+        if (!useCache) return null
         checkIfVariablesAreEmpty()
         return loadData("${saveName}_$mediaId")
     }
@@ -77,9 +79,10 @@ abstract class BaseParser {
      * Used to save Shows Response using `saveName`.
      * **/
     open fun saveShowResponse(mediaId: Int, response: ShowResponse?, selected: Boolean = false) {
-        if (response != null) {
+        if (useCache && response != null) {
             checkIfVariablesAreEmpty()
-            setUserText("${if (selected) currContext()!!.getString(R.string.selected) else currContext()!!.getString(R.string.found)} : ${response.name}")
+            val prefix = if (selected) "Selected" else "Found"
+            setUserText("$prefix : ${response.name}")
             saveData("${saveName}_$mediaId", response)
         }
     }
@@ -121,7 +124,7 @@ abstract class BaseParser {
  *
  * You can also store a Map of Strings if you want to save some extra data.
  *
- * `episodes` field allows parsers (especially direct-API ones) to return pre-loaded episodes
+ * `episodes` field allows parsers (especially direct-API ones) to return preloaded episodes
  * during search, skipping the extra loadEpisodes() call when possible.
  **/
 
@@ -130,7 +133,7 @@ data class ShowResponse(
     val link: String,
     val coverUrl: FileUrl,
 
-    // Optional pre-loaded episodes – very useful for direct-mapped API parsers
+    // Optional preloaded episodes – very useful for direct-mapped API parsers
     val episodes: List<Episode>? = emptyList(),
 
     // Alternative titles/synonyms – improves search matching and display

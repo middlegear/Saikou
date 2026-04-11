@@ -103,4 +103,8 @@ dependencies {
 /// Lifecycle view model
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
 
+
+    /// mpv lib
+    implementation("io.github.abdallahmehiz:mpv-android-lib:0.1.12")
+
 }

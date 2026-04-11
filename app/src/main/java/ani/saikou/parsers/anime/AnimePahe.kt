@@ -21,7 +21,8 @@ class AnimePahe : AnimeParser() {
 
     override val name = "AnimePahe"
     override val saveName = "animepahe"
-    override val hostUrl: String = BuildConfig.SERVER_URL
+    override val useCache: Boolean = false
+    override val hostUrl: String ="https://kenjitsu.vercel.app"
     val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
     override val isDubAvailableSeparately = false
 

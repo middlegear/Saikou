@@ -2,4 +2,4 @@
 
 ### Fixes
 
-- **Animepahe:** Handle empty source results with m3u8 fallback.
+- **Animepahe:** Fix empty episode results.
