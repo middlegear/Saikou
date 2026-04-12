@@ -20,6 +20,7 @@ abstract class BaseParser {
     /** * Set to false for sites with rotating/temporary IDs to skip caching
      **/
     open val useCache = true
+
     /**
      * The main URL of the Site
      * **/
@@ -48,21 +49,27 @@ abstract class BaseParser {
      * Isn't necessary to override, but recommended, if you want to improve auto search results
      * **/
     open suspend fun autoSearch(mediaObj: Media): ShowResponse? {
-        var response = loadSavedShowResponse(mediaObj.id)
+        var response = if (useCache) loadSavedShowResponse(mediaObj.id) else null
 
         if (response != null) {
-
             saveShowResponse(mediaObj.id, response, selected = true)
             return response
         }
+
         val title = mediaObj.name ?: mediaObj.nameRomaji
         setUserText("Searching : $title")
 
         response = search(title).firstOrNull()
 
         if (response != null) {
-            saveShowResponse(mediaObj.id, response)
+            setUserText("Found : ${response.name}")
+            if (useCache) {
+                saveShowResponse(mediaObj.id, response)
+            }
+        } else {
+            setUserText("No results found")
         }
+
         return response
     }
 
@@ -117,7 +124,8 @@ abstract class BaseParser {
  * You might wanna include `otherNames` & `total` too, to further improve user experience.
  *
  * You can also store a Map of Strings if you want to save some extra data.
- * **//**
+ * **/
+/**
  * A single show which contains some episodes/chapters which is sent by the site using their search function.
  *
  * You might wanna include `otherNames` & `total` too, to further improve user experience.
