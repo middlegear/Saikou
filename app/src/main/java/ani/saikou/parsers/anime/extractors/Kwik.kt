@@ -46,7 +46,7 @@ class Kwik(override val server: VideoServer) : VideoExtractor() {
 
     override suspend fun extract(): VideoContainer {
         return tryWithSuspend(post = false, snackbar = false) {
-            val response = client.get(server.embed.url,headers = mapOf("x-api-key" to apiKey))
+            val response = client.get(server.embed.url,headers = mapOf("x-api-key" to apiKey), timeout = 15L)
                 .parsed<SourceResponse>()
 
             val videoReferer = response.headers.referer

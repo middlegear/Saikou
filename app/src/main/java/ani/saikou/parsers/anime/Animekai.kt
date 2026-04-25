@@ -24,7 +24,6 @@ class Animekai : AnimeApiParser() {
     override val providerName = "animekai"
     override val saveName = "AnimeKai"
     override val isDubAvailableSeparately = false
-    override val hostUrl: String = BuildConfig.SUPER_CLIPPING
     val providerUrl = "https://anikai.to"
     override suspend fun search(query: String): List<ShowResponse> {
         return tryWithSuspend(post = false, snackbar = true) {
