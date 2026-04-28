@@ -17,13 +17,13 @@ import kotlinx.serialization.Serializable
 import kotlin.collections.mapOf
 
 @OptIn(InternalSerializationApi::class)
-class AnimePahe : AnimeParser() {
+class AnimePahe : AnimeApiParser() {
 
     override val name = "AnimePahe"
     override val saveName = "animepahe"
+    override val providerName = "animepahe"
     override val useCache: Boolean = false
     override val hostUrl: String = BuildConfig.SERVER_URL
-    val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
     override val isDubAvailableSeparately = false
 
 
