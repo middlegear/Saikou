@@ -19,7 +19,7 @@ import kotlinx.coroutines.*
 
 @OptIn(InternalSerializationApi::class)
 class Animekai : AnimeApiParser() {
-
+    override val hostUrl: String = BuildConfig.SUPER_CLIPPING
     override val name = "AnimeKai"
     override val providerName = "animekai"
     override val saveName = "AnimeKai"

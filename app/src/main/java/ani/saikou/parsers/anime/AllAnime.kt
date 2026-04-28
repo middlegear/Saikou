@@ -1,5 +1,6 @@
 package ani.saikou.parsers.anime
 
+import ani.saikou.BuildConfig
 import ani.saikou.FileUrl
 import ani.saikou.client
 import ani.saikou.parsers.AnimeApiParser
@@ -19,7 +20,7 @@ class AllAnime : AnimeApiParser() {
     override val name = "AllAnime"
     override val providerName = "allanime"
     override val saveName = "AllAnime"
-
+    override val hostUrl: String = BuildConfig.SUPER_CLIPPING
     override val isDubAvailableSeparately = false
 
     override suspend fun search(query: String): List<ShowResponse> {
