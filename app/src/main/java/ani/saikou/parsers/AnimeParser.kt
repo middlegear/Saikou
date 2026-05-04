@@ -11,7 +11,7 @@ import ani.saikou.parsers.anime.extractors.ALions
 import ani.saikou.parsers.anime.extractors.AWish
 import ani.saikou.parsers.anime.extractors.DoodStream
 import ani.saikou.parsers.anime.extractors.FileMoon
-import ani.saikou.parsers.anime.extractors.MegaCloud
+
 import ani.saikou.parsers.anime.extractors.Mp4Upload
 import ani.saikou.parsers.anime.extractors.OkRu
 import ani.saikou.parsers.anime.extractors.StreamTape
@@ -95,7 +95,6 @@ abstract class AnimeParser : BaseParser() {
             "dood.wf"                       -> DoodStream(server)
             "ok.ru"                         -> OkRu(server)
             "streamlare.com"                -> null // streamlare.com/e/vJ41zYN1aQblwA3g
-            "megacloud.tv"                  -> MegaCloud(server)
             else                            -> {
                 println("$name : No extractor found for: $domain | ${server.embed.url}")
                 null

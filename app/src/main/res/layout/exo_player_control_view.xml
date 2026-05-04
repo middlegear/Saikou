@@ -128,6 +128,17 @@
                         tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
 
                     <ImageButton
+                        android:id="@+id/exo_audio"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:backgroundTint="#00FFFFFF"
+                        android:src="@drawable/ic_round_audiotrack_24"
+                        android:visibility="gone"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:tint="#fff"
+                        tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                    <ImageButton
                         android:id="@+id/exo_quality"
                         android:layout_width="wrap_content"
                         android:layout_height="48dp"
@@ -204,7 +215,6 @@
                         app:tint="#fff"
                         tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
 
-
                     <ImageButton
                         android:id="@id/exo_playback_speed"
                         android:layout_width="48dp"
@@ -252,7 +262,6 @@
                         tools:ignore="ContentDescription,DuplicateSpeakableTextCheck" />
 
                 </androidx.cardview.widget.CardView>
-
 
                 <androidx.cardview.widget.CardView
                     android:id="@+id/exo_fast_rewind_button_cont"
@@ -316,7 +325,6 @@
                         tools:ignore="ContentDescription,DuplicateSpeakableTextCheck" />
 
                 </androidx.cardview.widget.CardView>
-
 
                 <androidx.cardview.widget.CardView
                     android:layout_width="wrap_content"

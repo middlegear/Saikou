@@ -10,10 +10,8 @@ import ani.saikou.parsers.anime.Haho
 import ani.saikou.parsers.anime.HentaiFF
 import ani.saikou.parsers.anime.HentaiMama
 import ani.saikou.parsers.anime.HentaiStream
+import ani.saikou.parsers.anime.Anizone
 
-//import ani.saikou.parsers.anime.Anizone
-//import ani.saikou.parsers.anime.Hianime
-//import ani.saikou.parsers.anime.Kaido
 
 object AnimeSources : WatchSources() {
     override val list: List<Lazier<BaseParser>> = lazyList(
@@ -21,9 +19,7 @@ object AnimeSources : WatchSources() {
         "AllAnime" to ::AllAnime,
         "Animekai" to ::Animekai,
         "AnimePahe" to ::AnimePahe,
-//        "AniWatch" to ::Aniwatchtv,
-//        "Kaido" to ::Kaido,
-//        "Anizone" to ::Anizone,
+        "Anizone" to ::Anizone,
 
     )
 }

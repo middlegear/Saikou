@@ -2,7 +2,6 @@ package ani.saikou.parsers.anime.extractors
 
 import ani.saikou.FileUrl
 import ani.saikou.client
-import ani.saikou.parsers.Subtitle
 import ani.saikou.parsers.Video
 import ani.saikou.parsers.VideoContainer
 import ani.saikou.parsers.VideoExtractor
@@ -14,7 +13,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @OptIn(InternalSerializationApi::class)
-class MegaCloud(override val server: VideoServer) : VideoExtractor() {
+class AniZoneExtractor(override val server: VideoServer) : VideoExtractor() {
 
 
     @Serializable
@@ -60,35 +59,25 @@ class MegaCloud(override val server: VideoServer) : VideoExtractor() {
             val origin = videoReferer.removeSuffix("/")
 
 
-            val baseHeaders = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
-                "Accept" to "*/*",
-                "Accept-Language" to "en-US,en;q=0.5",
-                "Accept-Encoding" to "gzip, deflate, br, zstd",
-                "Origin" to origin,
-                "Referer" to videoReferer,
-                "Connection" to "keep-alive",
-                "Pragma" to "no-cache",
-                "Cache-Control" to "no-cache"
-            )
             val videos = response.data.sources.map {
                 Video(
                     quality = null,
                     format = VideoType.M3U8,
-                    file = FileUrl(it.url, baseHeaders),
+                    file = FileUrl(it.url),
                     extraNote = it.type
                 )
             }
 
             val realSubtitles = response.data.subtitles.filter { it.lang != "thumbnails" }
 
-            val subs = realSubtitles.map { sub ->
-                Subtitle(
-                    language = sub.lang,
-                    url = sub.url
-                )
-            }
-            VideoContainer(videos, subs)
+//            disabled lacks support for ASS
+//            val subs = realSubtitles.map { sub ->
+////                Subtitle(
+////                    language = sub.lang,
+////                    url = sub.url,
+////                )
+//            }
+            VideoContainer(videos)
 
         } ?: VideoContainer(emptyList())
 
