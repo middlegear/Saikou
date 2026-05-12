@@ -20,7 +20,7 @@ class AllAnime : AnimeApiParser() {
     override val name = "AllAnime"
     override val providerName = "allanime"
     override val saveName = "AllAnime"
-    override val hostUrl: String = BuildConfig.SUPER_CLIPPING
+//    override val hostUrl: String = BuildConfig.SUPER_CLIPPING
     override val isDubAvailableSeparately = false
 
     override suspend fun search(query: String): List<ShowResponse> {

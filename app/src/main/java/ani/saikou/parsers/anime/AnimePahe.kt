@@ -23,7 +23,7 @@ class AnimePahe : AnimeApiParser() {
     override val saveName = "animepahe"
     override val providerName = "animepahe"
     override val useCache: Boolean = false
-    override val hostUrl: String = BuildConfig.SERVER_URL
+//    override val hostUrl: String = BuildConfig.SERVER_URL
     override val isDubAvailableSeparately = false
 
 

@@ -21,7 +21,7 @@ class Anizone : AnimeApiParser() {
     override val saveName = "Anizone"
     override val providerName = "anizone"
     override val isDubAvailableSeparately = false
-    override val hostUrl = BuildConfig.SERVER_URL
+//    override val hostUrl = BuildConfig.SERVER_URL
 
     override suspend fun search(query: String): List<ShowResponse> {
         return tryWithSuspend(post = false, snackbar = true) {

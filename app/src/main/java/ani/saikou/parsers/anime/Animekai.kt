@@ -19,7 +19,7 @@ import kotlinx.coroutines.*
 
 @OptIn(InternalSerializationApi::class)
 class Animekai : AnimeApiParser() {
-    override val hostUrl: String = BuildConfig.SUPER_CLIPPING
+//    override val hostUrl: String = BuildConfig.SUPER_CLIPPING
     override val name = "AnimeKai"
     override val providerName = "animekai"
     override val saveName = "AnimeKai"
@@ -118,35 +118,43 @@ class Animekai : AnimeApiParser() {
 
             coroutineScope {
                 val tasks = categories.flatMap { (selector, label) ->
-                    document.select(selector).map { element ->
-                        val mediaId = element.attr("data-lid")
-                        val serverName = element.text().trim()
+                    document.select(selector)
+                        .filterNot { element ->
+                            element.text().trim().equals("Server 1", ignoreCase = true)
+                        }
+                        .map { element ->
 
-                        async {
-                            try {
+                            val mediaId = element.attr("data-lid")
+                            val serverName = element.text().trim()
 
-                                val mediaToken = MegaUp.generateToken(mediaId)
-                                val linkViewUrl =
-                                    "$providerUrl/ajax/links/view?id=$mediaId&_=$mediaToken"
+                            async {
+                                try {
 
-                                val linkResponse =
-                                    client.get(linkViewUrl).parsed<MegaUp.MegaTokenResult>()
-                                val decodedIframe = MegaUp.decodeIframe(linkResponse.result)
+                                    val mediaToken = MegaUp.generateToken(mediaId)
+                                    val linkViewUrl =
+                                        "$providerUrl/ajax/links/view?id=$mediaId&_=$mediaToken"
 
-                                if (decodedIframe != null) {
-                                    servers.add(
-                                        VideoServer(
-                                            name = "$label - $serverName",
-                                            embed = FileUrl(decodedIframe)
+                                    val linkResponse =
+                                        client.get(linkViewUrl).parsed<MegaUp.MegaTokenResult>()
+
+                                    val decodedIframe =
+                                        MegaUp.decodeIframe(linkResponse.result)
+
+                                    if (decodedIframe != null) {
+                                        servers.add(
+                                            VideoServer(
+                                                name = "$label - $serverName",
+                                                embed = FileUrl(decodedIframe)
+                                            )
                                         )
-                                    )
+                                    }
+
+                                    Unit
+                                } catch (e: Exception) {
+                                    throw e
                                 }
-                                Unit
-                            } catch (e: Exception) {
-                                throw e
                             }
                         }
-                    }
                 }
 
                 tasks.awaitAll()
