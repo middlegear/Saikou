@@ -15,29 +15,6 @@ Saikou is crafted based on simplistic yet state-of-the-art elegance. It is an un
 >
 > Please do not attempt to upload Saikou or any of it's forks on Playstore or any other Android appstores on the internet. Doing so, may infringe their terms and conditions. This may result to legal action or immediate take-down of the app.
 
-## APP FEATURES
-
-- Easy and functional way to both, watch anime and read manga, ad-free.
-
-- A completely open source app with a nice UI & Animations :)
-
-## Planned Stuff
-
-- TV support
-- Multi Quality Download (M3U8 & DASH videos)
-
-- Bulk Download
-
-## Rejected Stuff
-
-- Sources of any language except English
-
-- News Section
-
-- Comment Section
-
-- Accent Color Change (Hot Pink Supremacy.)
-
 ## WANT TO CONTRIBUTE?
 
 - All contributions are welcome, from code to documentation to graphics to design suggestions to bug reports. Please use GitHub to its fullest; contribute Pull Requests, contribute tutorials or other content- whatever you have to offer, we can use it!
