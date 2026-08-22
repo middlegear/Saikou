@@ -59,7 +59,7 @@ class Anizone : AnimeApiParser() {
                     number = ep.episodeNumber.toString(),
                     link = ep.episodeId,
                     title = ep.title ?: "Episode ${ep.episodeNumber}",
-                    thumbnail = ep.thumbnail,
+                    thumbnail = ep.thumbnail?.let { FileUrl(it) },
                 )
             }
 
@@ -113,8 +113,8 @@ class Anizone : AnimeApiParser() {
     private data class EpisodeItem(
         val episodeId: String,
         val title: String?,
-        val thumbnail: String,
-        val episodeNumber: Int
+        val thumbnail: String?=null,
+        val episodeNumber: Int?=null
     )
 
 
