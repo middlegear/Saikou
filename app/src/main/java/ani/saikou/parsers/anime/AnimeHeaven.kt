@@ -1,6 +1,5 @@
 package ani.saikou.parsers.anime
 
-import ani.saikou.BuildConfig
 import ani.saikou.FileUrl
 import ani.saikou.client
 import ani.saikou.parsers.AnimeApiParser
@@ -54,12 +53,10 @@ class AnimeHeaven : AnimeApiParser() {
             val res =
                 client.get(url, headers = mapOf("x-api-key" to apiKey)).parsed<EpisodesResponse>()
 
-            res.data.map { ep ->
+            res.providerEpisodes.map { ep ->
                 Episode(
                     number = ep.episodeNumber.toString(),
                     link = ep.episodeId,
-                    title = "Episode ${ep.episodeNumber}",
-
                     )
             }
 
@@ -106,7 +103,7 @@ class AnimeHeaven : AnimeApiParser() {
 
     @Serializable
     private data class EpisodesResponse(
-        val data: List<EpisodeItem>
+        val providerEpisodes: List<EpisodeItem>
     )
 
     @Serializable

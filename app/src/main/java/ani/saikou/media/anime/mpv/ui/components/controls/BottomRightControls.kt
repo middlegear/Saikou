@@ -149,7 +149,11 @@ fun BottomRightControls(
                         .clickable(
                             enabled = !isLocked,
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = rememberRipple(bounded = true, color = feedbackColor, radius = 24.dp),
+                            indication = rememberRipple(
+                                bounded = true,
+                                color = feedbackColor,
+                                radius = 24.dp
+                            ),
                             onClick = { onAspectRatioClicked() }
                         ),
                     contentAlignment = Alignment.Center

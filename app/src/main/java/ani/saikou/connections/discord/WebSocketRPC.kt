@@ -318,14 +318,12 @@ class WebSocketRPC(private val context: Context) {
 
                 if (userToken != null) {
                     Log.d("RPC", "Token retrieved, initializing asset manager...")
-
                     assetManager = ImageProxy(
-                        "https://saikou-image-proxy.kenjitsu.workers.dev",
+                        applicationId,
                         userToken,
                         client,
                         json
                     )
-
                     val data = Identify(userToken, IdentifyProperties("windows", "chrome", "disco"))
                     sendToGateway(2, data)
                     Log.d("RPC", "Identify sent")

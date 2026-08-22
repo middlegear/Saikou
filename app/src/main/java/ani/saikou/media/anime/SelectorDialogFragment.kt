@@ -241,7 +241,7 @@ class SelectorDialogFragment : BottomSheetDialogFragment() {
             binding.urlQuality.text = if(video.quality!=null) "${video.quality}p" else "Default Quality"
             binding.urlNote.text = video.extraNote ?: ""
             binding.urlNote.visibility = if (video.extraNote != null) View.VISIBLE else View.GONE
-            binding.urlDownload.visibility = View.VISIBLE
+            binding.urlDownload.visibility = if(video.file.url.contains("mp4",ignoreCase = true))View.VISIBLE else View.GONE
             binding.urlDownload.setSafeOnClickListener {
                 media!!.anime!!.episodes!![media!!.anime!!.selectedEpisode!!]!!.selectedExtractor = extractor.server.name
                 media!!.anime!!.episodes!![media!!.anime!!.selectedEpisode!!]!!.selectedVideo = position

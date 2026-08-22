@@ -35,12 +35,12 @@ import ani.saikou.subcriptions.Notifications.Companion.openSettings
 import ani.saikou.subcriptions.Subscription.Companion.defaultTime
 import ani.saikou.subcriptions.Subscription.Companion.startSubscription
 import ani.saikou.subcriptions.Subscription.Companion.timeMinutes
+import ani.saikou.torrserver.TorrServerActivity
 import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import kotlinx.coroutines.Dispatchers
 
 import kotlinx.coroutines.launch
-
 
 
 class SettingsActivity : AppCompatActivity() {
@@ -56,7 +56,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val discord = DiscordRepository(this)
         val rpc = RpcRepository(this)
-        viewModel = DiscordViewModel(discord,rpc)
+        viewModel = DiscordViewModel(discord, rpc)
 
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -68,13 +68,14 @@ class SettingsActivity : AppCompatActivity() {
             fun getArch(): String {
                 SUPPORTED_ABIS.forEach {
                     when (it) {
-                        "arm64-v8a"   -> return "aarch64"
+                        "arm64-v8a" -> return "aarch64"
                         "armeabi-v7a" -> return "arm"
-                        "x86_64"      -> return "x86_64"
-                        "x86"         -> return "i686"
+                        "x86_64" -> return "x86_64"
+                        "x86" -> return "i686"
                     }
                 }
-                return System.getProperty("os.arch") ?: System.getProperty("os.product.cpu.abi") ?: "Unknown Architecture"
+                return System.getProperty("os.arch") ?: System.getProperty("os.product.cpu.abi")
+                ?: "Unknown Architecture"
             }
 
             val info = """
@@ -99,9 +100,17 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
             onBackPressedDispatcher.onBackPressed()
         }
 
-        val animeSource = loadData<Int>("settings_def_anime_source")?.let { if (it >= AnimeSources.names.size) 0 else it } ?: 0
+        val animeSource =
+            loadData<Int>("settings_def_anime_source")?.let { if (it >= AnimeSources.names.size) 0 else it }
+                ?: 0
         binding.animeSource.setText(AnimeSources.names[animeSource], false)
-        binding.animeSource.setAdapter(ArrayAdapter(this, R.layout.item_dropdown, AnimeSources.names))
+        binding.animeSource.setAdapter(
+            ArrayAdapter(
+                this,
+                R.layout.item_dropdown,
+                AnimeSources.names
+            )
+        )
         binding.animeSource.setOnItemClickListener { _, _, i, _ ->
             saveData("settings_def_anime_source", i)
             binding.animeSource.clearFocus()
@@ -110,9 +119,13 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
         binding.settingsPlayer.setOnClickListener {
             startActivity(Intent(this, PlayerSettingsActivity::class.java))
         }
+        binding.settingsTorrent.setOnClickListener {
+            startActivity(Intent(this, TorrServerActivity::class.java))
+        }
 
         val managers = arrayOf("Default", "1DM", "ADM")
-        val downloadManagerDialog = AlertDialog.Builder(this, R.style.DialogTheme).setTitle("Download Manager")
+        val downloadManagerDialog =
+            AlertDialog.Builder(this, R.style.DialogTheme).setTitle("Download Manager")
         var downloadManager = loadData<Int>("settings_download_manager") ?: 0
         binding.settingsDownloadManager.setOnClickListener {
             downloadManagerDialog.setSingleChoiceItems(managers, downloadManager) { dialog, count ->
@@ -160,9 +173,17 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
             saveData("settings_prefer_dub", isChecked)
         }
 
-        val mangaSource = loadData<Int>("settings_def_manga_source")?.let { if (it >= MangaSources.names.size) 0 else it } ?: 0
+        val mangaSource =
+            loadData<Int>("settings_def_manga_source")?.let { if (it >= MangaSources.names.size) 0 else it }
+                ?: 0
         binding.mangaSource.setText(MangaSources.names[mangaSource], false)
-        binding.mangaSource.setAdapter(ArrayAdapter(this, R.layout.item_dropdown, MangaSources.names))
+        binding.mangaSource.setAdapter(
+            ArrayAdapter(
+                this,
+                R.layout.item_dropdown,
+                MangaSources.names
+            )
+        )
         binding.mangaSource.setOnItemClickListener { _, _, i, _ ->
             saveData("settings_def_manga_source", i)
             binding.mangaSource.clearFocus()
@@ -173,10 +194,11 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
         }
 
         val uiSettings: UserInterfaceSettings =
-            loadData("ui_settings", toast = false) ?: UserInterfaceSettings().apply { saveData("ui_settings", this) }
+            loadData("ui_settings", toast = false)
+                ?: UserInterfaceSettings().apply { saveData("ui_settings", this) }
         var previous: View = when (uiSettings.darkMode) {
-            null  -> binding.settingsUiAuto
-            true  -> binding.settingsUiDark
+            null -> binding.settingsUiAuto
+            true -> binding.settingsUiDark
             false -> binding.settingsUiLight
         }
         previous.alpha = 1f
@@ -205,9 +227,9 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
         }
 
         var previousStart: View = when (uiSettings.defaultStartUpTab) {
-            0    -> binding.uiSettingsAnime
-            1    -> binding.uiSettingsHome
-            2    -> binding.uiSettingsManga
+            0 -> binding.uiSettingsAnime
+            1 -> binding.uiSettingsHome
+            2 -> binding.uiSettingsManga
             else -> binding.uiSettingsHome
         }
         previousStart.alpha = 1f
@@ -239,9 +261,9 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
         }
 
         var previousEp: View = when (uiSettings.animeDefaultView) {
-            0    -> binding.settingsEpList
-            1    -> binding.settingsEpGrid
-            2    -> binding.settingsEpCompact
+            0 -> binding.settingsEpList
+            1 -> binding.settingsEpGrid
+            2 -> binding.settingsEpCompact
             else -> binding.settingsEpList
         }
         previousEp.alpha = 1f
@@ -266,8 +288,8 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
         }
 
         var previousChp: View = when (uiSettings.mangaDefaultView) {
-            0    -> binding.settingsChpList
-            1    -> binding.settingsChpCompact
+            0 -> binding.settingsChpList
+            1 -> binding.settingsChpCompact
             else -> binding.settingsChpList
         }
         previousChp.alpha = 1f
@@ -366,12 +388,15 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
             if (it > 0) "${if (hours > 0) "$hours hrs " else ""}${if (mins > 0) "$mins mins" else ""}"
             else getString(R.string.do_not_update)
         }.toTypedArray()
-        binding.settingsSubscriptionsTime.text = getString(R.string.subscriptions_checking_time_s, timeNames[curTime])
-        val speedDialog = AlertDialog.Builder(this, R.style.DialogTheme).setTitle(R.string.subscriptions_checking_time)
+        binding.settingsSubscriptionsTime.text =
+            getString(R.string.subscriptions_checking_time_s, timeNames[curTime])
+        val speedDialog = AlertDialog.Builder(this, R.style.DialogTheme)
+            .setTitle(R.string.subscriptions_checking_time)
         binding.settingsSubscriptionsTime.setOnClickListener {
             speedDialog.setSingleChoiceItems(timeNames, curTime) { dialog, i ->
                 curTime = i
-                binding.settingsSubscriptionsTime.text = getString(R.string.subscriptions_checking_time_s, timeNames[i])
+                binding.settingsSubscriptionsTime.text =
+                    getString(R.string.subscriptions_checking_time_s, timeNames[i])
                 saveData("subscriptions_time", curTime)
                 dialog.dismiss()
                 startSubscription(true)
@@ -383,7 +408,8 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
             true
         }
 
-        binding.settingsNotificationsCheckingSubscriptions.isChecked = loadData("subscription_checking_notifications") ?: true
+        binding.settingsNotificationsCheckingSubscriptions.isChecked =
+            loadData("subscription_checking_notifications") ?: true
         binding.settingsNotificationsCheckingSubscriptions.setOnCheckedChangeListener { _, isChecked ->
             saveData("subscription_checking_notifications", isChecked)
             if (isChecked)
@@ -432,7 +458,8 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
                 setTitleText(title)
                 addView(
                     TextView(it.context).apply {
-                        val markWon = Markwon.builder(it.context).usePlugin(SoftBreakAddsNewLinePlugin.create()).build()
+                        val markWon = Markwon.builder(it.context)
+                            .usePlugin(SoftBreakAddsNewLinePlugin.create()).build()
                         markWon.setMarkdown(this, full)
                     }
                 )
@@ -528,7 +555,6 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
         }
 
 
-
 //
 //        lifecycleScope.launch(Dispatchers.IO) {
 //            delay(2000)
@@ -557,8 +583,22 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
 //            }
 //        }
     }
+
     override fun onResume() {
         super.onResume()
         viewModel.loadDiscordUser()
+
+// refresh anime sources list.
+        val currentSource = loadData<Int>("settings_def_anime_source")?.let {
+            if (it >= AnimeSources.names.size) 0 else it
+        } ?: 0
+
+        val currentAdapter = binding.animeSource.adapter
+        if (currentAdapter == null || currentAdapter.count != AnimeSources.names.size) {
+            val newAdapter = ArrayAdapter(this, R.layout.item_dropdown, AnimeSources.names)
+            binding.animeSource.setAdapter(newAdapter)
+        }
+
+        binding.animeSource.setText(AnimeSources.names[currentSource], false)
     }
 }

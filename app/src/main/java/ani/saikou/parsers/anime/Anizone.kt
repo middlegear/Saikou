@@ -13,6 +13,7 @@ import ani.saikou.tryWithSuspend
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import java.net.URLEncoder
+import kotlin.collections.mapOf
 
 @OptIn(InternalSerializationApi::class)
 class Anizone : AnimeApiParser() {
@@ -26,7 +27,10 @@ class Anizone : AnimeApiParser() {
         return tryWithSuspend(post = false, snackbar = true) {
             if (query.isBlank()) return@tryWithSuspend emptyList()
             val encoded = URLEncoder.encode(query, "utf-8")
-            val res = client.get("$hostUrl/api/anizone/anime/search?q=$encoded")
+            val res = client.get(
+                "$hostUrl/api/anizone/anime/search?q=$encoded",
+                headers = mapOf("x-api-key" to apiKey)
+            )
                 .parsed<SearchApiResponse>()
 
             res.data.map {
@@ -50,7 +54,7 @@ class Anizone : AnimeApiParser() {
             val res =
                 client.get(url, headers = mapOf("x-api-key" to apiKey)).parsed<EpisodesResponse>()
 
-            res.data.map { ep ->
+            res.providerEpisodes.map { ep ->
                 Episode(
                     number = ep.episodeNumber.toString(),
                     link = ep.episodeId,
@@ -61,6 +65,7 @@ class Anizone : AnimeApiParser() {
 
         } ?: emptyList()
     }
+
     override suspend fun loadVideoServers(
         episodeLink: String,
         extra: Map<String, String>?
@@ -71,13 +76,13 @@ class Anizone : AnimeApiParser() {
 
             return@tryWithSuspend listOf(
                 VideoServer(
-                    name = "MULTI AUDIO SOURCE",
+                    name = "MULTI",
                     embed = FileUrl(embedUrl),
                     extraData = null
                 )
             )
 
-        }  ?: emptyList()
+        } ?: emptyList()
     }
 
     override suspend fun getVideoExtractor(server: VideoServer): VideoExtractor {
@@ -101,7 +106,7 @@ class Anizone : AnimeApiParser() {
 
     @Serializable
     private data class EpisodesResponse(
-        val data: List<EpisodeItem>
+        val providerEpisodes: List<EpisodeItem>
     )
 
     @Serializable
@@ -111,8 +116,6 @@ class Anizone : AnimeApiParser() {
         val thumbnail: String,
         val episodeNumber: Int
     )
-
-
 
 
 }

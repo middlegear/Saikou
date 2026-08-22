@@ -70,19 +70,29 @@ class MangaK : MangaParser() {
         extra: Map<String, String>?
     ): List<MangaChapter> {
 
-        val url = "$apiUrl/titles/$mangaLink/chapters?cv=${System.currentTimeMillis()}"
+        val url = "$apiUrl/titles/$mangaLink/chapters"
         return try {
             val response = client.get(url)
             val body = response.body.string()
             val res = json.decodeFromString<ChapterResponse>(body ?: "")
 
-            val sorted = res.data.chapters
-                .sortedBy { it.chapterNumber ?: Float.MAX_VALUE }
-            val result = sorted.map {
+            val withResolvedNumbers = res.data.chapters.map { chapter ->
+                val resolvedNumber = chapter.chapterNumber
+                    ?: Regex("""chapter-(\d+(?:\.\d+)?)""")
+                        .find(chapter.url)
+                        ?.groupValues?.get(1)?.toFloatOrNull()
+
+                chapter to resolvedNumber
+            }
+
+            val sorted = withResolvedNumbers
+                .sortedBy { (_, number) -> number ?: Float.MAX_VALUE }
+
+            val result = sorted.map { (chapter, resolvedNumber) ->
                 MangaChapter(
-                    number = it.chapterNumber?.toString() ?: it.name,
-                    link = it.url,
-                    title = it.name
+                    number = resolvedNumber?.toString() ?: chapter.name,
+                    link = chapter.url,
+                    title = chapter.name
                 )
             }
 

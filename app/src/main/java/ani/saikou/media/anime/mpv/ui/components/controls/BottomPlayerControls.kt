@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import ani.saikou.media.anime.mpv.PlayerRepository.SkipInterval
+import ani.saikou.media.anime.mpv.PlayerRepository
 import ani.saikou.media.anime.mpv.PlayerViewModel
 
 
@@ -36,7 +36,7 @@ fun BottomPlayerControls(
     positionMs: Long,
     durationMs: Long,
     readAheadMs: Long,
-    onSeekFinished: (Long) -> Unit, skipStamps: List<SkipInterval>? = null,
+    onSeekFinished: (Long) -> Unit, skipStamps: List<PlayerRepository.SkipInterval>? = null,
     viewModel: PlayerViewModel,
     modifier: Modifier = Modifier
 ) {

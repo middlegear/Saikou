@@ -1,93 +1,52 @@
 package ani.saikou.media.anime.mpv
 
 import android.annotation.SuppressLint
-import android.util.Log
 import ani.saikou.client
+import ani.saikou.others.TheMovieDatabase
 import ani.saikou.tryWithSuspend
 import kotlinx.serialization.Serializable
 
 class PlayerRepository {
 
-
-    /**
-     * Fetches opening, ending, recap and mixed skip segments from the alternative
-     * timestamp provider (TheIntroDB.org) using an AniList ID.
-     *
-     * @param anilistId AniList media ID.
-     * @param episodeNumber Episode number to fetch timestamps for.
-     * @param durationMs Episode duration in milliseconds.
-     * @return A unified list of skip intervals, or `null` if no timestamps are available
-     * or the request fails.
-     */
-    suspend fun fetchSkipTimes(anilistId: Int, episodeNumber: Int, durationMs: Long): List<SkipInterval>? {
-        val url = "https://api.kenjitsu.workers.dev/api/meta/skip-times/$anilistId?episodeNumber=$episodeNumber&durationMs=$durationMs"
-
-        return tryWithSuspend {
-            val response = client.get(url)
-            val data = response.parsed<SkipTimeResponse>()
-
-            mapWorkersToUnified(data)
-        }
-    }
-
-    /**
-     * Fetches opening, ending, recap and mixed skip segments from AniSkip using a
-     * MyAnimeList ID.
-     *
-     * @param malId MyAnimeList media ID.
-     * @param episodeNumber Episode number to fetch timestamps for.
-     * @param episodeLength Episode duration in **seconds**.
-     * @return A unified list of skip intervals, or `null` if no timestamps are available
-     * or the request fails.
-     */
-    suspend fun fetchAniSkipTimes(malId: Int, episodeNumber: Int, episodeLength: Long): List<SkipInterval>? {
+    suspend fun fetchAniSkipTimes(
+        malId: Int,
+        episodeNumber: Int,
+        episodeLength: Long
+    ): List<SkipInterval>? {
         val url =
             "https://api.aniskip.com/v2/skip-times/$malId/$episodeNumber?types[]=ed&types[]=mixed-ed&types[]=mixed-op&types[]=op&types[]=recap&episodeLength=$episodeLength"
 
         return tryWithSuspend {
             val response = client.get(url)
-
-
             val res = response.parsed<AniSkipResponse>()
-
 
             if (res.found) res.results?.let { mapAniSkipToUnified(it) } else null
         }
     }
 
-    private fun mapWorkersToUnified(res: SkipTimeResponse): List<SkipInterval> {
-        return buildList {
-            fun addSegments(type: String, segments: List<SkipSegment>) {
-                segments.forEach {
-                    add(
-                        SkipInterval(
-                            startTimeMs = it.startMs,
-                            endTimeMs = it.endMs,
-                            type = type,
-                            durationMs = it.durationMs,
-                            startsAtBeginning = it.startsAtBeginning,
-                            endsAtMediaEnd = it.endsAtMediaEnd
-                        )
-                    )
-                }
-            }
-
-            addSegments("Opening", res.intro)
-            addSegments("Recap", res.recap)
-            addSegments("Ending", res.credits)
-            addSegments("Preview", res.preview)
-        }
-    }
-
     private fun mapAniSkipToUnified(stamps: List<AniSkipStamp>): List<SkipInterval> {
         return stamps.map { stamp ->
+            val startMs = (stamp.interval.startTime * 1000).toLong()
+            val endMs = (stamp.interval.endTime * 1000).toLong()
             SkipInterval(
-                startTimeMs = (stamp.interval.startTime * 1000).toLong(),
-                endTimeMs = (stamp.interval.endTime * 1000).toLong(),
-                type = stamp.skipType.toDisplayType()
+                startTimeMs = startMs,
+                endTimeMs = endMs,
+                type = stamp.skipType.toDisplayType(),
+                durationMs = endMs - startMs,
+                startsAtBeginning = startMs == 0L,
+                endsAtMediaEnd = false
             )
         }
     }
+
+    data class SkipInterval(
+        val startTimeMs: Long,
+        val endTimeMs: Long?,
+        val type: String,
+        val durationMs: Long? = null,
+        val startsAtBeginning: Boolean? = null,
+        val endsAtMediaEnd: Boolean? = null
+    )
 
     private fun String.toDisplayType(): String = when (this) {
         "op" -> "Opening"
@@ -97,31 +56,6 @@ class PlayerRepository {
         "mixed-op" -> "Mixed Opening"
         else -> this
     }
-
-
-    @SuppressLint("UnsafeOptInUsageError")
-    @Serializable
-    data class SkipTimeResponse(
-        val tmdbId: Int,
-        val type: String,
-        val season: Int? = null,
-        val episode: Int? = null,
-        val intro: List<SkipSegment> = emptyList(),
-        val recap: List<SkipSegment> = emptyList(),
-        val credits: List<SkipSegment> = emptyList(),
-        val preview: List<SkipSegment> = emptyList()
-    )
-
-    @Serializable
-    @SuppressLint("UnsafeOptInUsageError")
-    data class SkipSegment(
-        val startMs: Long,
-        val endMs: Long?,
-        val durationMs: Long?,
-        val startsAtBeginning: Boolean,
-        val endsAtMediaEnd: Boolean
-    )
-
 
     @SuppressLint("UnsafeOptInUsageError")
     @Serializable
@@ -146,16 +80,5 @@ class PlayerRepository {
     data class AniSkipInterval(
         val startTime: Double,
         val endTime: Double
-    )
-
-
-    data class SkipInterval(
-        val startTimeMs: Long,
-        val endTimeMs: Long?,
-        val type: String,
-
-        val durationMs: Long? = null,
-        val startsAtBeginning: Boolean? = null,
-        val endsAtMediaEnd: Boolean? = null
     )
 }

@@ -16,6 +16,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.jsoup.Jsoup
 
 @OptIn(InternalSerializationApi::class)
 class MangaHub : MangaParser() {
@@ -24,8 +25,8 @@ class MangaHub : MangaParser() {
     override val saveName = "manga_hub"
     override val hostUrl = "https://api.mghcdn.com/graphql"
 
-    val apiBaseUrl: String = BuildConfig.SERVER_URL
-    val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
+
+
     private val mapper = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -199,21 +200,36 @@ query FetchChapterPages(%slugId: String!, %chapterNumber: Float!) {
             emptyList()
         }
     }
-    /// just gonna wing the approximate pages per chapters till i find a way around their graphql restrictions
+
     override suspend fun loadImages(chapterLink: String): List<MangaImage> =
         withContext(Dispatchers.IO) {
-
             if (chapterLink.isBlank()) return@withContext emptyList()
 
             val slugId = chapterLink.substringBefore("-chapter-")
             val chapterNum = chapterLink.substringAfter("-chapter-")
 
             try {
-                val apiUrl = "$apiBaseUrl/api/mangahub/sources/$slugId\$chapter-$chapterNum"
+                val chapterUrl = "https://mangahub.io/chapter/$slugId/chapter-$chapterNum"
 
-                val pages = mapper.decodeFromString<List<PageResponse>>(
-                    client.get(apiUrl,headers = mapOf("x-api-key" to apiKey)).text
-                )
+                val html = client.get(
+                    chapterUrl,
+                    headers = mapOf(
+                        "Accept-Language" to "en-US,en;q=0.9",
+                        "Referer" to "https://mangahub.io/",
+                        "Origin" to "https://mangahub.io",
+                        "Content-Type" to "application/json"
+                    )
+                ).text
+
+                val document = Jsoup.parse(html)
+
+                val pages = document.select("#mangareader div._2aWyJ img.PB0mN")
+                    .mapIndexedNotNull { index, img ->
+                        val imageUrl = img.attr("src")
+                        imageUrl.takeIf { it.isNotBlank() }?.let {
+                            PageResponse(imageUrl = it, page = index + 1)
+                        }
+                    }
 
                 if (pages.isEmpty()) return@withContext emptyList()
 
@@ -230,11 +246,8 @@ query FetchChapterPages(%slugId: String!, %chapterNumber: Float!) {
                 var lastKnown = pages.maxOf { it.page }
                 val step = 6
 
-
                 while (true) {
-
                     val next = lastKnown + step
-
 
                     val exists = try {
                         val res = client.get(url(next))
@@ -248,7 +261,6 @@ query FetchChapterPages(%slugId: String!, %chapterNumber: Float!) {
                         for (p in (lastKnown + 1)..next) {
                             images += MangaImage(url(p))
                         }
-
                         break
                     }
 

@@ -10,7 +10,9 @@ enum class PlaybackState {
     BUFFERING, // Playing, but waiting for network/cache to catch up
     PLAYING,   // Actively playing
     PAUSED,    // Media loaded, playback paused by user
-    ENDED,     // Media playback reached the end
+    ENDED, // Media playback reached the end
+
+    READY,
 }
 
 enum class AudioChannels(val title: String, val property: String, val value: String) {
@@ -36,7 +38,6 @@ enum class Decoder(val title: String, val value: String) {
     HW("HW", "mediacodec-copy"),
     HWPlus("HW+", "mediacodec"),
 }
-
 
 
 data class AudioTrack(
@@ -310,6 +311,7 @@ object TrackParser {
         else -> null
     }
 }
+
 data class PendingMediaState(
     val videoUrl: String,
     val headers: Map<String, String>,
@@ -317,6 +319,7 @@ data class PendingMediaState(
     val audioTracks: List<ExternalAudio>,
     val subtitles: List<ExternalSubtitle>
 )
+
 data class PlayerEpisodeUiState(
     val mainTitle: String = "",
     val episodeTitle: String = "",
@@ -326,6 +329,8 @@ data class PlayerEpisodeUiState(
     val audioTracks: List<AudioTrack> = listOf(),
     var hasNextEpisode: Boolean = false,
     var hasPreviousEpisode: Boolean = false,
+    val backdropUrl: String? = null,
+    val logo:String?= null
 )
 
 data class PlayerScreenActions(
@@ -333,4 +338,11 @@ data class PlayerScreenActions(
     val onNextEpisode: () -> Unit,
     val onPreviousEpisode: () -> Unit,
     val onSourceClick: () -> Unit,
+)
+
+data class TrackEpisode(
+    val state: PlaybackState,
+    val duration: Long,
+    val position: Long,
+    val hasNextEpisode: Boolean
 )

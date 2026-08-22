@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="ani.saikou.torrserver.TorrServerActivity">
+
+    <LinearLayout
+        android:id="@+id/torrentMainLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Back Button -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="32dp"
+            app:cardBackgroundColor="@color/nav_bg_inv"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp">
+
+            <ImageButton
+                android:id="@+id/torrentSettingsBack"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:background="@color/nav_bg_inv"
+                android:contentDescription="@string/torrent_back_button_desc"
+                android:padding="16dp"
+                app:srcCompat="@drawable/ic_round_arrow_back_ios_new_24"
+                app:tint="@color/bg_opp" />
+
+        </androidx.cardview.widget.CardView>
+
+        <!-- Title -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_margin="32dp"
+                android:layout_weight="1"
+                android:text="@string/torrent_settings_title"
+                android:textSize="28sp" />
+
+            <ImageView
+                android:layout_width="96dp"
+                android:layout_height="96dp"
+                android:layout_gravity="center"
+                android:layout_marginEnd="20dp"
+                android:contentDescription="@string/torrent_magnet_icon_desc"
+                android:padding="24dp"
+                app:srcCompat="@drawable/ic_magnet" />
+
+        </LinearLayout>
+
+        <!-- MASTER SWITCH: SERVER -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:fontFamily="@font/poppins_bold"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="32dp"
+            android:text="@string/torrent_server_title"
+            android:textColor="?attr/colorSecondary" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/torrentEnableServer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_round_dns_24"
+            android:drawablePadding="16dp"
+            android:fontFamily="@font/poppins_bold"
+            android:minHeight="64dp"
+            android:paddingHorizontal="32dp"
+            android:text="@string/torrent_enable_server"
+            android:textColor="@color/bg_opp"
+            app:drawableTint="?attr/colorPrimary"
+            app:showText="false"
+            app:thumbTint="@color/button_switch_track" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:alpha="0.58"
+            android:paddingHorizontal="28dp"
+            android:text="@string/torrent_enable_server_desc"
+            android:textSize="14sp" />
+
+        <!-- DEPENDENT SETTINGS CONTAINER -->
+        <LinearLayout
+            android:id="@+id/torrentSubSettingsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <!-- PROFILE PRESET -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:fontFamily="@font/poppins_bold"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_profile_title"
+                android:textColor="?attr/colorSecondary" />
+
+            <LinearLayout
+                android:id="@+id/torrentProfile"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="32dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="16dp"
+                    android:contentDescription="@string/torrent_profile_icon_desc"
+                    app:srcCompat="@drawable/lan_24px"
+                    app:tint="?attr/colorPrimary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="@string/torrent_profile"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/torrentProfileValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="@string/torrent_profile_default"
+                    android:textColor="?attr/colorPrimary"
+                    android:textSize="14sp" />
+
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="16dp"
+                android:alpha="0.58"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_profile_desc"
+                android:textSize="14sp" />
+
+            <!-- CACHE -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:fontFamily="@font/poppins_bold"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_cache_title"
+                android:textColor="?attr/colorSecondary" />
+
+            <!-- VIDEO BUFFER SIZE -->
+            <LinearLayout
+                android:id="@+id/torrentBufferSize"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="32dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="16dp"
+                    android:contentDescription="@string/torrent_storage_icon_desc"
+                    app:srcCompat="@drawable/rounded_storage_24"
+                    app:tint="?attr/colorPrimary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="@string/torrent_buffer_size"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/torrentBufferSizeValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="@string/torrent_buffer_size_default"
+                    android:textColor="?attr/colorPrimary"
+                    android:textSize="14sp" />
+
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="16dp"
+                android:alpha="0.58"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_buffer_size_desc"
+                android:textSize="14sp" />
+
+
+            <!-- NETWORK & PRIVACY -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:fontFamily="@font/poppins_bold"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_network_title"
+                android:textColor="?attr/colorSecondary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/torrentEnableDHT"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:drawableStart="@drawable/outline_network_node_24"
+                android:drawablePadding="16dp"
+                android:fontFamily="@font/poppins_bold"
+                android:minHeight="64dp"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_enable_dht"
+                android:textColor="@color/bg_opp"
+                app:drawableTint="?attr/colorPrimary"
+                app:showText="false"
+                app:thumbTint="@color/button_switch_track" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:alpha="0.58"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_enable_dht_desc"
+                android:textSize="14sp" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/torrentEnableEncryption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:drawableStart="@drawable/rounded_encrypted_24"
+                android:drawablePadding="16dp"
+                android:fontFamily="@font/poppins_bold"
+                android:minHeight="64dp"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_enable_encryption"
+                android:textColor="@color/bg_opp"
+                app:drawableTint="?attr/colorPrimary"
+                app:showText="false"
+                app:thumbTint="@color/button_switch_track" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:alpha="0.58"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_enable_encryption_desc"
+                android:textSize="14sp" />
+
+            <!-- METRICS -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:fontFamily="@font/poppins_bold"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_stats_title"
+                android:textColor="?attr/colorSecondary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/torrentEnableStats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:drawableStart="@drawable/rounded_analytics_24"
+                android:drawablePadding="16dp"
+                android:fontFamily="@font/poppins_bold"
+                android:minHeight="64dp"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_enable_stats"
+                android:textColor="@color/bg_opp"
+                app:drawableTint="?attr/colorPrimary"
+                app:showText="false"
+                app:thumbTint="@color/button_switch_track" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="32dp"
+                android:alpha="0.58"
+                android:paddingHorizontal="32dp"
+                android:text="@string/torrent_enable_stats_desc"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

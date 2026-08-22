@@ -15,6 +15,7 @@ import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
+import ani.saikou.settings.PlayerSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,8 +38,6 @@ class PlaybackService : Service() {
     private lateinit var mediaSession: MediaSessionCompat
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-
-
     private val audioManager: AudioManager by lazy {
         getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
@@ -46,16 +45,13 @@ class PlaybackService : Service() {
     private var focusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
 
-
     private var resumeOnFocusGain = false
-
 
     private var preDuckVolumeLevel: Int? = null
 
     private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS -> {
-
                 Log.d(TAG, "AUDIOFOCUS_LOSS ")
                 hasAudioFocus = false
                 resumeOnFocusGain = false
@@ -77,7 +73,6 @@ class PlaybackService : Service() {
                 }
                 val duckedLevel = ((preDuckVolumeLevel ?: 100) / 2).coerceIn(0, 100)
                 applyVolume(duckedLevel)
-
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
                 Log.d(TAG, "AUDIOFOCUS_GAIN")
@@ -97,14 +92,12 @@ class PlaybackService : Service() {
         }
     }
 
-
     private fun currentVolumeLevel(): Int {
         val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         if (maxVolume <= 0) return 100
         val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         return ((currentVolume.toFloat() / maxVolume.toFloat()) * 100f).roundToInt().coerceIn(0, 100)
     }
-
 
     private fun applyVolume(level: Int) {
         setSystemVolume(level)
@@ -121,6 +114,7 @@ class PlaybackService : Service() {
             0
         )
     }
+
     private fun requestAudioFocus(): Boolean {
         if (hasAudioFocus) return true
 
@@ -166,7 +160,6 @@ class PlaybackService : Service() {
         focusRequest = null
     }
 
-
     private val becomingNoisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
@@ -179,6 +172,7 @@ class PlaybackService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
         player = MpvVideoPlayer(this)
         player.init(Unit)
 
@@ -244,9 +238,9 @@ class PlaybackService : Service() {
     fun setSessionActive(active: Boolean) {
         mediaSession.isActive = active
         if (!active) {
-
-        abandonAudioFocus()
-    } }
+            abandonAudioFocus()
+        }
+    }
 
     fun publishState(state: Int) {
         mediaSession.setPlaybackState(
@@ -271,7 +265,6 @@ class PlaybackService : Service() {
         )
     }
 
-
     fun teardown() {
         abandonAudioFocus()
         mediaSession.isActive = false
@@ -285,8 +278,9 @@ class PlaybackService : Service() {
         try {
             unregisterReceiver(becomingNoisyReceiver)
         } catch (e: IllegalArgumentException) {
-
+            // already unregistered
         }
+
         abandonAudioFocus()
         if (::mediaSession.isInitialized) mediaSession.release()
         if (::player.isInitialized) player.release()

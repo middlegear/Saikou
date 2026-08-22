@@ -77,8 +77,10 @@ class AnimeWatchFragment : Fragment() {
         maxGridSize = max(4, maxGridSize - (maxGridSize % 2))
 
         playerSettings =
-            loadData("player_settings", toast = false) ?: PlayerSettings().apply { saveData("player_settings", this) }
-        uiSettings = loadData("ui_settings", toast = false) ?: UserInterfaceSettings().apply { saveData("ui_settings", this) }
+            loadData("player_settings", toast = false)
+                ?: PlayerSettings().apply { saveData("player_settings", this) }
+        uiSettings = loadData("ui_settings", toast = false)
+            ?: UserInterfaceSettings().apply { saveData("ui_settings", this) }
 
         val gridLayoutManager = GridLayoutManager(requireContext(), maxGridSize)
 
@@ -87,11 +89,11 @@ class AnimeWatchFragment : Fragment() {
                 val style = episodeAdapter.getItemViewType(position)
 
                 return when (position) {
-                    0    -> maxGridSize
+                    0 -> maxGridSize
                     else -> when (style) {
-                        0    -> maxGridSize
-                        1    -> 2
-                        2    -> 1
+                        0 -> maxGridSize
+                        1 -> 2
+                        2 -> 1
                         else -> maxGridSize
                     }
                 }
@@ -110,7 +112,8 @@ class AnimeWatchFragment : Fragment() {
                 media = it
                 media.selected = model.loadSelected(media)
 
-                subscribed = SubscriptionHelper.getSubscriptions(requireContext()).containsKey(media.id)
+                subscribed =
+                    SubscriptionHelper.getSubscriptions(requireContext()).containsKey(media.id)
 
                 style = media.selected!!.recyclerStyle
                 reverse = media.selected!!.recyclerReversed
@@ -122,13 +125,16 @@ class AnimeWatchFragment : Fragment() {
                     model.watchSources = if (media.isAdult) HAnimeSources else AnimeSources
 
                     headerAdapter = AnimeWatchAdapter(it, this, model.watchSources!!)
-                    episodeAdapter = EpisodeAdapter(style ?: uiSettings.animeDefaultView, media, this)
+                    episodeAdapter =
+                        EpisodeAdapter(style ?: uiSettings.animeDefaultView, media, this)
 
-                    binding.animeSourceRecycler.adapter = ConcatAdapter(headerAdapter, episodeAdapter)
+                    binding.animeSourceRecycler.adapter =
+                        ConcatAdapter(headerAdapter, episodeAdapter)
 
                     lifecycleScope.launch(Dispatchers.IO) {
                         awaitAll(
-                            async { model.loadKitsuEpisodes(media) },
+//                            async { model.loadKitsuEpisodes(media) },
+                            async { model.loadTmdbEpisodes(media) },
                             async { model.loadFillerEpisodes(media) }
                         )
                         model.loadEpisodes(media, media.selected!!.source)
@@ -146,15 +152,29 @@ class AnimeWatchFragment : Fragment() {
                     episodes.forEach { (i, episode) ->
                         if (media.anime?.fillerEpisodes != null) {
                             if (media.anime!!.fillerEpisodes!!.containsKey(i)) {
-                                episode.title = episode.title ?: media.anime!!.fillerEpisodes!![i]?.title
+                                episode.title =
+                                    episode.title ?: media.anime!!.fillerEpisodes!![i]?.title
                                 episode.filler = media.anime!!.fillerEpisodes!![i]?.filler ?: false
                             }
                         }
-                        if (media.anime?.kitsuEpisodes != null) {
-                            if (media.anime!!.kitsuEpisodes!!.containsKey(i)) {
-                                episode.desc = episode.desc ?: media.anime!!.kitsuEpisodes!![i]?.desc
-                                episode.title = episode.title ?: media.anime!!.kitsuEpisodes!![i]?.title
-                                episode.thumb = episode.thumb ?: media.anime!!.kitsuEpisodes!![i]?.thumb ?: FileUrl[media.cover]
+//                        if (media.anime?.kitsuEpisodes != null) {
+//                            if (media.anime!!.kitsuEpisodes!!.containsKey(i)) {
+//                                episode.desc =
+//                                    episode.desc ?: media.anime!!.kitsuEpisodes!![i]?.desc
+//                                episode.title =
+//                                    episode.title ?: media.anime!!.kitsuEpisodes!![i]?.title
+//                                episode.thumb =
+//                                    episode.thumb ?: media.anime!!.kitsuEpisodes!![i]?.thumb
+//                                            ?: FileUrl[media.cover]
+//                            }
+//                        }
+                        if (media.anime?.tmdbEpisodes != null) {
+                            if (media.anime!!.tmdbEpisodes!!.containsKey(i)) {
+                                episode.desc = episode.desc ?: media.anime!!.tmdbEpisodes!![i]?.desc
+                                episode.title = media.anime!!.tmdbEpisodes!![i]?.title ?: episode.title
+                                episode.thumb = episode.thumb ?: media.anime!!.tmdbEpisodes!![i]?.thumb ?: FileUrl[media.cover]
+                                episode.seasonNumber = media.anime!!.tmdbEpisodes!![i]?.seasonNumber ?: episode.seasonNumber
+                                episode.absoluteEpisodeNumber = media.anime!!.tmdbEpisodes!![i]?.absoluteEpisodeNumber ?: episode.absoluteEpisodeNumber
                             }
                         }
                     }
@@ -168,7 +188,7 @@ class AnimeWatchFragment : Fragment() {
                     val limit = when {
                         (divisions < 25) -> 25
                         (divisions < 50) -> 50
-                        else             -> 100
+                        else -> 100
                     }
                     headerAdapter.clearChips()
                     if (total > limit) {
@@ -191,10 +211,14 @@ class AnimeWatchFragment : Fragment() {
                 }
             }
         }
-
-        model.getKitsuEpisodes().observe(viewLifecycleOwner) { i ->
+//
+//        model.getKitsuEpisodes().observe(viewLifecycleOwner) { i ->
+//            if (i != null)
+//                media.anime?.kitsuEpisodes = i
+//        }
+        model.getTmdbEpisodes().observe(viewLifecycleOwner) { i ->
             if (i != null)
-                media.anime?.kitsuEpisodes = i
+                media.anime?.tmdbEpisodes = i
         }
 
         model.getFillerEpisodes().observe(viewLifecycleOwner) { i ->
@@ -275,8 +299,10 @@ class AnimeWatchFragment : Fragment() {
         val selected = model.loadSelected(media)
 
         //Find latest episode for subscription
-        selected.latest = media.anime?.episodes?.values?.maxOfOrNull { it.number.toFloatOrNull() ?: 0f } ?: 0f
-        selected.latest = media.userProgress?.toFloat()?.takeIf { selected.latest < it } ?: selected.latest
+        selected.latest =
+            media.anime?.episodes?.values?.maxOfOrNull { it.number.toFloatOrNull() ?: 0f } ?: 0f
+        selected.latest =
+            media.userProgress?.toFloat()?.takeIf { selected.latest < it } ?: selected.latest
 
         model.saveSelected(media.id, selected, requireActivity())
         headerAdapter.handleEpisodes()

@@ -40,7 +40,7 @@ data class Media(
     var userUpdatedAt: Long? = null,
     var userStartedAt: FuzzyDate = FuzzyDate(),
     var userCompletedAt: FuzzyDate = FuzzyDate(),
-    var inCustomListsOf: MutableMap<String, Boolean>?= null,
+    var inCustomListsOf: MutableMap<String, Boolean>? = null,
     var userFavOrder: Int? = null,
 
     val status: String? = null,
@@ -69,7 +69,9 @@ data class Media(
     var shareLink: String? = null,
     var selected: Selected? = null,
 
-    var idKitsu: String?=null,
+    var idKitsu: String? = null,
+
+    var idTMDB: String? = null,
 
     var cameFromContinue: Boolean = false
 ) : Serializable {

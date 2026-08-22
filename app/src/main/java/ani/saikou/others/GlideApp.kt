@@ -19,7 +19,7 @@ class SaikouGlideApp : AppGlideModule(){
     @SuppressLint("CheckResult")
     override fun applyOptions(context: Context, builder: GlideBuilder) {
         super.applyOptions(context, builder)
-        val diskCacheSizeBytes = 1024 * 1024 * 100 // 100 MiB
+        val diskCacheSizeBytes = 1024 * 1024 * 200 // 200 MiB
         builder.apply {
             setDiskCache(InternalCacheDiskCacheFactory(context, "img", diskCacheSizeBytes.toLong()))
         }

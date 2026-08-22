@@ -250,11 +250,11 @@
     <string name="behaviour">Behaviour</string>
     <string name="always_continue">Always Continue from where you left off</string>
     <string name="pause_video_focus">Pause when not in Focus</string>
-<!--    <string name="gestures">Volume &amp; Brightness Gestures</string>-->
+    <!--    <string name="gestures">Volume &amp; Brightness Gestures</string>-->
     <string name="gestures_vertical">Vertical Swipe Gestures</string>
     <string name="double_tap">Double tap to Seek</string>
-<!--    <string name="double_tap_info">Turning off will show fast forward &amp; rewind buttons</string>-->
-<!--    <string name="fast_forward">Fast Forward</string>-->
+    <!--    <string name="double_tap_info">Turning off will show fast forward &amp; rewind buttons</string>-->
+    <!--    <string name="fast_forward">Fast Forward</string>-->
     <string name="seek_time">Seek Time</string>
     <string name="seek_time_info">Amount of time in seconds for double tap gestures.</string>
     <string name="skip_time">Skip Time</string>
@@ -264,6 +264,41 @@
     <string name="picture_in_picture">Picture in Picture</string>
     <string name="always_minimize">Always Minimize</string>
     <string name="always_minimize_info">Requires PiP to be enabled, makes the player behave like Youtube Player but better.\nAlso hides the PiP button.</string>
+
+    <string name="torrent_settings_title">TorrServer Settings</string>
+    <string name="torrent_server_title">Server</string>
+    <string name="torrent_enable_server">P2P Streaming</string>
+    <string name="torrent_enable_server_desc">Allow peer-to-peer(torrent) streaming.</string>
+
+    <string name="torrent_profile_title">Preset</string>
+    <string name="torrent_profile">Profile</string>
+    <string name="torrent_profile_desc">Optimizes peer connections and  memory usage.</string>
+    <string name="torrent_profile_default">Balanced</string>
+
+    <string name="torrent_cache_title">Cache</string>
+    <string name="torrent_buffer_size">Video Buffer Size</string>
+    <string name="torrent_buffer_size_desc">Determines how much video data held in memory.</string>
+
+    <string name="torrent_network_title">Network &amp; Privacy</string>
+    <string name="torrent_enable_dht">DHT Protocol</string>
+    <string name="torrent_enable_dht_desc">Finds peers without a central tracker.</string>
+    <string name="torrent_enable_encryption">Protocol Encryption</string>
+    <string name="torrent_enable_encryption_desc">Obfuscates BitTorrent traffic to prevent ISP throttling.</string>
+
+    <string name="torrent_stats_title">Metrics</string>
+    <string name="torrent_enable_stats">Enable Statistics</string>
+    <string name="torrent_enable_stats_desc">Displays speed and swarm metrics in the player during playback.</string>
+
+    <string name="torrent_back_button_desc">Navigate back</string>
+    <string name="torrent_magnet_icon_desc">Magnet icon</string>
+    <string name="torrent_profile_icon_desc">Profile icon</string>
+    <string name="torrent_storage_icon_desc">Storage icon</string>
+
+    <string name="torrent_buffer_size_default">300 MB</string>
+
+    <string name="torrent_disk_cache">Max Disk Cache</string>
+    <string name="torrent_disk_cache_desc">Maximum disk space reserved for downloaded pieces before older pieces are automatically pruned (LRU).</string>
+    <string name="torrent_disk_cache_default">1 GB</string>
 
     <string name="app">App</string>
     <string name="immersive_mode">Hide Status Bar</string>
@@ -349,8 +384,8 @@
     <string name="planned_manga">Planned Manga</string>
     <string name="image_long_clicking">Open image by Long Clicking</string>
     <string name="always_continue_shows">Always continue Shows</string>
-<!--    <string name="timestamp_proxy_desc">Useful if you are getting Handshake Fails</string>-->
-<!--    <string name="timestamp_proxy">Use Proxy for Timestamps</string>-->
+    <!--    <string name="timestamp_proxy_desc">Useful if you are getting Handshake Fails</string>-->
+    <!--    <string name="timestamp_proxy">Use Proxy for Timestamps</string>-->
     <string name="timestamp_provider">Alternative API</string>
     <string name="timestamp_provider_desc">Use TheIntroDB.org for timestamps.</string>
     <string name="check_app_updates">Always check for App Updates</string>
@@ -506,9 +541,9 @@
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="close">Close</string>
-    <string name= "no_chapter">No Chapter</string>
-    <string name= "content_18">Turn on 18+ Content from your Anilist Settings</string>
-    <string name= "available">Available</string>
+    <string name="no_chapter">No Chapter</string>
+    <string name="content_18">Turn on 18+ Content from your Anilist Settings</string>
+    <string name="available">Available</string>
     <string name="lets_go">Let\'s Go</string>
     <string name="cope">Cope</string>
 
@@ -598,7 +633,7 @@
 
     <string name="question_17">Some useful tips and tricks</string>
     <string name="answer_17">The following presents some tips and tricks you may or may not know about - \n \n \n - By hold pressing the Saikou logo in settings, you can check if there are any new updates manually. \n \n - Hold pressing an error message/tag/synonym or title will copy it. \n \n - You can open an episode with other apps by hold pressing any server for that episode. This helps in streaming the episode using other video players or download the episode using download managers. \n \n - You can set up custom lists using this [link](https://anilist.co/settings/lists). (you need to be signed in) \n \n - If your episode/chapter is not being progressed automatically after you finish watching/reading it, then hold press the status bar(planning/repeating/watching button) of that anime/manga. The next time you start a chapter/finish an episode, you will stumble upon a popup. Press yes there. </string>
-    
+
 
     <string name="subscribed_notification">Subscribed! Receiving notifications, when new episodes are released on %1$s.</string>
 
@@ -622,10 +657,10 @@
     <string name="discord_try_again">Try logging-in again</string>
     <string name="error_loading_discord_user_data">Error loading Discord User Data</string>
     <string name="discord_warning"><![CDATA[By logging in, your discord will now show what you are watching & reading on Saikou\n\nIf you are on invisible mode, logging in will make you online, when you open Saikou.\n\nThis does break the Discord TOS. \nAlthough Discord has never banned anyone for using Custom Rich Presence(what saikou uses), You have still been warned.\n\nSaikou is not responsible for anything that happens to your account.]]></string>
+    <string name="torrent_warning"><![CDATA[By enabling this feature, your IP address and sharing activity will be visible to the public peer network.]]></string>
     <string name="warning">Warning</string>
     <string name="view_anime">View Anime</string>
     <string name="view_manga">View Manga</string>
-
 
 
     <string name="generic_reset">Reset</string>

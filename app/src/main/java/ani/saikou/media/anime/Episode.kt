@@ -14,12 +14,15 @@ data class Episode(
     var selectedExtractor: String? = null,
     var selectedVideo: Int = 0,
     var selectedSubtitle: Int? = -1,
-    var extractors: MutableList<VideoExtractor>?=null,
-    @Transient var extractorCallback: ((VideoExtractor) -> Unit)?=null,
+    var extractors: MutableList<VideoExtractor>? = null,
+    @Transient var extractorCallback: ((VideoExtractor) -> Unit)? = null,
     var allStreams: Boolean = false,
     var watched: Long? = null,
     var maxLength: Long? = null,
-    val extra: Map<String,String>?=null,
+    // Data needed by introDB for skiptimes
+    var seasonNumber: Int? = null,
+    var absoluteEpisodeNumber:Int? = null,
+    val extra: Map<String, String>? = null,
 ) : Serializable
 
 

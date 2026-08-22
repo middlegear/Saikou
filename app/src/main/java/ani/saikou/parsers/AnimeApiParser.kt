@@ -12,11 +12,10 @@ import kotlinx.serialization.Serializable
 @OptIn(InternalSerializationApi::class)
 abstract class AnimeApiParser : AnimeParser() {
 
-    override val hostUrl: String = BuildConfig.SERVER_URL
+    override val hostUrl: String = "https://kenjitsu.vercel.app"
 
     open val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
     abstract val providerName: String
-
 
     private val showCache = mutableMapOf<Int, ShowResponse>()
 
@@ -32,34 +31,28 @@ abstract class AnimeApiParser : AnimeParser() {
         return tryWithSuspend(post = false, snackbar = true) {
             setUserText("Searching: ${mediaObj.name ?: mediaObj.userPreferredName ?: mediaObj.nameRomaji}")
 
-            val url = "$hostUrl/api/anilist/episodes/$anilistId?provider=$providerName"
+            val url = "$hostUrl/api/anilist/anime/$anilistId/mappings?provider=$providerName"
             val res = client.get(url, headers = mapOf("x-api-key" to apiKey), timeout = 15L)
                 .parsed<ApiResponse>()
 
-            val mappedEpisodes = res.providerEpisodes.map { ep ->
-                Episode(
-                    number = ep.episodeNumber.toString(),
-                    link = ep.episodeId,
-                    title = ep.title,
-                    description = ep.overview,
-                    thumbnail = ep.thumbnail?.let { FileUrl(it) }
-                )
+            val providerId: String = if (providerName == "kitsu") {
+                mediaObj.id.toString()
+            } else {
+                res.provider.id
             }
 
-            if (mappedEpisodes.isEmpty()) {
-                setUserText("No episodes found")
+            if (providerId.isBlank()) {
+                setUserText("No match found")
                 return@tryWithSuspend null
             }
 
             val title = res.provider.name ?: res.provider.romaji ?: "Unknown"
-            setUserText("Found: $title")
-
+            setUserText("Selected: $title")
 
             val response = ShowResponse(
                 name = title,
-                link = res.provider.id,
-                coverUrl = FileUrl(mediaObj.cover ?: ""),
-                episodes = mappedEpisodes
+                link = providerId,
+                coverUrl = FileUrl(mediaObj.cover ?: "")
             )
 
             showCache[anilistId] = response
@@ -70,25 +63,14 @@ abstract class AnimeApiParser : AnimeParser() {
 
     @Serializable
     data class ApiResponse(
-        val provider: ProviderData,
-        val providerEpisodes: List<ProviderEpisode>
-
+        val provider: ProviderData
     )
 
     @Serializable
     data class ProviderData(
         val id: String,
         val name: String? = null,
-        val romaji: String? = null
-    )
+        val romaji: String? = null,
 
-
-    @Serializable
-    data class ProviderEpisode(
-        val episodeNumber: Int? = null,
-        val episodeId: String,
-        val title: String? = null,
-        val overview: String? = null,
-        val thumbnail: String? = null
     )
 }

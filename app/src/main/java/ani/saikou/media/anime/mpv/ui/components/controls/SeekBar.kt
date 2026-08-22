@@ -40,7 +40,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import ani.saikou.media.anime.mpv.PlayerRepository.SkipInterval
+import ani.saikou.media.anime.mpv.PlayerRepository
 import dev.vivvvek.seeker.Segment
 import dev.vivvvek.seeker.Seeker
 import dev.vivvvek.seeker.SeekerDefaults
@@ -55,7 +55,7 @@ fun SeekBar(
     readAheadMs: Long,
     onSeekFinished: (Long) -> Unit,
     modifier: Modifier = Modifier,
-    skipStamps: List<SkipInterval>? = null,
+    skipStamps: List<PlayerRepository.SkipInterval>? = null,
 ) {
     var dragPositionMs by remember { mutableStateOf<Long?>(null) }
     var seekTargetMs by remember { mutableStateOf<Long?>(null) }

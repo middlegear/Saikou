@@ -4,6 +4,7 @@ package ani.saikou.media.anime.mpv.ui.components
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -43,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -60,7 +63,10 @@ import ani.saikou.media.anime.mpv.ui.components.gestures.SeekEffectOverlay
 import ani.saikou.media.anime.mpv.ui.components.controls.BottomPlayerControls
 import ani.saikou.media.anime.mpv.ui.components.controls.CenterControls
 import ani.saikou.media.anime.mpv.ui.components.sheets.DecoderSettingsSheet
-import ani.saikou.media.anime.mpv.ui.components.controls.TopControls
+
+import ani.saikou.media.anime.mpv.ui.components.controls.TopControlsBar
+import ani.saikou.media.anime.mpv.ui.components.controls.TopControlsPopups
+//import ani.saikou.media.anime.mpv.ui.components.controls.TopControlsPopups
 import ani.saikou.media.anime.mpv.ui.components.controls.VerticalSlider
 import ani.saikou.media.anime.mpv.ui.components.sheets.AudioTracksSheet
 import ani.saikou.media.anime.mpv.ui.components.sheets.SubtitlesTracksSheet
@@ -80,7 +86,6 @@ fun PlayerControlsLayout(
     activity: AppCompatActivity?
 ) {
 
-
     val playbackState by viewModel.playbackState.collectAsState()
     val durationMs by viewModel.duration.collectAsState()
     val volume by viewModel.volume.collectAsState()
@@ -96,6 +101,8 @@ fun PlayerControlsLayout(
     val currentScaleMode by viewModel.videoScaleMode.collectAsState()
     val aniSkipStamps by viewModel.skipStamps.collectAsState()
     val currentEnginePos by viewModel.currentPosition.collectAsState()
+    val torrentStats by viewModel.torrentStats.collectAsState()
+
 
     var isControlsVisible by remember { mutableStateOf(true) }
     var controlsHideResetToken by remember { mutableLongStateOf(0L) }
@@ -309,7 +316,7 @@ fun PlayerControlsLayout(
                 showVolumeSlider = true
                 sliderDismissToken = System.currentTimeMillis()
             },
-            onVolumeChanged = {deltaFraction ->
+            onVolumeChanged = { deltaFraction ->
                 showVolumeSlider = true
                 sliderDismissToken = System.currentTimeMillis()
 
@@ -350,23 +357,23 @@ fun PlayerControlsLayout(
         }
 
 
-        AnimatedVisibility(
-            visible = isControlsVisible && !isControlsLocked && !is2xActive,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it }),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .onGloballyPositioned { coordinates ->
-                    topControlsHeight = with(density) { coordinates.size.height.toDp() }
-                }
-        ) {
+        val controlsAlpha by animateFloatAsState(
+            targetValue = if (isControlsVisible && !isControlsLocked && !is2xActive) 1f else 0f,
+            animationSpec = tween(200),
+            label = "TopControlsAlpha"
+        )
 
-            TopControls(
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            TopControlsBar(
                 mainTitle = episodeUi.mainTitle,
                 episodeName = episodeUi.episodeTitle,
                 onBackPressed = actions.onClose,
                 onSourcesClicked = actions.onSourceClick,
-                videoScaleModeText = currentScaleMode.name,
                 onSubtitleTracksButtonClicked = { showSubtitleTracksSheet = true },
                 subtitleTracks = subtitleTracks,
                 videoQualityTracks = videoTracks,
@@ -374,10 +381,33 @@ fun PlayerControlsLayout(
                 onVideoTrackButtonClicked = { showVideoTracksSheet = true },
                 onMoreSettingsClicked = { openSheetState = true },
                 audioTracks = audioTracks,
-                onAudioTrackButtonClicked = { showAudioTracksSheet = true }
+                onAudioTrackButtonClicked = { showAudioTracksSheet = true },
+                enabled = controlsAlpha > 0f,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        alpha = controlsAlpha
+                    }
+                    .onGloballyPositioned { coordinates ->
+                        if (coordinates.size.height > 0) {
+                            topControlsHeight = with(density) { coordinates.size.height.toDp() }
+                        }
+                    }
+                    .then(
+                        if (controlsAlpha == 0f)
+                            Modifier.pointerInput(Unit) {}
+                        else Modifier
+                    )
+            )
+
+
+            TopControlsPopups(
+                isEnabled = viewModel.torrentSettings.enableStatics && viewModel.torrentSettings.enableTorrentServer,
+                torrentStatVisible = isBuffering && !isControlsLocked && !is2xActive,
+                torrentStats = torrentStats,
+                videoScaleModeText = currentScaleMode.name,
             )
         }
-
 
         AnimatedVisibility(
             visible = isControlsVisible && !isControlsLocked && !is2xActive,

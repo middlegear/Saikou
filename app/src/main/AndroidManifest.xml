@@ -2,6 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -32,6 +38,7 @@
         android:theme="@style/Theme.Saikou"
         android:usesCleartextTraffic="true"
         tools:ignore="AllowBackup"
+        android:extractNativeLibs="true"
         tools:targetApi="m">
 
         <activity
@@ -81,25 +88,33 @@
         <activity android:name=".media.CharacterDetailsActivity" />
         <activity android:name=".home.NoInternet" />
 
-<!--        <activity-->
-<!--            android:name="ani.saikou.media.anime.ExoplayerView"-->
-<!--            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation"-->
-<!--            android:excludeFromRecents="true"-->
-<!--            android:exported="true"-->
-<!--            android:label="@string/video"-->
-<!--            android:launchMode="singleTask"-->
-<!--            android:supportsPictureInPicture="true"-->
-<!--            tools:targetApi="n" />-->
+        <activity
+            android:name="ani.saikou.torrserver.TorrServerActivity" >
+        </activity>
 
+
+        <service
+            android:name=".torrserver.TorrServerService"
+            android:enabled="true"
+            android:exported="false"
+            android:stopWithTask="true"
+            android:foregroundServiceType="mediaPlayback|specialUse">
+
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="TorrServer local torrent streaming engine" />
+        </service>
 
         <activity
             android:name=".media.anime.mpv.PlayerActivity"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden">
         </activity>
+
         <service
             android:name=".media.anime.mpv.PlaybackService"
             android:exported="false" />
+
         <activity
             android:name="ani.saikou.connections.anilist.Login"
             android:configChanges="orientation|screenSize|layoutDirection"

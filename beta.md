@@ -1,12 +1,24 @@
-## Version 1.2.5-beta
+
+## Version 1.2.5-beta (22/08/2026)
+
+### Features
+
+* **P2P:** Added support for P2P streaming (**Settings > Anime > TorrServer Settings**).
+* **AniDB:** New anime source.
+* **Torrentio:** New anime source for P2P streaming.
 
 ### Fixes
 
-* **Player:** Fixed the timestamp button not appearing even when skip times were available.
-* **Player:** Added a fallback to AniSkip when the alternative timestamp provider has no data.
-* Headset media controls now only work while the app is in focus.
+* **Metadata:** Fixed an issue causing missing episode metadata.
+* **MangaK:** Fixed chapters not tracking.
 
 ### Enhancements
 
-* **Player:** Separated swipe and double-tap gestures to improve gesture recognition.
-* **Player:** Minor UI refinements and cleanup.
+* **Player:** The initialization UI now displays artwork sourced from TheMovieDatabase.
+* **Player:** Added a non-persistent P2P stats pill to display swarm metrics.
+
+### Changes
+
+* **Sources:**  Disabled Anikoto.
+* **Skip Times (IntroDB):** Skip times are now fetched directly on the client side rather than being proxied.
+* **Metadata:** Disabled Kitsu in favor of metadata sourced from TheMovieDatabase and TheTVDB (P2P).

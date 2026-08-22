@@ -44,6 +44,14 @@ open class CustomBottomDialog : BottomSheetDialogFragment() {
         positiveCallback = callback
     }
 
+
+    private var dismissCallback: (() -> Unit)? = null
+    fun setOnDismissListener(callback: () -> Unit) {
+        dismissCallback = callback
+    }
+
+    private var dismissedByButton = false
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = BottomSheetCustomBinding.inflate(inflater, container, false)
         return binding.root
@@ -62,11 +70,12 @@ open class CustomBottomDialog : BottomSheetDialogFragment() {
                 checkCallback?.invoke(checked)
             }
         }
-        
+
         if(negativeText!=null) binding.bottomDialogCustomNegative.apply {
             visibility = View.VISIBLE
             text = negativeText
-            setOnClickListener { 
+            setOnClickListener {
+                dismissedByButton = true
                 negativeCallback?.invoke()
             }
         }
@@ -75,10 +84,16 @@ open class CustomBottomDialog : BottomSheetDialogFragment() {
             visibility = View.VISIBLE
             text = positiveText
             setOnClickListener {
+                dismissedByButton = true
                 positiveCallback?.invoke()
             }
         }
 
+        dialog?.setOnDismissListener {
+            if (!dismissedByButton) {
+                dismissCallback?.invoke()
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -89,5 +104,4 @@ open class CustomBottomDialog : BottomSheetDialogFragment() {
     companion object {
         fun newInstance() = CustomBottomDialog()
     }
-
 }

@@ -1,12 +1,15 @@
 package ani.saikou.media
 
 import android.app.Activity
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import ani.saikou.connections.anilist.Anilist
 import ani.saikou.media.anime.Episode
 import ani.saikou.media.anime.SelectorDialogFragment
@@ -28,6 +31,8 @@ import ani.saikou.snackString
 import ani.saikou.tryWithSuspend
 import ani.saikou.currContext
 import ani.saikou.R
+import ani.saikou.others.TheMovieDatabase
+import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.BitmapTransformation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -73,11 +78,18 @@ class MediaDetailsViewModel : ViewModel() {
 
 
     //Anime
-    private val kitsuEpisodes: MutableLiveData<Map<String, Episode>> = MutableLiveData<Map<String, Episode>>(null)
-    fun getKitsuEpisodes(): LiveData<Map<String, Episode>> = kitsuEpisodes
-    suspend fun loadKitsuEpisodes(s: Media) {
+//    private val kitsuEpisodes: MutableLiveData<Map<String, Episode>> = MutableLiveData<Map<String, Episode>>(null)
+//    fun getKitsuEpisodes(): LiveData<Map<String, Episode>> = kitsuEpisodes
+//    suspend fun loadKitsuEpisodes(s: Media) {
+//        tryWithSuspend {
+//            if (kitsuEpisodes.value == null) kitsuEpisodes.postValue(Kitsu.getKitsuEpisodesDetails(s))
+//        }
+//    }
+    private val tmdbEpisodes: MutableLiveData<Map<String, Episode>> = MutableLiveData<Map<String, Episode>>(null)
+    fun getTmdbEpisodes(): LiveData<Map<String, Episode>> = tmdbEpisodes
+    suspend fun loadTmdbEpisodes(s: Media) {
         tryWithSuspend {
-            if (kitsuEpisodes.value == null) kitsuEpisodes.postValue(Kitsu.getKitsuEpisodesDetails(s))
+            if (tmdbEpisodes.value == null) tmdbEpisodes.postValue(TheMovieDatabase.getTmdbEpisodesDetails(s))
         }
     }
 
@@ -190,6 +202,7 @@ class MediaDetailsViewModel : ViewModel() {
 
     val epChanged = MutableLiveData(true)
     fun onEpisodeClick(media: Media, i: String, manager: FragmentManager, launch: Boolean = true, prevEp: String? = null) {
+
         Handler(Looper.getMainLooper()).post {
             if (manager.findFragmentByTag("dialog") == null && !manager.isDestroyed) {
                 if (media.anime?.episodes?.get(i) != null) {

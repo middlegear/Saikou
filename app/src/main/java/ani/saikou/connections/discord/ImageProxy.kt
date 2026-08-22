@@ -11,7 +11,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
 class ImageProxy(
-    private val workerUrl: String = "https://saikou-image-proxy.kenjitsu.workers.dev",
+    private val applicationId: String,
     private val userToken: String?,
     private val client: OkHttpClient,
     private val json: Json
@@ -20,20 +20,13 @@ class ImageProxy(
 
     @SuppressLint("UnsafeOptInUsageError")
     @Serializable
-    data class WorkerRequest(
-        val imageUrl: String,
-        val userToken: String? = null
-    )
+    data class ExternalAssetRequest(val urls: List<String>)
 
     @SuppressLint("UnsafeOptInUsageError")
     @Serializable
-    data class WorkerResponse(
-        val uri: String?,
-        val error: String? = null
-    )
+    data class ExternalAssetResponseItem(val external_asset_path: String? = null)
 
     private val cachedImages = mutableMapOf<String, String>()
-
 
     suspend fun fetchDiscordUri(imageUrl: String?, cacheKey: String): String? {
         if (imageUrl.isNullOrBlank()) return null
@@ -52,43 +45,60 @@ class ImageProxy(
             return null
         }
 
-        Log.d(TAG, "Requesting conversion via Worker: $imageUrl")
+        if (userToken.isNullOrBlank()) {
+            Log.w(TAG, "No user token, cannot convert image: $imageUrl")
+            return null
+        }
 
-        val payload = WorkerRequest(
-            imageUrl = imageUrl,
-            userToken = userToken?.takeIf { it.isNotBlank() }
-        )
-        val jsonBody = json.encodeToString(payload)
+        Log.d(TAG, "Requesting conversion directly from Discord: $imageUrl")
 
         val result = runCatching {
+            val payload = ExternalAssetRequest(urls = listOf(imageUrl))
+            val jsonBody = json.encodeToString(payload)
+
             val request = Request.Builder()
-                .url("$workerUrl/convert-image")
+                .url("https://discord.com/api/v9/applications/$applicationId/external-assets")
+                .header("Authorization", userToken.toString())
                 .header("Content-Type", "application/json")
                 .post(jsonBody.toRequestBody("application/json".toMediaType()))
                 .build()
 
-
             client.newCall(request).await().use { response ->
                 if (!response.isSuccessful) {
-                    Log.w(TAG, "Worker returned ${response.code}")
+                    Log.w(TAG, "Discord returned ${response.code}: ${response.body?.string()}")
                     return@runCatching null
                 }
 
                 val bodyStr = response.body?.string() ?: return@runCatching null
-                json.decodeFromString<WorkerResponse>(bodyStr)
+                json.decodeFromString<List<ExternalAssetResponseItem>>(bodyStr)
             }
         }.onFailure {
-            Log.e(TAG, "Failed to contact worker: ${it.message}", it)
+            Log.e(TAG, "Failed to contact Discord: ${it.message}", it)
         }.getOrNull()
 
-        val finalUri = result?.uri
-        return if (!finalUri.isNullOrBlank()) {
-            Log.d(TAG, "Caching successful response for: $cacheKey")
-            cachedImages[cacheKey] = finalUri
-            finalUri
+        val rawPath = result?.firstOrNull()?.external_asset_path?.trim()
+
+        if (rawPath.isNullOrBlank()) {
+            Log.w(TAG, "Discord failed or returned empty path, NOT caching.")
+            return null
+        }
+
+        val normalizedPath = normalizePath(rawPath)
+        val finalUri = "mp:$normalizedPath"
+
+        Log.d(TAG, "Caching successful response for: $cacheKey -> $finalUri")
+        cachedImages[cacheKey] = finalUri
+        return finalUri
+    }
+
+    private fun normalizePath(path: String): String {
+        val looksLikeAppOrSnowflake =
+            path.startsWith(applicationId) || Regex("^\\d{17,19}").containsMatchIn(path)
+
+        return if (!path.startsWith("external/") && looksLikeAppOrSnowflake) {
+            "external/$path"
         } else {
-            Log.w(TAG, "Worker failed or returned empty URI, NOT caching.")
-            null
+            path
         }
     }
 
