@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +21,7 @@ import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 
 @Composable
+
 fun ChangelogSection(
     version: String,
     changelog: String,
@@ -34,10 +36,6 @@ fun ChangelogSection(
 
     val scrollState = rememberScrollState()
 
-
-    val screenHeightDp = LocalConfiguration.current.screenHeightDp.dp
-    val targetHeight = (screenHeightDp * 0.35f).coerceAtLeast(240.dp)
-
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = "Version $version",
@@ -50,7 +48,7 @@ fun ChangelogSection(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(targetHeight)
+                .heightIn(min = 100.dp, max = 300.dp)
                 .verticalScroll(scrollState)
         ) {
             Markdown(

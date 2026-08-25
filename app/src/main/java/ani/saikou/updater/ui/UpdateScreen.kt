@@ -51,7 +51,6 @@ import ani.saikou.updater.ui.components.DownloadProgressSection
 import ani.saikou.updater.ui.components.ErrorStateSection
 import ani.saikou.updater.ui.components.IdleStateContent
 import ani.saikou.updater.ui.components.UpdateActionButtons
-
 import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -68,7 +67,6 @@ fun AppUpdateContent(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-
     var isDismissing by remember { mutableStateOf(false) }
 
     val handleDismiss: () -> Unit = {
@@ -78,7 +76,6 @@ fun AppUpdateContent(
         }
     }
 
-
     BackHandler {
         handleDismiss()
     }
@@ -87,7 +84,6 @@ fun AppUpdateContent(
     var lastDownloadingState by remember { mutableStateOf<UpdateState.Downloading?>(null) }
 
     val scope = rememberCoroutineScope()
-    val scrollState = rememberScrollState()
 
     val onCheckForUpdatesWithDelay: () -> Unit = {
         scope.launch {
@@ -112,7 +108,6 @@ fun AppUpdateContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
             .padding(horizontal = 24.dp, vertical = 32.dp)
     ) {
 
@@ -170,137 +165,135 @@ fun AppUpdateContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- DYNAMIC ---
+        // --- DYNAMIC CONTENT ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp),
+                .weight(1f),
             contentAlignment = Alignment.Center
         ) {
             if (!isDismissing) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    AnimatedContent(
-                        targetState = state,
-                        label = "UpdateStateContent",
-                        contentAlignment = Alignment.Center,
-                        contentKey = {
-                            when (it) {
-                                is UpdateState.Downloading, is UpdateState.ReadyToInstall -> "download"
-                                is UpdateState.Idle -> "idle"
-                                is UpdateState.Checking -> "checking"
-                                is UpdateState.Available -> "available"
-                                is UpdateState.Error -> "error"
-                            }
-                        },
-                        transitionSpec = {
-                            (fadeIn(animationSpec = tween(200)) togetherWith fadeOut(animationSpec = tween(150)))
-                                .using(SizeTransform(clip = false))
+                AnimatedContent(
+                    targetState = state,
+                    label = "UpdateStateContent",
+                    contentAlignment = Alignment.Center,
+                    contentKey = {
+                        when (it) {
+                            is UpdateState.Downloading, is UpdateState.ReadyToInstall -> "download"
+                            is UpdateState.Idle -> "idle"
+                            is UpdateState.Checking -> "checking"
+                            is UpdateState.Available -> "available"
+                            is UpdateState.Error -> "error"
                         }
-                    ) { currentState ->
-                        when (currentState) {
-                            is UpdateState.Idle -> {
+                    },
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(200)) togetherWith fadeOut(animationSpec = tween(150)))
+                            .using(SizeTransform(clip = false))
+                    },
+                    modifier = Modifier.fillMaxSize()
+                ) { currentState ->
+                    when (currentState) {
+                        is UpdateState.Idle -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                IdleStateContent(
+                                    currentVersion = BuildConfig.VERSION_NAME,
+                                    onCheckForUpdates = onCheckForUpdatesWithDelay
+                                )
+                            }
+                        }
+
+                        is UpdateState.Checking -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CheckingForUpdatesSection(onCancelCheck = handleDismiss)
+                            }
+                        }
+
+                        is UpdateState.Available -> {
+
+                            Column(
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Text(
+                                    text = "New Update Available",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(min = 420.dp),
-                                    contentAlignment = Alignment.Center
+                                        .weight(1f)
                                 ) {
-                                    IdleStateContent(
-                                        currentVersion = BuildConfig.VERSION_NAME,
-                                        onCheckForUpdates = onCheckForUpdatesWithDelay
-                                    )
-                                }
-                            }
-
-                            is UpdateState.Checking -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 420.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CheckingForUpdatesSection(onCancelCheck = handleDismiss)
-                                }
-                            }
-
-                            is UpdateState.Available -> {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "New Update Available",
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
                                     ChangelogSection(
                                         version = currentState.version,
-                                        changelog = currentState.changelog
-                                    )
-                                    Spacer(modifier = Modifier.height(24.dp))
-                                    UpdateActionButtons(
-                                        isDownloading = false,
-                                        isReadyToInstall = false,
-                                        dontShowAgain = dontAskChecked,
-                                        onDontShowAgainChange = {
-                                            dontAskChecked = it
-                                            onDontShowAgain(currentState.version, it)
-                                        },
-                                        onPrimaryAction = {
-                                            onStartDownload(currentState.downloadUrl, currentState.version)
-                                        },
-                                        onDismiss = handleDismiss
+                                        changelog = currentState.changelog,
+                                        modifier = Modifier.fillMaxSize()
                                     )
                                 }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+
+                                UpdateActionButtons(
+                                    isDownloading = false,
+                                    isReadyToInstall = false,
+                                    dontShowAgain = dontAskChecked,
+                                    onDontShowAgainChange = {
+                                        dontAskChecked = it
+                                        onDontShowAgain(currentState.version, it)
+                                    },
+                                    onPrimaryAction = {
+                                        onStartDownload(currentState.downloadUrl, currentState.version)
+                                    },
+                                    onDismiss = handleDismiss
+                                )
+                            }
+                        }
+
+                        is UpdateState.Downloading, is UpdateState.ReadyToInstall -> {
+                            val total = if (currentState is UpdateState.ReadyToInstall) {
+                                lastDownloadingState?.totalBytes
+                                    ?: currentState.apkFile.length().takeIf { it > 0 }
+                                    ?: 0L
+                            } else {
+                                (currentState as UpdateState.Downloading).totalBytes
                             }
 
-                            is UpdateState.Downloading, is UpdateState.ReadyToInstall -> {
-                                val total = if (currentState is UpdateState.ReadyToInstall) {
-                                    lastDownloadingState?.totalBytes
-                                        ?: currentState.apkFile.length().takeIf { it > 0 }
-                                        ?: 0L
-                                } else {
-                                    (currentState as UpdateState.Downloading).totalBytes
-                                }
+                            val downloaded = if (currentState is UpdateState.ReadyToInstall) total else (currentState as UpdateState.Downloading).downloadedBytes
+                            val progress = if (currentState is UpdateState.ReadyToInstall) 100 else (currentState as UpdateState.Downloading).progressPercentage
 
-                                val downloaded = if (currentState is UpdateState.ReadyToInstall) total else (currentState as UpdateState.Downloading).downloadedBytes
-                                val progress = if (currentState is UpdateState.ReadyToInstall) 100 else (currentState as UpdateState.Downloading).progressPercentage
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 420.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    DownloadProgressSection(
-                                        progressPercentage = progress,
-                                        downloadedBytes = downloaded,
-                                        totalBytes = total,
-                                        onCancelDownload = onCancelDownload
-                                    )
-                                }
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                DownloadProgressSection(
+                                    progressPercentage = progress,
+                                    downloadedBytes = downloaded,
+                                    totalBytes = total,
+                                    onCancelDownload = onCancelDownload
+                                )
                             }
+                        }
 
-                            is UpdateState.Error -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 420.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    ErrorStateSection(
-                                        errorMessage = currentState.message,
-                                        onRetry = onCheckForUpdatesWithDelay,
-                                        onDismiss = handleDismiss
-                                    )
-                                }
+                        is UpdateState.Error -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                ErrorStateSection(
+                                    errorMessage = currentState.message,
+                                    onRetry = onCheckForUpdatesWithDelay,
+                                    onDismiss = handleDismiss
+                                )
                             }
                         }
                     }
@@ -361,7 +354,7 @@ private fun AppUpdatePreview_Available() {
                         * **Anizone:** Fixed search errors, missing sources, and incomplete episode counts.
                         * **Player:** Resolved video frame dropping during high bitrate playback.
                     """.trimIndent(),
-                    downloadUrl = "https://github.com/middlegear/Saikou/releases"
+                    downloadUrl = "https://github.com/supboys/releases"
                 ),
                 onCheckForUpdates = {},
                 onStartDownload = { _, _ -> },
