@@ -26,7 +26,7 @@ import ani.saikou.connections.discord.auth.DiscordRepository
 import ani.saikou.connections.discord.rpc.RpcRepository
 import ani.saikou.connections.mal.MAL
 import ani.saikou.databinding.ActivitySettingsBinding
-import ani.saikou.others.AppUpdater
+//import ani.saikou.others.AppUpdater
 import ani.saikou.others.CustomBottomDialog
 import ani.saikou.parsers.AnimeSources
 import ani.saikou.parsers.MangaSources
@@ -36,6 +36,8 @@ import ani.saikou.subcriptions.Subscription.Companion.defaultTime
 import ani.saikou.subcriptions.Subscription.Companion.startSubscription
 import ani.saikou.subcriptions.Subscription.Companion.timeMinutes
 import ani.saikou.torrserver.TorrServerActivity
+import ani.saikou.updater.AppUpdater
+import ani.saikou.updater.UpdateActivity
 import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import kotlinx.coroutines.Dispatchers
@@ -438,16 +440,12 @@ OS Version: $CODENAME $RELEASE ($SDK_INT)
         }
 
         binding.settingsLogo.setOnLongClickListener {
-            lifecycleScope.launch(Dispatchers.IO) {
-                AppUpdater.check(this@SettingsActivity, true)
-            }
+            UpdateActivity.launch(this, forceCheck = true)
             true
         }
 
         binding.settingsCheckUpdate.setOnLongClickListener {
-            lifecycleScope.launch(Dispatchers.IO) {
-                AppUpdater.check(this@SettingsActivity, true)
-            }
+            UpdateActivity.launch(this, forceCheck = true)
             true
         }
 

@@ -1,6 +1,6 @@
 package ani.saikou.media.anime.mpv.ui.components.sheets
 
-import android.content.res.Configuration
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -45,8 +45,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ani.saikou.compose.SaikouTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun <T> GenericTracksSheet(
@@ -80,7 +82,7 @@ fun <T> GenericTracksSheet(
     val animateAndDismiss: () -> Unit = {
         coroutineScope.launch {
             isAnimatedVisible = false
-            delay(300)
+            delay(300.milliseconds)
             onDismissRequest()
         }
     }
@@ -120,7 +122,12 @@ fun <T> GenericTracksSheet(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {},
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
+                shape = RoundedCornerShape(
+                    topStart = 28.dp,
+                    topEnd = 28.dp,
+                    bottomStart = 0.dp,
+                    bottomEnd = 0.dp
+                ),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
                 Column(
@@ -146,8 +153,7 @@ fun <T> GenericTracksSheet(
                             .fillMaxWidth()
                             .padding(bottom = 20.dp, start = 24.dp, end = 24.dp),
                         textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
@@ -188,8 +194,8 @@ fun <T> GenericTracksSheet(
 
                                 Text(
                                     text = trackToText(track),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -203,7 +209,11 @@ fun <T> GenericTracksSheet(
 }
 
 
-@Preview( showSystemUi = true, showBackground = true, device = "spec:width=800dp,height=360dp,dpi=480,orientation=landscape")
+@Preview(
+    showSystemUi = true,
+    showBackground = true,
+    device = "spec:width=800dp, height=360dp, dpi=480, orientation=landscape"
+)
 @Composable
 fun AudioTrackSelectorSheetPreview() {
     val languageTracks = listOf(
@@ -218,27 +228,29 @@ fun AudioTrackSelectorSheetPreview() {
     var selectedLanguage by remember { mutableStateOf("English  - AAC Stereo") }
     var showSheet by remember { mutableStateOf(true) }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Box(
+    SaikouTheme {
+        Surface(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            color = MaterialTheme.colorScheme.background
         ) {
-            if (showSheet) {
-                GenericTracksSheet(
-                    trackList = languageTracks,
-                    currentTrack = selectedLanguage,
-                    title = "Select Audio Track",
-                    trackToText = { it },
-                    onTrackSelected = { choice ->
-                        selectedLanguage = choice
-                    },
-                    onDismissRequest = {
-                        showSheet = false
-                    }
-                )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                if (showSheet) {
+                    GenericTracksSheet(
+                        trackList = languageTracks,
+                        currentTrack = selectedLanguage,
+                        title = "Select Audio Track",
+                        trackToText = { it },
+                        onTrackSelected = { choice ->
+                            selectedLanguage = choice
+                        },
+                        onDismissRequest = {
+                            showSheet = false
+                        }
+                    )
+                }
             }
         }
     }

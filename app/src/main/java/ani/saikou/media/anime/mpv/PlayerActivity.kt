@@ -18,11 +18,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import ani.saikou.R
+import ani.saikou.compose.SaikouTheme
 import ani.saikou.connections.anilist.Anilist
 import ani.saikou.loadData
 import ani.saikou.media.MediaDetailsViewModel
 import ani.saikou.media.anime.mpv.ui.PlayerScreen
-import ani.saikou.media.anime.mpv.ui.theme.PlayerTheme
 import ani.saikou.saveData
 import ani.saikou.toast
 import kotlinx.coroutines.flow.combine
@@ -158,7 +158,7 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         setContent {
-            PlayerTheme {
+            SaikouTheme{
                 val uiState by playerModel.uiState.collectAsState()
 
                 PlayerScreen(

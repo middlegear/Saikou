@@ -111,6 +111,12 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden">
         </activity>
 
+        <activity
+            android:name="ani.saikou.updater.UpdateActivity"
+            android:configChanges="orientation|screenSize|layoutDirection"
+            android:launchMode="singleTop">
+        </activity>
+
         <service
             android:name=".media.anime.mpv.PlaybackService"
             android:exported="false" />

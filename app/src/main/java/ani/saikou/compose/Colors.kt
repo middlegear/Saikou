@@ -1,4 +1,6 @@
-package ani.saikou.media.anime.mpv.ui.theme
+package ani.saikou.compose
+
+
 
 import androidx.compose.ui.graphics.Color
 

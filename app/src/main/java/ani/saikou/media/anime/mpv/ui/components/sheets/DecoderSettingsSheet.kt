@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ani.saikou.compose.SaikouTheme
 import ani.saikou.media.anime.mpv.AudioChannels
 import ani.saikou.media.anime.mpv.Decoder
 import kotlinx.coroutines.delay
@@ -177,8 +178,7 @@ fun DecoderSettingsSheet(
 
                         Text(
                             text = "Decoder Settings",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
                             color = onSurfaceColor,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
@@ -191,7 +191,7 @@ fun DecoderSettingsSheet(
                             text = "Hardware decoding mode",
                             style = MaterialTheme.typography.labelLarge,
                             color = onSurfaceColor.copy(alpha = 0.5f),
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.5.sp
                         )
 
@@ -228,7 +228,7 @@ fun DecoderSettingsSheet(
                                         color = if (isSelected) primaryColor else onSurfaceColor.copy(
                                             alpha = 0.8f
                                         ),
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                                         maxLines = 1,
                                         textAlign = TextAlign.Center
                                     )
@@ -242,7 +242,7 @@ fun DecoderSettingsSheet(
                             text = "Audio Channels",
                             style = MaterialTheme.typography.labelLarge,
                             color = onSurfaceColor.copy(alpha = 0.5f),
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.5.sp
                         )
 
@@ -275,7 +275,7 @@ fun DecoderSettingsSheet(
                                 ) {
                                     Text(
                                         text = channel.title,
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = MaterialTheme.typography.labelLarge,
                                         color = if (isSelected) primaryColor else onSurfaceColor.copy(
                                             alpha = 0.8f
                                         ),
@@ -303,7 +303,7 @@ fun HeavyDecoderSettingsSheetPreview() {
     var currentDecoder by remember { mutableStateOf(Decoder.HW) }
     var currentAudio by remember { mutableStateOf(AudioChannels.Stereo) }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    SaikouTheme { Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         DecoderSettingsSheet(
             selectedDecoder = currentDecoder,
             onDecoderSelected = { currentDecoder = it },
@@ -313,5 +313,5 @@ fun HeavyDecoderSettingsSheetPreview() {
             availableDecoders = Decoder.entries,
             availableAudioChannels = AudioChannels.entries
         )
-    }
+    }}
 }

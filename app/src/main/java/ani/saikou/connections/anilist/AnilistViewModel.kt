@@ -10,9 +10,10 @@ import ani.saikou.R
 import ani.saikou.loadData
 import ani.saikou.connections.mal.MAL
 import ani.saikou.media.Media
-import ani.saikou.others.AppUpdater
+//import ani.saikou.others.AppUpdater
 import ani.saikou.snackString
 import ani.saikou.tryWithSuspend
+import ani.saikou.updater.AppUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -96,8 +97,13 @@ class AnilistHomeViewModel : ViewModel() {
         Anilist.getSavedToken(context)
         MAL.getSavedToken(context)
 //        Discord.getSavedToken(context)
-        if (loadData<Boolean>("check_update") != false) AppUpdater.check(context)
+
         genres.postValue(Anilist.query.getGenresAndTags(context))
+
+
+        if (loadData<Boolean>("check_update") != false) {
+            AppUpdater.check(context, force = false)
+        }
     }
 
     val empty = MutableLiveData<Boolean>(null)

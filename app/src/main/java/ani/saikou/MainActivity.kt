@@ -18,12 +18,14 @@ import androidx.activity.addCallback
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
+import androidx.core.content.edit
 import androidx.core.view.doOnAttach
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import ani.saikou.connections.anilist.Anilist
 import ani.saikou.connections.anilist.AnilistHomeViewModel
@@ -38,16 +40,18 @@ import ani.saikou.media.MediaDetailsActivity
 import ani.saikou.others.CustomBottomDialog
 import ani.saikou.settings.UserInterfaceSettings
 import ani.saikou.subcriptions.Subscription.Companion.startSubscription
+import ani.saikou.updater.AppUpdater
+import ani.saikou.updater.UpdateActivity
+import ani.saikou.updater.UpdateState
 import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
+import java.io.Serializable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import nl.joery.animatedbottombar.AnimatedBottomBar
-import java.io.Serializable
-import androidx.core.content.edit
-
+import kotlin.time.Duration.Companion.milliseconds
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -157,7 +161,21 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-            //Load Data
+
+
+            lifecycleScope.launch {
+                repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    AppUpdater.updateState.collect { state ->
+                        if (state is UpdateState.Available) {
+                            if (AppUpdater.shouldLaunchUpdate(state.version)) {
+                                UpdateActivity.launch(this@MainActivity)
+                            }
+                        }
+                    }
+                }
+            }
+
+
             if (!load) {
                 scope.launch(Dispatchers.IO) {
                     model.loadMain(this@MainActivity)
@@ -178,16 +196,14 @@ class MainActivity : AppCompatActivity() {
                             snackString(this@MainActivity.getString(R.string.anilist_not_found))
                         }
                     }
-                    delay(500)
+                    delay(500.milliseconds)
                     startSubscription()
                 }
                 load = true
             }
-
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-
                 if (!isDialogDisabled(this)) {
-
                     val manager = getSystemService(android.content.pm.verify.domain.DomainVerificationManager::class.java)
                     val userState = manager.getDomainVerificationUserState(packageName)
 
@@ -197,7 +213,6 @@ class MainActivity : AppCompatActivity() {
                         it == android.content.pm.verify.domain.DomainVerificationUserState.DOMAIN_STATE_SELECTED ||
                                 it == android.content.pm.verify.domain.DomainVerificationUserState.DOMAIN_STATE_VERIFIED
                     }
-
 
                     if (!isLinkHandlingAllowed || !allSelected) {
                         CustomBottomDialog.newInstance().apply {
@@ -232,7 +247,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    //ViewPager
+    // ViewPager
     private class ViewPagerAdapter(fragmentManager: FragmentManager, lifecycle: Lifecycle) :
         FragmentStateAdapter(fragmentManager, lifecycle) {
 
@@ -247,7 +262,6 @@ class MainActivity : AppCompatActivity() {
             return LoginFragment()
         }
     }
-
 
     fun isDialogDisabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences("saikou_prefs", Context.MODE_PRIVATE)

@@ -1,5 +1,6 @@
 package ani.saikou.others
 
+import android.content.DialogInterface
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -15,8 +16,9 @@ open class CustomBottomDialog : BottomSheetDialogFragment() {
     fun addView(view: View) {
         viewList.add(view)
     }
-    var title: String?=null
-    fun setTitleText(string: String){
+
+    var title: String? = null
+    fun setTitleText(string: String) {
         title = string
     }
 
@@ -44,7 +46,6 @@ open class CustomBottomDialog : BottomSheetDialogFragment() {
         positiveCallback = callback
     }
 
-
     private var dismissCallback: (() -> Unit)? = null
     fun setOnDismissListener(callback: () -> Unit) {
         dismissCallback = callback
@@ -52,16 +53,24 @@ open class CustomBottomDialog : BottomSheetDialogFragment() {
 
     private var dismissedByButton = false
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
         _binding = BottomSheetCustomBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
         binding.bottomSheerCustomTitle.text = title
+
         viewList.forEach {
             binding.bottomDialogCustomContainer.addView(it)
         }
+
         if (checkText != null) binding.bottomDialogCustomCheckBox.apply {
             visibility = View.VISIBLE
             text = checkText
@@ -71,34 +80,37 @@ open class CustomBottomDialog : BottomSheetDialogFragment() {
             }
         }
 
-        if(negativeText!=null) binding.bottomDialogCustomNegative.apply {
+        if (negativeText != null) binding.bottomDialogCustomNegative.apply {
             visibility = View.VISIBLE
             text = negativeText
             setOnClickListener {
                 dismissedByButton = true
                 negativeCallback?.invoke()
+                dismiss()
             }
         }
 
-        if(positiveText!=null) binding.bottomDialogCustomPositive.apply {
+        if (positiveText != null) binding.bottomDialogCustomPositive.apply {
             visibility = View.VISIBLE
             text = positiveText
             setOnClickListener {
                 dismissedByButton = true
                 positiveCallback?.invoke()
-            }
-        }
-
-        dialog?.setOnDismissListener {
-            if (!dismissedByButton) {
-                dismissCallback?.invoke()
+                dismiss()
             }
         }
     }
 
-    override fun onDestroy() {
+    override fun onDismiss(dialog: DialogInterface) {
+        super.onDismiss(dialog)
+        if (!dismissedByButton) {
+            dismissCallback?.invoke()
+        }
+    }
+
+    override fun onDestroyView() {
         _binding = null
-        super.onDestroy()
+        super.onDestroyView()
     }
 
     companion object {
