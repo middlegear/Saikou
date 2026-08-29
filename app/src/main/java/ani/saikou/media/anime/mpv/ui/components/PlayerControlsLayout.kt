@@ -138,6 +138,9 @@ fun PlayerControlsLayout(
         val validBrightness = if (initialBrightness < 0f) 0.5f else initialBrightness
         mutableFloatStateOf(validBrightness)
     }
+    var volumeSliderValue by remember {
+        mutableFloatStateOf(volume.toFloat() / 100f)
+    }
 
 
     val triggerCompoundingSeek: (SeekDirection) -> Unit = remember(activeSeekDirection) {
@@ -202,9 +205,10 @@ fun PlayerControlsLayout(
 
 
     LaunchedEffect(Unit) {
-        viewModel.volumeChangeEvent.collect {
+        viewModel.volumeChangeEvent.collect { percent ->
             showVolumeSlider = true
             sliderDismissToken = System.currentTimeMillis()
+            volumeSliderValue = percent / 100f
         }
     }
     LaunchedEffect(sliderDismissToken) {
@@ -319,10 +323,9 @@ fun PlayerControlsLayout(
             onVolumeChanged = { deltaFraction ->
                 showVolumeSlider = true
                 sliderDismissToken = System.currentTimeMillis()
-
-                val currentVolumeFraction = volume.toFloat() / 100f
-                val newVolumeFraction = (currentVolumeFraction + deltaFraction).coerceIn(0.0f, 1.0f)
-                viewModel.setVolume((newVolumeFraction * 100f).toInt())
+                val newVolumeFraction = (volumeSliderValue + deltaFraction).coerceIn(0.0f, 1.0f)
+                volumeSliderValue = newVolumeFraction
+                viewModel.setVolume((newVolumeFraction * 100f).roundToInt())
             },
             onSpeedChanged = { targetSpeed ->
                 viewModel.setPlaybackSpeed(targetSpeed)
@@ -520,11 +523,11 @@ fun PlayerControlsLayout(
                     .padding(start = edgeInset)
             ) {
 
-                val currentVolumeFraction = remember(volume) { volume.toFloat() / 100f }
-
                 VerticalSlider(
-                    value = currentVolumeFraction,
+                    value = volumeSliderValue,
                     onValueChange = { newFraction ->
+                        sliderDismissToken = System.currentTimeMillis()
+                        volumeSliderValue = newFraction
                         val newVolume = (newFraction * 100f).roundToInt()
                         viewModel.setVolume(newVolume)
                     },
