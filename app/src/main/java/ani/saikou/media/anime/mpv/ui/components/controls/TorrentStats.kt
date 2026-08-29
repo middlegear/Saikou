@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ani.saikou.compose.SaikouTheme
 import ani.saikou.torrserver.models.TorrentStats
 import java.util.Locale
 
@@ -96,7 +97,7 @@ private fun StatItem(
             text = text,
             color = tint,
             style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -118,17 +119,18 @@ fun TorrentStatsPillPreview() {
         progress = 0.12f,
 
         )
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF1C1C1E)),
-        contentAlignment = Alignment.Center
-    ) {
-        TorrentStatsPill(
-            isEnabled = true,
-            stats = sampleStats,
-            elementTint = Color.White
-        )
+    SaikouTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF1C1C1E)),
+            contentAlignment = Alignment.Center
+        ) {
+            TorrentStatsPill(
+                isEnabled = true,
+                stats = sampleStats,
+                elementTint = Color.White
+            )
+        }
     }
 }

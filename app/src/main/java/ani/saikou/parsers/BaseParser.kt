@@ -1,7 +1,12 @@
 package ani.saikou.parsers
 
+import android.content.Context
 import ani.saikou.*
 import ani.saikou.media.Media
+import ani.saikou.others.AnilistTitles
+import ani.saikou.others.findBestMatch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -17,9 +22,6 @@ abstract class BaseParser {
      * **/
     open val saveName: String = ""
 
-    /** * Set to false for sites with rotating/temporary IDs to skip caching
-     **/
-    open val useCache = true
 
     /**
      * The main URL of the Site
@@ -41,31 +43,50 @@ abstract class BaseParser {
      *
      *  use `encode(query)` to encode the query for making requests
      * **/
+
     abstract suspend fun search(query: String): List<ShowResponse>
 
     /**
-     * The function app uses to auto find the anime/manga using Media data provided by anilist
-     *
-     * Isn't necessary to override, but recommended, if you want to improve auto search results
-     * **/
+     * Finds the best matching ShowResponse using fuzzy title comparison
+     * against AniList media metadata. Reads saved entries first.
+     **/
     open suspend fun autoSearch(mediaObj: Media): ShowResponse? {
-        var response = if (useCache) loadSavedShowResponse(mediaObj.id) else null
+        var response = loadSavedShowResponse(mediaObj.id)
 
         if (response != null) {
-            saveShowResponse(mediaObj.id, response, selected = true)
+            setUserText("Selected : ${response.name}")
             return response
         }
 
-        val title = mediaObj.name ?: mediaObj.nameRomaji
-        setUserText("Searching : $title")
+        val searchTitles = listOfNotNull(
+            mediaObj.name,
+            mediaObj.userPreferredName,
+            mediaObj.nameRomaji
+        ).filter { it.isNotBlank() }.distinct()
 
-        response = search(title).firstOrNull()
+        if (searchTitles.isEmpty()) return null
+
+        val targetTitles = AnilistTitles(
+            (searchTitles + mediaObj.synonyms).filter { it.isNotBlank() }.distinct()
+        )
+
+
+        var searchResults: List<ShowResponse> = emptyList()
+        // ddos who cares
+        for (title in searchTitles) {
+            setUserText("Searching : $title")
+            searchResults = search(title)
+            if (searchResults.isNotEmpty()) break
+        }
+
+        if (searchResults.isNotEmpty()) {
+            response = findBestMatch(target = targetTitles, candidates = searchResults)
+                ?: searchResults.firstOrNull()
+        }
 
         if (response != null) {
             setUserText("Found : ${response.name}")
-            if (useCache) {
-                saveShowResponse(mediaObj.id, response)
-            }
+            saveShowResponse(mediaObj.id, response)
         } else {
             setUserText("No results found")
         }
@@ -74,23 +95,20 @@ abstract class BaseParser {
     }
 
     /**
-     * Used to get an existing Search Response which was selected by the user.
-     * **/
+     * Reads a saved ShowResponse previously chosen by autoSearch or manually selected by the
+     * user.
+     **/
     open suspend fun loadSavedShowResponse(mediaId: Int): ShowResponse? {
-        if (!useCache) return null
         checkIfVariablesAreEmpty()
-        return loadData("${saveName}_$mediaId")
+        return loadShowResponseJson("${saveName}_$mediaId")
     }
 
-    /**
-     * Used to save Shows Response using `saveName`.
-     * **/
     open fun saveShowResponse(mediaId: Int, response: ShowResponse?, selected: Boolean = false) {
-        if (useCache && response != null) {
+        if (response != null) {
             checkIfVariablesAreEmpty()
             val prefix = if (selected) "Selected" else "Found"
             setUserText("$prefix : ${response.name}")
-            saveData("${saveName}_$mediaId", response)
+            saveShowResponseJson("${saveName}_$mediaId", response)
         }
     }
 
@@ -117,25 +135,9 @@ abstract class BaseParser {
     val defaultImage = "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/default.jpg"
 }
 
-
 /**
  * A single show which contains some episodes/chapters which is sent by the site using their search function.
- *
- * You might wanna include `otherNames` & `total` too, to further improve user experience.
- *
- * You can also store a Map of Strings if you want to save some extra data.
- * **/
-/**
- * A single show which contains some episodes/chapters which is sent by the site using their search function.
- *
- * You might wanna include `otherNames` & `total` too, to further improve user experience.
- *
- * You can also store a Map of Strings if you want to save some extra data.
- *
- * `episodes` field allows parsers (especially direct-API ones) to return preloaded episodes
- * during search, skipping the extra loadEpisodes() call when possible.
  **/
-
 data class ShowResponse(
     val name: String,
     val link: String,
@@ -153,8 +155,6 @@ data class ShowResponse(
     // Extra arbitrary data (e.g. season, year, dub/sub flag, etc.)
     val extra: Map<String, String>? = null
 ) : java.io.Serializable {
-
-    // Convenience constructors for backward compatibility and ease of use
 
     constructor(
         name: String,
@@ -189,4 +189,80 @@ data class ShowResponse(
     ) : this(name, link, FileUrl(coverUrl), null, emptyList(), null, null)
 }
 
+private fun showResponseFileName(key: String) = "$key.showresponse.json"
 
+private fun ShowResponse.toJson(): JSONObject = JSONObject().apply {
+    put("name", name)
+    put("link", link)
+    put("coverUrl", coverUrl.url)
+    put("coverHeaders", JSONObject(coverUrl.headers))
+    put("otherNames", JSONArray(otherNames))
+    if (total != null) put("total", total)
+    if (extra != null) put("extra", JSONObject(extra))
+}
+
+private fun JSONObject.toShowResponse(): ShowResponse? {
+    return try {
+        val name = getString("name")
+        val link = getString("link")
+        val coverUrl = getString("coverUrl")
+        val headersJson = optJSONObject("coverHeaders")
+        val headers = mutableMapOf<String, String>()
+        headersJson?.keys()?.forEach { k -> headers[k] = headersJson.getString(k) }
+
+        val otherNamesJson = optJSONArray("otherNames")
+        val otherNames = mutableListOf<String>()
+        if (otherNamesJson != null) {
+            for (i in 0 until otherNamesJson.length()) otherNames.add(otherNamesJson.getString(i))
+        }
+
+        val total = if (has("total")) getInt("total") else null
+
+        val extraJson = optJSONObject("extra")
+        val extra = if (extraJson != null) {
+            mutableMapOf<String, String>().apply {
+                extraJson.keys().forEach { k -> put(k, extraJson.getString(k)) }
+            }
+        } else null
+
+        ShowResponse(
+            name = name,
+            link = link,
+            coverUrl = FileUrl(coverUrl, headers),
+            episodes = null,
+            otherNames = otherNames,
+            total = total,
+            extra = extra
+        )
+    } catch (e: Exception) {
+        null
+    }
+}
+
+fun saveShowResponseJson(key: String, response: ShowResponse, context: Context? = null) {
+    tryWith {
+        val ctx = context ?: currContext() ?: return@tryWith
+        val fileName = showResponseFileName(key)
+        ctx.openFileOutput(fileName, Context.MODE_PRIVATE).use { fos ->
+            fos.write(response.toJson().toString().toByteArray(Charsets.UTF_8))
+        }
+    }
+}
+
+fun loadShowResponseJson(key: String, context: Context? = null): ShowResponse? {
+    val ctx = context ?: currContext() ?: return null
+    val fileName = showResponseFileName(key)
+    return try {
+        if (fileName !in (ctx.fileList() ?: emptyArray())) return null
+        val text = ctx.openFileInput(fileName).use { it.readBytes().toString(Charsets.UTF_8) }
+        JSONObject(text).toShowResponse().also {
+            if (it == null) ctx.deleteFile(fileName)
+        }
+    } catch (e: Exception) {
+        try {
+            ctx.deleteFile(fileName)
+        } catch (_: Exception) {
+        }
+        null
+    }
+}

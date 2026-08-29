@@ -11,6 +11,7 @@ import ani.saikou.parsers.anime.Anizone
 import ani.saikou.parsers.anime.AniDB
 import ani.saikou.parsers.anime.AnimeHeaven
 import ani.saikou.parsers.anime.AniBD
+import ani.saikou.parsers.anime.Anikoto
 import ani.saikou.parsers.anime.Torrentio
 import ani.saikou.torrserver.utils.TorrentSettings
 
@@ -24,8 +25,8 @@ object AnimeSources : WatchSources() {
 
     private val fullList: List<Lazier<BaseParser>> = lazyList(
 //        "AllAnime" to ::AllAnime,
+        "Anikoto" to ::Anikoto,
         "AniDB" to ::AniDB,
-//        "Anikoto" to ::Anikoto,
         "AnimeHeaven" to ::AnimeHeaven,
         "AniBD" to ::AniBD,
 //        "AnimePahe" to ::AnimePahe,

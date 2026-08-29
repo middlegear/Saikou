@@ -88,7 +88,7 @@ fun BottomRightControls(
                         Text(
                             text = "Skip $segment",
                             style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             color = elementTint
                         )
                     }
@@ -126,7 +126,7 @@ fun BottomRightControls(
                     Text(
                         text = skipLabel,
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                         color = if (isLocked) elementTint.copy(alpha = 0.4f) else elementTint,
                         modifier = Modifier.fillMaxWidth()

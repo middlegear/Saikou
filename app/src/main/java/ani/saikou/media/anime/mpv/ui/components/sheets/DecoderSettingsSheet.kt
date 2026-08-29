@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -55,7 +56,7 @@ import ani.saikou.media.anime.mpv.AudioChannels
 import ani.saikou.media.anime.mpv.Decoder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -72,11 +73,12 @@ fun DecoderSettingsSheet(
     val coroutineScope = rememberCoroutineScope()
     val isPreview = LocalInspectionMode.current
     var isAnimatedVisible by remember { mutableStateOf(isPreview) }
-    val configuration = LocalConfiguration.current
 
+    val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp.dp
     val minSheetHeight = screenHeightDp * 0.80f
     val maxSheetWidth = configuration.screenWidthDp.dp * 0.70f
+
     LaunchedEffect(Unit) {
         if (!isPreview) {
             isAnimatedVisible = true
@@ -86,7 +88,7 @@ fun DecoderSettingsSheet(
     val animateAndDismiss: () -> Unit = {
         coroutineScope.launch {
             isAnimatedVisible = false
-            delay(300)
+            delay(300.milliseconds)
             onDismissRequest()
         }
     }
@@ -132,6 +134,7 @@ fun DecoderSettingsSheet(
                 modifier = Modifier
                     .widthIn(max = maxSheetWidth)
                     .fillMaxWidth()
+                    .heightIn(min = minSheetHeight)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -185,7 +188,6 @@ fun DecoderSettingsSheet(
                         )
                     }
 
-
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             text = "Hardware decoding mode",
@@ -228,7 +230,7 @@ fun DecoderSettingsSheet(
                                         color = if (isSelected) primaryColor else onSurfaceColor.copy(
                                             alpha = 0.8f
                                         ),
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                        fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                         textAlign = TextAlign.Center
                                     )
@@ -275,11 +277,11 @@ fun DecoderSettingsSheet(
                                 ) {
                                     Text(
                                         text = channel.title,
-                                        style = MaterialTheme.typography.labelLarge,
+                                        style = MaterialTheme.typography.bodyMedium,
                                         color = if (isSelected) primaryColor else onSurfaceColor.copy(
                                             alpha = 0.8f
                                         ),
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                         textAlign = TextAlign.Center
                                     )
@@ -303,15 +305,17 @@ fun HeavyDecoderSettingsSheetPreview() {
     var currentDecoder by remember { mutableStateOf(Decoder.HW) }
     var currentAudio by remember { mutableStateOf(AudioChannels.Stereo) }
 
-    SaikouTheme { Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        DecoderSettingsSheet(
-            selectedDecoder = currentDecoder,
-            onDecoderSelected = { currentDecoder = it },
-            selectedAudioChannel = currentAudio,
-            onAudioChannelSelected = { currentAudio = it },
-            onDismissRequest = {},
-            availableDecoders = Decoder.entries,
-            availableAudioChannels = AudioChannels.entries
-        )
-    }}
+    SaikouTheme {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            DecoderSettingsSheet(
+                selectedDecoder = currentDecoder,
+                onDecoderSelected = { currentDecoder = it },
+                selectedAudioChannel = currentAudio,
+                onAudioChannelSelected = { currentAudio = it },
+                onDismissRequest = {},
+                availableDecoders = Decoder.entries,
+                availableAudioChannels = AudioChannels.entries
+            )
+        }
+    }
 }

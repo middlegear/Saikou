@@ -164,7 +164,7 @@ class MainActivity : AppCompatActivity() {
 
 
             lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                repeatOnLifecycle(Lifecycle.State.STARTED) {
                     AppUpdater.updateState.collect { state ->
                         if (state is UpdateState.Available) {
                             if (AppUpdater.shouldLaunchUpdate(state.version)) {

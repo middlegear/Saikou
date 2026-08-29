@@ -1,7 +1,6 @@
 package ani.saikou.parsers
 
 import ani.saikou.FileUrl
-import ani.saikou.media.Media
 import com.bumptech.glide.load.resource.bitmap.BitmapTransformation
 import java.io.Serializable
 
@@ -29,21 +28,6 @@ abstract class MangaParser : BaseParser() {
      * **/
     abstract suspend fun loadImages(chapterLink: String): List<MangaImage>
 
-
-
-    override suspend fun autoSearch(mediaObj: Media): ShowResponse? {
-        setUserText("Searching : ${mediaObj.name}")
-        var response = search(mediaObj.name?:mediaObj.mainName()).firstOrNull()
-
-        if (response == null) {
-            setUserText("Searching : ${mediaObj.nameRomaji}")
-            response = search(mediaObj.nameRomaji).firstOrNull()
-        }
-
-       saveShowResponse(mediaObj.id, response)
-        setUserText("Found : ${response?.name}")
-        return response
-    }
 
     open fun getTransformation(): BitmapTransformation? = null
 }

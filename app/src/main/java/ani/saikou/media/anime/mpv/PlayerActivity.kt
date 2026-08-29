@@ -8,6 +8,7 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
@@ -45,6 +46,10 @@ class PlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        onBackPressedDispatcher.addCallback(this) {
+            finish()
+        }
 
         val media = MediaBridge.getMedia() ?: return finish()
 
@@ -136,13 +141,6 @@ class PlayerActivity : AppCompatActivity() {
                     val isAtTrackEnd = (wasNearEnd && (state == PlaybackState.ENDED || state == PlaybackState.IDLE)) ||
                             (state == PlaybackState.PLAYING && remainingTime in 0L..300L)
 
-//                    Log.d(
-//                        TAG, "auto-next check: state=$state, duration=$duration, pos=$currentPosition, " +
-//                                "remaining=$remainingTime, wasNearEnd=$wasNearEnd, isAtTrackEnd=$isAtTrackEnd, " +
-//                                "autoNextFired=$autoNextFired, autoPlay=${playerModel.settings.autoPlay}, " +
-//                                "hasNext=$hasNextEpisode"
-//                    )
-
                     if (isAtTrackEnd && !autoNextFired) {
                         autoNextFired = true
                         wasNearEnd = false
@@ -195,14 +193,12 @@ class PlayerActivity : AppCompatActivity() {
         if (action == KeyEvent.ACTION_DOWN) {
             when (keyCode) {
                 KeyEvent.KEYCODE_VOLUME_UP -> {
-                    val currentVol = playerModel.volume.value
-                    playerModel.setVolume((currentVol + 5).coerceIn(0, 100))
+                    playerModel.adjustVolumeStep(1)
                     return true
                 }
 
                 KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                    val currentVol = playerModel.volume.value
-                    playerModel.setVolume((currentVol - 5).coerceIn(0, 100))
+                    playerModel.adjustVolumeStep(-1)
                     return true
                 }
             }

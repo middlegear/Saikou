@@ -37,6 +37,10 @@ class MpvVideoPlayer(
     private val _bufferingProgress = MutableStateFlow(0f)
     val bufferingProgress: StateFlow<Float> = _bufferingProgress.asStateFlow()
 
+
+    private val _mediaLoaded = MutableStateFlow(false)
+    val mediaLoaded: StateFlow<Boolean> = _mediaLoaded.asStateFlow()
+
     private val _audioTracks = MutableStateFlow<List<AudioTrack>>(emptyList())
     val audioTracks: StateFlow<List<AudioTrack>> = _audioTracks.asStateFlow()
     private val defaultAudioTrack = AudioTrack(id = 0, name = "Default Audio", language = "")
@@ -88,7 +92,6 @@ class MpvVideoPlayer(
     private var configDir: String = ""
     private var cacheDir: String = ""
     private var currentSurfaceHolder: SurfaceHolder? = null
-
 
     private val targetBufferSeconds = 5.0
 
@@ -183,6 +186,7 @@ class MpvVideoPlayer(
         mpv.observeProperty("hwdec", MPV.mpvFormat.MPV_FORMAT_STRING)
         mpv.observeProperty("hwdec-current", MPV.mpvFormat.MPV_FORMAT_STRING)
         mpv.observeProperty("cache-buffering-state", MPV.mpvFormat.MPV_FORMAT_INT64)
+        mpv.observeProperty("core-idle", MPV.mpvFormat.MPV_FORMAT_FLAG)
 
         setupObservers()
     }
@@ -207,6 +211,13 @@ class MpvVideoPlayer(
                     MPV.mpvEvent.MPV_EVENT_FILE_LOADED -> {
                         Log.d(TAG, "EVENT_FILE_LOADED")
                         isShutdown.set(false)
+                        isFileLoaded = true
+                        initialBufferingDone = false
+                        _bufferingProgress.value = 0f
+
+                        _mediaLoaded.value = true
+
+                        _playbackState.value = PlaybackState.BUFFERING
 
                         pendingMediaState?.audioTracks?.forEach { audio ->
                             if (audio.headers.isNotEmpty()) {
@@ -231,19 +242,23 @@ class MpvVideoPlayer(
                             if (!sub.language.isNullOrBlank()) cmd.add(sub.language)
                             mpv.command(*cmd.toTypedArray())
                         }
-
                         refreshTracks()
-
+                        forceUpdateDurationAndPosition()
                         if ((pendingMediaState?.startPositionMs ?: 0) > 0) {
                             seekTo(pendingMediaState!!.startPositionMs)
                         }
 
-                        isFileLoaded = true
                         pendingMediaState = null
+                        updateBufferingProgress()
+                        refreshPlayerState()
                     }
 
                     MPV.mpvEvent.MPV_EVENT_END_FILE -> {
                         Log.d(TAG, "EVENT_END_FILE")
+                        if (pendingMediaState != null || !isFileLoaded) {
+                            Log.d(TAG, "Ignoring END_FILE because new media load is pending")
+                            return
+                        }
                         if (_duration.value > 0L) {
                             _playbackState.value = PlaybackState.ENDED
                             _isPlaying.value = false
@@ -258,6 +273,9 @@ class MpvVideoPlayer(
                         isFileLoaded = false
                         initialBufferingDone = false
                         _bufferingProgress.value = 0f
+
+                        _mediaLoaded.value = false
+
                         isShutdown.set(true)
                         return
                     }
@@ -268,11 +286,21 @@ class MpvVideoPlayer(
         })
     }
 
+    private fun forceUpdateDurationAndPosition() {
+        val durSeconds = mpv.getPropertyDouble("duration") ?: 0.0
+        if (durSeconds > 0.0) {
+            _duration.value = (durSeconds * 1000).toLong()
+        }
+        val posSeconds = mpv.getPropertyDouble("time-pos") ?: 0.0
+        _currentPosition.value = (posSeconds * 1000).toLong()
+    }
+
     private fun handlePropertyChange(property: String) {
         when (property) {
             "time-pos" -> {
                 val posSeconds = mpv.getPropertyDouble("time-pos") ?: 0.0
                 _currentPosition.value = (posSeconds * 1000).toLong()
+                if (_playbackState.value != PlaybackState.PLAYING) refreshPlayerState()
             }
 
             "duration" -> {
@@ -304,7 +332,6 @@ class MpvVideoPlayer(
             "demuxer-cache-duration" -> {
                 val cacheSeconds = mpv.getPropertyDouble("demuxer-cache-duration") ?: 0.0
                 _bufferCacheDuration.value = (cacheSeconds * 1000).toLong()
-
                 if (!initialBufferingDone) {
                     updateBufferingProgress()
                 }
@@ -338,64 +365,70 @@ class MpvVideoPlayer(
                 refreshPlayerState()
             }
 
+            "core-idle" -> {
+                if (!initialBufferingDone) {
+                    updateBufferingProgress()
+                }
+                refreshPlayerState()
+            }
+
             "seeking", "eof-reached" -> refreshPlayerState()
         }
     }
 
     private fun updateBufferingProgress() {
-        if (initialBufferingDone) return
+        if (initialBufferingDone || !isFileLoaded) return
 
-        val cacheDuration = mpv.getPropertyDouble("demuxer-cache-duration") ?: 0.0
-        val isPausedForCache = mpv.getPropertyBoolean("paused-for-cache") ?: false
+        val isCoreIdle = mpv.getPropertyBoolean("core-idle") ?: true
         val isPaused = mpv.getPropertyBoolean("pause") ?: true
         val cacheBufferingState = mpv.getPropertyInt("cache-buffering-state") ?: 0
+        val cacheDur = mpv.getPropertyDouble("demuxer-cache-duration") ?: 0.0
 
-
-        if (!isPausedForCache && !isPaused && cacheDuration > 0) {
+        if (!isCoreIdle || cacheDur >= targetBufferSeconds || cacheBufferingState >= 100) {
             initialBufferingDone = true
             _bufferingProgress.value = 1f
+            refreshPlayerState()
             return
         }
 
-        if (isPausedForCache) {
-
+        if (isCoreIdle) {
             val progress = (cacheBufferingState / 100f).coerceIn(0f, 1f)
-
             if (progress > _bufferingProgress.value) {
                 _bufferingProgress.value = progress
-            }
-
-            if (cacheDuration >= targetBufferSeconds) {
-                initialBufferingDone = true
-                _bufferingProgress.value = 1f
             }
         }
     }
 
     private fun refreshPlayerState() {
+        if (isShutdown.get()) return
+
         val isPaused = mpv.getPropertyBoolean("pause") ?: true
-        val isSeeking = mpv.getPropertyBoolean("seeking") ?: false
-        val isBuffering = mpv.getPropertyBoolean("paused-for-cache") ?: false
+        val isCoreIdle = mpv.getPropertyBoolean("core-idle") ?: true
         val filename = mpv.getPropertyString("filename")
         val eof = mpv.getPropertyBoolean("eof-reached") ?: false
+        val seeking = mpv.getPropertyBoolean("seeking") ?: false
+        val pausedForCache = mpv.getPropertyBoolean("paused-for-cache") ?: false
 
-        val isActuallyPlaying = !isPaused && !isSeeking && !isBuffering && !eof && filename != null
+        if (isFileLoaded) {
+            val posSeconds = mpv.getPropertyDouble("time-pos") ?: 0.0
+            _currentPosition.value = (posSeconds * 1000).toLong()
+        }
+
+        val isActuallyPlaying = !isPaused && !isCoreIdle && !eof && filename != null
 
         _playbackState.value = when {
             eof -> PlaybackState.ENDED
-            filename == null -> PlaybackState.IDLE
-            !isFileLoaded -> PlaybackState.BUFFERING
+            filename == null || !isFileLoaded -> {
+                if (pendingMediaState != null) PlaybackState.BUFFERING else PlaybackState.IDLE
+            }
+            !initialBufferingDone -> PlaybackState.BUFFERING
+            seeking || pausedForCache -> PlaybackState.BUFFERING
             isPaused -> PlaybackState.PAUSED
-            isBuffering || isSeeking -> PlaybackState.BUFFERING
+            isCoreIdle -> PlaybackState.BUFFERING
             else -> PlaybackState.PLAYING
         }
 
         _isPlaying.value = isActuallyPlaying
-
-        if (isFileLoaded && !isSeeking && !isBuffering) {
-            val posSeconds = mpv.getPropertyDouble("time-pos") ?: 0.0
-            _currentPosition.value = (posSeconds * 1000).toLong()
-        }
     }
 
     private fun refreshTracks() {
@@ -490,6 +523,8 @@ class MpvVideoPlayer(
         _bufferCacheDuration.value = 0L
         _bufferingProgress.value = 0f
 
+        _mediaLoaded.value = false
+
         isInitialized = false
         surfaceReady = false
         isShutdown.set(false)
@@ -513,8 +548,6 @@ class MpvVideoPlayer(
         mpv.command("seek", seconds.toString(), "absolute")
     }
 
-
-
     fun stop() {
         if (!isInitialized || isShutdown.get()) {
             _playbackState.value = PlaybackState.IDLE
@@ -523,6 +556,8 @@ class MpvVideoPlayer(
             initialBufferingDone = false
             _bufferingProgress.value = 0f
             pendingMediaState = null
+
+            _mediaLoaded.value = false
 
             _currentPosition.value = 0L
             _duration.value = 0L
@@ -536,6 +571,8 @@ class MpvVideoPlayer(
         isFileLoaded = false
         initialBufferingDone = false
         _bufferingProgress.value = 0f
+
+        _mediaLoaded.value = false
 
         _currentPosition.value = 0L
         _duration.value = 0L
@@ -557,7 +594,10 @@ class MpvVideoPlayer(
         pendingMediaState = mediaState
 
         if (!isInitialized || isShutdown.get() || !surfaceReady) {
-            Log.d(TAG, "Deferring media load - init:$isInitialized shutdown:${isShutdown.get()} surface:$surfaceReady")
+            Log.d(
+                TAG,
+                "Deferring media load - init:$isInitialized shutdown:${isShutdown.get()} surface:$surfaceReady"
+            )
 
             if (isShutdown.get() && surfaceReady && currentSurfaceHolder != null) {
                 init(currentSurfaceHolder!!)
@@ -572,9 +612,13 @@ class MpvVideoPlayer(
     }
 
     private fun loadMediaInternal(mediaState: PendingMediaState) {
+
+        _mediaLoaded.value = false
+
         isFileLoaded = false
         initialBufferingDone = false
         _bufferingProgress.value = 0f
+        _playbackState.value = PlaybackState.BUFFERING
 
         _audioTracks.value = emptyList()
         _subtitleTracks.value = emptyList()
@@ -583,6 +627,9 @@ class MpvVideoPlayer(
         _currentSubtitleTrack.value = defaultSubtitleTrack
         _currentVideoTrack.value = defaultVideoTrack
         _duration.value = 0L
+        _currentPosition.value = 0L
+
+        mpv.setPropertyString("http-header-fields", "")
 
         if (mediaState.headers.isNotEmpty() &&
             (mediaState.videoUrl.startsWith("http") || mediaState.videoUrl.startsWith("https"))
@@ -774,3 +821,4 @@ class MpvVideoPlayer(
         super.surfaceChanged(holder, format, width, height)
     }
 }
+

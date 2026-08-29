@@ -3,9 +3,15 @@ package ani.saikou.media.anime.mpv
 import android.app.Application
 import android.content.ComponentName
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.ServiceConnection
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
+import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.AndroidViewModel
@@ -28,11 +34,11 @@ import ani.saikou.settings.PlayerSettings
 import ani.saikou.snackString
 import ani.saikou.toast
 import ani.saikou.torrserver.TorrServerService
-
 import ani.saikou.torrserver.models.TorrentStats
 import ani.saikou.torrserver.utils.TorrentSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -43,12 +49,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.roundToInt
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
     private var strongPlayer: MpvVideoPlayer? = null
     private var _playerRef: WeakReference<MpvVideoPlayer>? = null
-    val player: MpvVideoPlayer? get() = _playerRef?.get() ?: strongPlayer
+    val player: MpvVideoPlayer?
+        get() = _playerRef?.get() ?: strongPlayer
 
     val isPlayerAttached: Boolean
         get() {
@@ -76,6 +84,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val volume: StateFlow<Int> = _volume.asStateFlow()
 
     private val _volumeChangeEvent = MutableSharedFlow<Int>(extraBufferCapacity = 1)
+
     val volumeChangeEvent: SharedFlow<Int> = _volumeChangeEvent.asSharedFlow()
 
     private val _playbackSpeed = MutableStateFlow(1.0f)
@@ -115,7 +124,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _bufferCacheDuration = MutableStateFlow(0L)
     val bufferCacheDuration: StateFlow<Long> = _bufferCacheDuration.asStateFlow()
-
+    private val _mediaLoaded = MutableStateFlow(false)
+    val mediaLoaded: StateFlow<Boolean> = _mediaLoaded.asStateFlow()
     private val _uiState = MutableStateFlow(PlayerEpisodeUiState())
     val uiState: StateFlow<PlayerEpisodeUiState> = _uiState.asStateFlow()
 
@@ -126,14 +136,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val torrentStats: StateFlow<TorrentStats?> = _torrentStats.asStateFlow()
 
     private var torrentStatsJob: Job? = null
+
     val torrentSettings: TorrentSettings =
         loadData<TorrentSettings>("torrent_settings") ?: TorrentSettings()
 
-    var isTimeStampsLoaded = false; private set
-    var currentEpisodeIndex = 0; private set
+    var isTimeStampsLoaded = false
+        private set
+
+    var currentEpisodeIndex = 0
+        private set
 
     private var media: Media? = null
     private var currentEpisode: Episode? = null
+
     private var episodeArr: List<String> = emptyList()
     private var episodes: Map<String, Episode> = emptyMap()
 
@@ -142,59 +157,85 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var subtitleOverride: Subtitle? = null
     private var loadedMediaKey: String? = null
-    var settings = PlayerSettings(); private set
+
+    var settings = PlayerSettings()
+        private set
 
     private var pendingStartPositionMs: Long = 0L
 
     private val _isDialogShowing = MutableStateFlow(false)
+
     val isDialogShowing: StateFlow<Boolean> = _isDialogShowing.asStateFlow()
 
-    private val discordRPC: WebSocketRPC by lazy { WebSocketRPC(getApplication()) }
+    private val discordRPC: WebSocketRPC by lazy {
+        WebSocketRPC(getApplication())
+    }
 
     private val _attachedPlayerView = MutableStateFlow<MpvVideoPlayer?>(null)
+
     val attachedPlayerView: StateFlow<MpvVideoPlayer?> = _attachedPlayerView.asStateFlow()
 
     private var _playbackServiceRef: WeakReference<PlaybackService>? = null
-    private val playbackService: PlaybackService? get() = _playbackServiceRef?.get()
+
+    private val playbackService: PlaybackService?
+        get() = _playbackServiceRef?.get()
 
     private val _bufferingProgress = MutableStateFlow(0f)
+
     val bufferingProgress: StateFlow<Float> = _bufferingProgress.asStateFlow()
 
-
     private var _torrServerServiceRef: WeakReference<TorrServerService>? = null
-    private val torrServerService: TorrServerService? get() = _torrServerServiceRef?.get()
+
+    private val torrServerService: TorrServerService?
+        get() = _torrServerServiceRef?.get()
 
     private var boundMediaDetailsModel: WeakReference<MediaDetailsViewModel>? = null
 
-    // Guard against concurrent loads
     private val loadGuard = AtomicBoolean(false)
+
     private var pendingEpisode: Episode? = null
     private var currentLoadJob: Job? = null
-
     private var loadingEpisodeKey: String? = null
-
 
     private var pendingMediaSessionActive: Boolean? = null
 
+    private var volumeContentObserver: ContentObserver? = null
+    private var volumeObserverThread: HandlerThread? = null
+
+    @Volatile
+    private var cachedMaxVolumeSteps = 15
+
+    @Volatile
+    private var lastKnownVolumeStep = -1
+    private var volumeUpdateJob: Job? = null
 
     private val playbackConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+
+        override fun onServiceConnected(
+            name: ComponentName?, binder: IBinder?
+        ) {
             val service = (binder as PlaybackService.LocalBinder).service
             _playbackServiceRef = WeakReference(service)
+            cachedMaxVolumeSteps = service.getMaxVolumeStep().coerceAtLeast(1)
 
             val mediaDetailsModel = boundMediaDetailsModel?.get()
             if (mediaDetailsModel == null) {
-                Log.w("mpv", "Service requested mediaDetailsModel is null")
+                Log.w(
+                    "mpv", "Service requested mediaDetailsModel is null"
+                )
                 return
             }
             setPlayerInstance(service.player)
             service.onNext = {
-                Log.d("mpv", "Service requested next episode")
+                Log.d(
+                    "mpv", "Service requested next episode"
+                )
             }
             service.onPrev = {
-                Log.d("mpv", "Service requested previous episode")
+                Log.d(
+                    "mpv", "Service requested previous episode"
+                )
             }
-
 
             pendingMediaSessionActive?.let { active ->
                 pendingMediaSessionActive = null
@@ -202,37 +243,54 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
-        override fun onServiceDisconnected(name: ComponentName?) {
+        override fun onServiceDisconnected(
+            name: ComponentName?
+        ) {
             _playbackServiceRef?.clear()
             _playbackServiceRef = null
         }
     }
 
-
     private val torrServerConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+
+        override fun onServiceConnected(
+            name: ComponentName?, binder: IBinder?
+        ) {
             val service = (binder as TorrServerService.LocalBinder).service
+
             _torrServerServiceRef = WeakReference(service)
-            Log.d("mpv", "Bound to TorrServerService in ViewModel")
+
+            Log.d(
+                "mpv", "Bound to TorrServerService in ViewModel"
+            )
         }
 
-        override fun onServiceDisconnected(name: ComponentName?) {
+        override fun onServiceDisconnected(
+            name: ComponentName?
+        ) {
             _torrServerServiceRef?.clear()
             _torrServerServiceRef = null
-            Log.d("mpv", "TorrServerService disconnected in ViewModel")
+
+            Log.d(
+                "mpv", "TorrServerService disconnected in ViewModel"
+            )
         }
     }
 
     fun setMediaSessionActive(active: Boolean) {
         val service = playbackService
+
         if (service != null) {
-            Log.d("mpv", "Setting media session active state to: $active")
+            Log.d(
+                "mpv", "Setting media session active state to: $active"
+            )
+
             service.setSessionActive(active)
         } else {
             Log.w(
-                "mpv",
-                "Cannot toggle media session state; service not bound yet. Queuing request."
+                "mpv", "Cannot toggle media session state; service not bound yet. Queuing request."
             )
+
             pendingMediaSessionActive = active
         }
     }
@@ -241,10 +299,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         boundMediaDetailsModel = WeakReference(mediaDetailsModel)
 
         val playbackIntent = Intent(activity, PlaybackService::class.java)
-        activity.startService(playbackIntent)
         activity.bindService(playbackIntent, playbackConnection, Context.BIND_AUTO_CREATE)
-
-
         TorrServerService.startOrStop(activity, torrentSettings)
         if (torrentSettings.enableTorrentServer) {
             val torrentIntent = Intent(activity, TorrServerService::class.java)
@@ -255,16 +310,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun unbindService(context: Context) {
         try {
             context.unbindService(playbackConnection)
-        } catch (e: IllegalArgumentException) {
-            // Ignore
+        } catch (_: IllegalArgumentException) {
         }
 
         try {
             if (torrentSettings.enableTorrentServer) {
                 context.unbindService(torrServerConnection)
             }
-        } catch (e: IllegalArgumentException) {
-            // Ignore
+        } catch (_: IllegalArgumentException) {
         }
 
         boundMediaDetailsModel?.clear()
@@ -310,17 +363,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         discordRPC.connect()
 
-        playbackService?.let { service ->
-            val audioManager =
-                service.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-            val maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
-            val currentSysVol =
-                audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
-            val actualSystemPercentage =
-                if (maxVol > 0) ((currentSysVol.toFloat() / maxVol.toFloat()) * 100f).toInt() else 100
-            _volume.value = actualSystemPercentage
-            playerInstance.setVolume(actualSystemPercentage)
-        }
+        setupSystemVolumeSync(playerInstance)
 
         stateJobs += viewModelScope.launch {
             playerInstance.playbackState.collect { state ->
@@ -336,10 +379,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         stateJobs += viewModelScope.launch {
             playerInstance.isPlaying.collect { isPlaying ->
+
                 _isPlaying.value = isPlaying
+
                 playbackService?.publishState(
-                    if (isPlaying) android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING
-                    else android.support.v4.media.session.PlaybackStateCompat.STATE_PAUSED
+                    if (isPlaying) {
+                        android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING
+                    } else {
+                        android.support.v4.media.session.PlaybackStateCompat.STATE_PAUSED
+                    }
                 )
             }
         }
@@ -349,99 +397,260 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         stateJobs += viewModelScope.launch {
+            playerInstance.mediaLoaded.collect {
+                _mediaLoaded.value = it
+            }
+        }
+
+        stateJobs += viewModelScope.launch {
             playerInstance.duration.collect {
                 _duration.value = it
             }
         }
-        stateJobs += viewModelScope.launch { playerInstance.volume.collect { _volume.value = it } }
+
         stateJobs += viewModelScope.launch {
             playerInstance.playbackSpeed.collect {
                 _playbackSpeed.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.audioTracks.collect {
                 _audioTracks.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.currentAudioTrack.collect {
                 _currentAudioTrack.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.subtitleTracks.collect {
                 _subtitleTracks.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.currentSubtitleTrack.collect {
                 _currentSubtitleTrack.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.videoTracks.collect {
                 _videoTracks.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.currentVideoTrack.collect {
                 _currentVideoTrack.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.videoScaleMode.collect {
                 _videoScaleMode.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.currentDecoder.collect {
                 _currentDecoder.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.audioChannel.collect {
                 _audioChannel.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.bufferCacheDuration.collect {
                 _bufferCacheDuration.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
-            playerInstance.bufferingProgress.collect { readiness ->
-                _bufferingProgress.value = readiness
+            playerInstance.bufferingProgress.collect {
+                _bufferingProgress.value = it
             }
         }
+
         stateJobs += viewModelScope.launch {
             playerInstance.duration.collect { dur ->
-                if (dur > 0L) {
-                    var resolvedPosition = currentPosition.value
-                    if (pendingStartPositionMs > 0L) {
-                        val safeTarget = pendingStartPositionMs
-                        pendingStartPositionMs = 0L
-                        val remainingMs = dur - safeTarget
-                        if (remainingMs >= 60_000L) {
-                            resolvedPosition = safeTarget
-                        } else {
-                            seekTo(0L)
-                            resolvedPosition = 0L
-                        }
-                    }
 
-                    if (!isTimeStampsLoaded && settings.timeStampsEnabled) {
-                        val ep = currentEpisode
-                        val currentMedia = media
-                        if (ep != null && currentMedia != null) {
-                            isTimeStampsLoaded = true
-                            loadSkipTimes(currentMedia, ep, dur)
-                        }
+                if (dur <= 0L) return@collect
+
+                var resolvedPosition = currentPosition.value
+
+                if (pendingStartPositionMs > 0L) {
+
+                    val safeTarget = pendingStartPositionMs
+
+                    pendingStartPositionMs = 0L
+
+                    val remainingMs = dur - safeTarget
+
+                    if (remainingMs >= 60_000L) {
+                        resolvedPosition = safeTarget
+                        seekTo(safeTarget)
+                    } else {
+                        seekTo(0L)
+                        resolvedPosition = 0L
                     }
-                    discordRPC.onDurationReady(buildRPCConfig(), dur, resolvedPosition)
                 }
+
+                withContext(Dispatchers.Main) {
+                    publishUi()
+                    playbackService?.updateMetadata(
+                        title = media?.userPreferredName ?: media?.nameRomaji ?: media?.name
+                        ?: "Unknown",
+                        subtitle = "Episode ${currentEpisode?.number ?: ""}",
+                        durationMs = dur
+                    )
+                }
+
+                if (!isTimeStampsLoaded && settings.timeStampsEnabled) {
+                    val ep = currentEpisode
+                    val currentMedia = media
+
+                    if (ep != null && currentMedia != null) {
+                        isTimeStampsLoaded = true
+
+                        loadSkipTimes(
+                            currentMedia, ep, dur
+                        )
+                    }
+                }
+
+                discordRPC.onDurationReady(
+                    buildRPCConfig(), dur, resolvedPosition
+                )
             }
         }
+    }
+
+
+    private fun maxVolumeSteps(): Int {
+        return cachedMaxVolumeSteps.coerceAtLeast(1)
+    }
+
+
+    private fun setupSystemVolumeSync(playerInstance: MpvVideoPlayer) {
+        val service = playbackService ?: return
+
+        removeVolumeObserver()
+
+        cachedMaxVolumeSteps = service.getMaxVolumeStep().coerceAtLeast(1)
+
+        val thread = HandlerThread("VolumeObserver").apply {
+            start()
+        }
+
+        volumeObserverThread = thread
+
+        val observer = object : ContentObserver(Handler(thread.looper)) {
+            override fun onChange(selfChange: Boolean) {
+                syncVolumeFromSystem()
+            }
+        }
+
+        volumeContentObserver = observer
+        service.contentResolver.registerContentObserver(Settings.System.CONTENT_URI, true, observer)
+
+        playerInstance.setVolume(100)
+
+        syncVolumeFromSystem()
+    }
+
+    private fun removeVolumeObserver() {
+        volumeContentObserver?.let { observer ->
+
+            try {
+                playbackService?.contentResolver?.unregisterContentObserver(observer)
+            } catch (_: IllegalArgumentException) {
+                // Observer wasn't registered.
+            }
+        }
+
+        volumeContentObserver = null
+
+        volumeObserverThread?.let { thread ->
+            thread.quitSafely()
+        }
+
+        volumeObserverThread = null
+    }
+
+    private fun syncVolumeFromSystem() {
+        val service = playbackService ?: return
+
+        val maxSteps = cachedMaxVolumeSteps.coerceAtLeast(1)
+
+        val currentStep = service.getCurrentVolumeStep()
+
+        if (currentStep == lastKnownVolumeStep) {
+            return
+        }
+
+        lastKnownVolumeStep = currentStep
+
+        val percent = ((currentStep.toFloat() / maxSteps) * 100f).roundToInt()
+        _volume.value = percent
+    }
+
+
+    private fun applySystemVolumeStep(step: Int) {
+        volumeUpdateJob?.cancel()
+
+        volumeUpdateJob = viewModelScope.launch(Dispatchers.Default) {
+
+            playbackService?.setVolumeStep(step)
+        }
+    }
+
+
+    fun setVolume(level: Int) {
+        val maxSteps = maxVolumeSteps()
+        val step = ((level.coerceIn(0, 100) / 100f) * maxSteps).roundToInt().coerceIn(0, maxSteps)
+        if (step == lastKnownVolumeStep) {
+            return
+        }
+        lastKnownVolumeStep = step
+
+        val quantizedPercent = ((step.toFloat() / maxSteps) * 100f).roundToInt()
+
+        _volume.value = quantizedPercent
+        _volumeChangeEvent.tryEmit(
+            quantizedPercent
+        )
+        applySystemVolumeStep(step)
+    }
+
+
+    fun adjustVolumeStep(deltaSteps: Int) {
+        val maxSteps = maxVolumeSteps()
+        val current = if (lastKnownVolumeStep >= 0) {
+            lastKnownVolumeStep
+        } else {
+            ((volume.value / 100f) * maxSteps).roundToInt()
+        }
+        val newStep = (current + deltaSteps).coerceIn(0, maxSteps)
+
+        if (newStep == lastKnownVolumeStep) {
+            return
+        }
+
+        lastKnownVolumeStep = newStep
+
+        val quantizedPercent = ((newStep.toFloat() / maxSteps) * 100f).roundToInt()
+        _volume.value = quantizedPercent
+        _volumeChangeEvent.tryEmit(quantizedPercent)
+        applySystemVolumeStep(newStep)
     }
 
     fun onSurfaceReady(activity: AppCompatActivity, mediaDetailsModel: MediaDetailsViewModel) {
@@ -449,11 +658,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             Log.d("mpv", "onSurfaceReady: dialog is showing, deferring episode load")
             return
         }
+
         val targetEpisode =
             mediaDetailsModel.getEpisode().value ?: episodeArr.getOrNull(currentEpisodeIndex)
                 ?.let { episodes[it] }
+
         if (targetEpisode != null) {
-            loadResolvedEpisode(targetEpisode, activity, mediaDetailsModel)
+            loadResolvedEpisode(
+                targetEpisode, activity, mediaDetailsModel
+            )
         }
     }
 
@@ -464,32 +677,42 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         media = extractedMedia
         subtitleOverride = initialSubtitle
+
         settings = loadData("player_settings") ?: PlayerSettings()
-        mediaDetailsModel.watchSources = if (extractedMedia.isAdult) HAnimeSources else AnimeSources
+
+        mediaDetailsModel.watchSources = if (extractedMedia.isAdult) {
+            HAnimeSources
+        } else {
+            AnimeSources
+        }
 
         episodes = extractedMedia.anime?.episodes ?: emptyMap()
         episodeArr = episodes.keys.toList()
-        currentEpisodeIndex =
-            episodeArr.indexOf(extractedMedia.anime?.selectedEpisode).coerceAtLeast(0)
+        currentEpisodeIndex = episodeArr.indexOf(extractedMedia.anime?.selectedEpisode).coerceAtLeast(0)
 
-        mediaDetailsModel.setMedia(extractedMedia)
+        mediaDetailsModel.setMedia(
+            extractedMedia
+        )
 
         publishUi()
     }
 
     fun setInitialEpisode(mediaDetailsModel: MediaDetailsViewModel) {
         episodeArr.getOrNull(currentEpisodeIndex)?.let { episodes[it] }?.let {
-            mediaDetailsModel.setEpisode(it, "mpv-init")
+            mediaDetailsModel.setEpisode(
+                it, "mpv-init"
+            )
         }
     }
 
-    fun handleNextEpisodeClick(
-        activity: AppCompatActivity,
-        mediaDetailsModel: MediaDetailsViewModel
-    ) {
+    fun handleNextEpisodeClick(activity: AppCompatActivity, mediaDetailsModel: MediaDetailsViewModel) {
         if (currentEpisodeIndex + 1 < episodeArr.size) {
+
             updateAnimeProgress()
-            openEpisodeSelector(currentEpisodeIndex + 1, activity, mediaDetailsModel)
+
+            openEpisodeSelector(
+                currentEpisodeIndex + 1, activity, mediaDetailsModel
+            )
         } else {
             toast("This is the last Episode!")
         }
@@ -511,12 +734,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         saveCurrentPosition()
         selected.server = null
         mediaDetailsModel.saveSelected(currentMedia.id, selected, activity)
-        mediaDetailsModel.onEpisodeClick(
-            currentMedia,
-            episodeNumber,
-            activity.supportFragmentManager,
-            launch = false
-        )
+        mediaDetailsModel.onEpisodeClick(currentMedia, episodeNumber, activity.supportFragmentManager, launch = false)
     }
 
     fun loadResolvedEpisode(
@@ -525,19 +743,31 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         mediaDetailsModel: MediaDetailsViewModel
     ) {
         val currentMedia = media ?: return
+
         val targetIndex = episodeArr.indexOf(ep.number)
-        if (targetIndex == -1) return
+
+        if (targetIndex == -1) {
+            return
+        }
 
         val preferredServer = mediaDetailsModel.loadSelected(currentMedia).server
-        val resolvedExtractor = ep.extractors?.find { it.server.name == ep.selectedExtractor }
-            ?: ep.extractors?.find { it.server.name == preferredServer }
-        if (resolvedExtractor == null) return
 
-        val resolvedVideo =
-            ep.selectedVideo.let { resolvedExtractor.videos.getOrNull(it) } ?: return
+        val resolvedExtractor = ep.extractors?.find {
+            it.server.name == ep.selectedExtractor
+        } ?: ep.extractors?.find {
+            it.server.name == preferredServer
+        }
+
+        if (resolvedExtractor == null) {
+            return
+        }
+
+        val resolvedVideo = ep.selectedVideo.let {
+            resolvedExtractor.videos.getOrNull(it)
+        } ?: return
 
         val newMediaKey =
-            "${ep.number}|${resolvedExtractor.server.name}|${ep.selectedVideo}|${resolvedVideo.file.url}|${ep.selectedSubtitle}"
+            "${ep.number}|${resolvedExtractor.server.name}|" + "${ep.selectedVideo}|${resolvedVideo.file.url}|" + "${ep.selectedSubtitle}"
 
         if (newMediaKey == loadedMediaKey) {
             publishUi()
@@ -546,26 +776,32 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         if (newMediaKey == loadingEpisodeKey) {
             Log.d(
-                "mpv",
-                "[PlayerViewModel] Already loading episode ${ep.number}, ignoring duplicate"
+                "mpv", "[PlayerViewModel] Already loading episode ${ep.number}, ignoring duplicate"
             )
             return
         }
 
-        torrServerService?.releaseStream() /// Enhance this check if stream is active then release else not release
+        torrServerService?.releaseStream()
         stopTorrentStatsMonitoring()
 
         player?.stop()
 
         _playbackState.value = PlaybackState.BUFFERING
+
         _isPlaying.value = false
         _currentPosition.value = 0L
         _duration.value = 0L
         _bufferingProgress.value = 0f
+
         _audioTracks.value = emptyList()
         _subtitleTracks.value = emptyList()
+        _videoTracks.value = emptyList()
         _currentAudioTrack.value = loadingAudioTrack
         _currentSubtitleTrack.value = defaultSubtitleTrack
+        _currentVideoTrack.value = loadingVideoTrack
+        _skipStamps.value = emptyList()
+        isTimeStampsLoaded = false
+        _mediaLoaded.value = false
 
         if (!loadGuard.compareAndSet(false, true)) {
             Log.d("mpv", "[PlayerViewModel] Load in progress – queuing episode ${ep.number}")
@@ -576,35 +812,46 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         loadingEpisodeKey = newMediaKey
 
-        val isNewTorrent = resolvedVideo.file.url.startsWith("magnet:", ignoreCase = true)
+        val isNewTorrent = resolvedVideo.file.url.startsWith(
+            "magnet:", ignoreCase = true
+        )
 
         currentEpisodeIndex = targetIndex
         currentEpisode = ep
+
         currentMedia.anime?.selectedEpisode = ep.number
+
         mediaDetailsModel.setMedia(currentMedia)
 
-        _videoTracks.value = emptyList()
-        _currentVideoTrack.value = loadingVideoTrack
-        _skipStamps.value = emptyList()
-        isTimeStampsLoaded = false
-
         currentLoadJob?.cancel()
+
         currentLoadJob = viewModelScope.launch(Dispatchers.IO) {
+
             try {
+
                 extractor?.onVideoStopped(video)
+
                 extractor = resolvedExtractor
                 video = resolvedVideo
 
                 resolvedExtractor.onVideoPlayed(resolvedVideo)
+
                 saveContinueState(currentMedia, ep)
 
-                val startPosition =
-                    loadData<Long>("${currentMedia.id}_${ep.number}", activity) ?: 0L
+                val startPosition = loadData<Long>(
+                    "${currentMedia.id}_${ep.number}", activity
+                ) ?: 0L
+
                 val headers = resolvedVideo.file.headers
+
                 val externalAudio = resolvedExtractor.audioTracks.map {
-                    ExternalAudio(it.url, language = it.language, headers = headers)
+                    ExternalAudio(
+                        it.url, language = it.language, headers = headers
+                    )
                 }
+
                 val externalSubs = resolvedExtractor.subtitles.map { sub ->
+
                     ExternalSubtitle(
                         url = sub.file.url,
                         headers = sub.headers ?: sub.file.headers ?: emptyMap(),
@@ -616,189 +863,250 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                 if (isNewTorrent) {
 
-                    kotlinx.coroutines.delay(500)
+                    delay(500)
 
                     var service = torrServerService
+
                     var waitAttempts = 0
+
                     while (service == null && waitAttempts < 30) {
-                        kotlinx.coroutines.delay(100)
+                        delay(100)
+
                         service = torrServerService
+
                         waitAttempts++
                     }
 
                     if (service == null) {
-                        Log.e("TorrServer", "TorrServerService not bound after waiting")
+                        Log.e(
+                            "TorrServer", "TorrServerService not bound after waiting"
+                        )
                         withContext(Dispatchers.Main) {
-                            snackString("Torrent service not available")
+                            snackString(
+                                "Service not available (force stop the app and retry)"
+                            )
                         }
+
                         return@launch
                     }
 
-
-
                     startTorrentStatsMonitoring()
 
-//                val preferredName = resolvedVideo.file.url // wrong place to extract file name, check video dataclass once more
-//                    .substringAfter("dn=")
-//                    .substringBefore("&")
-//                    .takeIf { it.isNotEmpty() }
-//                    ?: resolvedVideo.file.url
-//                        .substringAfterLast("/")
-//                        .takeIf { it.isNotEmpty() }  might need to parse and select the season, episode(regex) fyi its not in fileUrl and send it  for now just use torrentio fileidx+1 for torrserver
+                    Log.d(
+                        "TorrServer", "Resolving stream for episode ${ep.number}"
+                    )
 
-                    Log.d("TorrServer", "Resolving stream for episode ${ep.number}")
-                    val streamUrl = service.resolveStreamUrl(resolvedVideo.file.url)
+                    val streamUrl = service.resolveStreamUrl(
+                        resolvedVideo.file.url
+                    )
 
                     if (streamUrl == null) {
+
                         Log.e(
                             "TorrServer",
                             "Failed to resolve torrent stream for episode ${ep.number}"
                         )
                         stopTorrentStatsMonitoring()
                         withContext(Dispatchers.Main) {
-                            snackString("Failed to resolve torrent stream for this episode")
+                            snackString(
+                                "Failed to resolve stream for this episode(Force stop App)"
+                            )
                         }
+
                         return@launch
                     }
 
-                    Log.d("TorrServer", "Stream resolved: $streamUrl")
+                    Log.d(
+                        "TorrServer", "Stream resolved: $streamUrl"
+                    )
+
                     playbackUrl = streamUrl
+
                 } else {
-                    // Already released above, just ensure monitoring is stopped
                     playbackUrl = resolvedVideo.file.url
                 }
 
                 pendingStartPositionMs = startPosition
 
                 val loadSucceeded = loadMedia(
-                    playbackUrl, headers, startPosition, externalAudio, externalSubs
+                    playbackUrl, headers ?: emptyMap(), startPosition, externalAudio, externalSubs
                 )
 
                 if (loadSucceeded) {
+
                     loadedMediaKey = newMediaKey
+
                 } else {
+
                     pendingStartPositionMs = 0L
-                    Log.e("mpv", "[PlayerViewModel] Failed to load media for episode ${ep.number}")
+
+                    Log.e(
+                        "mpv", "[PlayerViewModel] Failed to load media for episode ${ep.number}"
+                    )
                 }
 
                 withContext(Dispatchers.Main) {
+
                     publishUi()
+
                     if (loadSucceeded) {
+
                         play()
-                        discordRPC.updateEpisode(buildRPCConfig(), isCurrentlyPlaying = true)
+
+                        discordRPC.updateEpisode(
+                            buildRPCConfig(), isCurrentlyPlaying = true
+                        )
+
                         playbackService?.updateMetadata(
                             title = currentMedia.userPreferredName ?: currentMedia.nameRomaji
                             ?: currentMedia.name ?: "Unknown",
+
                             subtitle = "Episode ${ep.number}",
+
                             durationMs = _duration.value
                         )
                     }
                 }
 
                 if (loadSucceeded) {
+
                     var waited = 0L
-                    while (waited < 5000) {
+
+                    while (waited < 5000L) {
+
                         val state = _playbackState.value
+
                         if (state == PlaybackState.BUFFERING || state == PlaybackState.PLAYING) {
-                            Log.d("mpv", "[PlayerViewModel] MPV reached $state after ${waited}ms")
+                            Log.d(
+                                "mpv", "[PlayerViewModel] MPV State $state after ${waited}ms"
+                            )
                             break
                         }
-                        kotlinx.coroutines.delay(100)
+
+                        delay(100)
                         waited += 100
                     }
                 }
 
             } catch (e: Exception) {
+
                 Log.e("mpv", "Error loading episode", e)
                 withContext(Dispatchers.Main) {
-                    snackString("Error loading episode: ${e.message}")
+                    snackString(
+                        "Error loading episode: ${e.message}"
+                    )
                 }
+
             } finally {
+
                 loadGuard.set(false)
 
                 val nextEp = pendingEpisode
+
                 val nextKey = loadingEpisodeKey
 
                 pendingEpisode = null
                 loadingEpisodeKey = null
 
                 if (nextEp != null && nextKey != newMediaKey) {
+
                     Log.d(
                         "mpv",
                         "[PlayerViewModel] Processing queued episode after current load completed"
                     )
-                    loadResolvedEpisode(nextEp, activity, mediaDetailsModel)
+
+                    loadResolvedEpisode(
+                        nextEp, activity, mediaDetailsModel
+                    )
                 }
             }
         }
     }
 
-    fun loadSkipTimes(media: Media, episode: Episode, durationMs: Long) {
+    fun loadSkipTimes(
+        media: Media, episode: Episode, durationMs: Long
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
-            var result: List<PlayerRepository.SkipInterval>?
+
             val episodeNumber = episode.number.trim().toIntOrNull()
             val isMovie = media.format == "MOVIE"
 
-            if (settings.useAlternativeTimestampProvider) {
-                val tmdbId = media.idTMDB?.toIntOrNull()
-                val absoluteEp = episode.absoluteEpisodeNumber
+            var result: List<PlayerRepository.SkipInterval>? = media.idMAL?.let { malId ->
 
-                result = if (tmdbId != null && (isMovie || absoluteEp != null)) {
-                    val seasonParam = if (isMovie) null else episode.seasonNumber
-                    val episodeParam = if (isMovie) null else absoluteEp
+                episodeNumber?.let { epNum ->
 
                     Log.d(
                         "SkipTimes",
-                        "Fetching from TheIntroDB: tmdbId=$tmdbId, isMovie=$isMovie, season=$seasonParam, episode=$episodeParam, durationMs=$durationMs"
+                        "Fetching from AniSkip: malId=$malId, episode=$epNum, durationSec=${durationMs / 1000}"
                     )
+
+                    repository.fetchAniSkipTimes(
+                        malId, epNum, durationMs / 1000
+                    ).also { res ->
+
+                        Log.d(
+                            "SkipTimes", "AniSkip result: $res"
+                        )
+                    }
+                }
+            }
+
+            if (result.isNullOrEmpty() && settings.useAlternativeTimestampProvider) {
+
+                val tmdbId = media.idTMDB?.toIntOrNull()
+
+                val absoluteEp = episode.absoluteEpisodeNumber
+
+                result = if (tmdbId != null && (isMovie || absoluteEp != null)) {
+
+                    val seasonParam = if (isMovie) {
+                        null
+                    } else {
+                        episode.seasonNumber
+                    }
+
+                    val episodeParam = if (isMovie) {
+                        null
+                    } else {
+                        absoluteEp
+                    }
+
+                    Log.d(
+                        "SkipTimes",
+                        "Fetching from TheIntroDB (fallback): tmdbId=$tmdbId, isMovie=$isMovie, season=$seasonParam, episode=$episodeParam, durationMs=$durationMs"
+                    )
+
                     TheMovieDatabase.fetchSkipTimes(
                         tmdbId = tmdbId,
                         season = seasonParam,
                         episode = episodeParam,
                         durationMs = durationMs
                     ).also {
-                        Log.d("SkipTimes", "TheIntroDB result: $it")
-                    }
-                } else {
-                   
-                    null
-                }
 
-                if (result.isNullOrEmpty()) {
-                    result = media.idMAL?.let { malId ->
-                        episodeNumber?.let {
-                            Log.d(
-                                "SkipTimes",
-                                "Fetching from AniSkip (fallback): malId=$malId, episode=$it, durationSec=${durationMs / 1000}"
-                            )
-                            repository.fetchAniSkipTimes(malId, it, durationMs / 1000).also { res ->
-                                Log.d("SkipTimes", "AniSkip fallback result: $res")
-                            }
-                        }
-                    }
-                }
-            } else {
-                result = media.idMAL?.let { malId ->
-                    episodeNumber?.let {
                         Log.d(
-                            "SkipTimes",
-                            "Fetching from AniSkip: malId=$malId, episode=$it, durationSec=${durationMs / 1000}"
+                            "SkipTimes", "TheIntroDB fallback result: $it"
                         )
-                        repository.fetchAniSkipTimes(malId, it, durationMs / 1000).also { res ->
-                            Log.d("SkipTimes", "AniSkip result: $res")
-                        }
                     }
+
+                } else {
+                    null
                 }
             }
 
             if (!result.isNullOrEmpty()) {
-                Log.d("SkipTimes", "Final skip stamps applied: $result")
-                _skipStamps.value = result
-            } else {
+
                 Log.d(
-                    "SkipTimes",
-                    "No skip times found from any source, resetting isTimeStampsLoaded"
+                    "SkipTimes", "Final skip stamps applied: $result"
                 )
+
+                _skipStamps.value = result
+
+            } else {
+
+                Log.d(
+                    "SkipTimes", "No skip times found from any source, resetting isTimeStampsLoaded"
+                )
+
                 isTimeStampsLoaded = false
             }
         }
@@ -824,7 +1132,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun saveCurrentPosition() {
         val currentMedia = media ?: return
         val episodeNumber = currentEpisode?.number ?: currentMedia.anime?.selectedEpisode ?: return
-        saveData("${currentMedia.id}_${episodeNumber}", currentPosition.value, getApplication())
+
+        saveData(
+            "${currentMedia.id}_${episodeNumber}", currentPosition.value, getApplication()
+        )
     }
 
     fun release(mediaDetailsModel: MediaDetailsViewModel) {
@@ -833,29 +1144,34 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val fallbackEpisode = currentEpisode?.number ?: currentMedia?.anime?.selectedEpisode
         if (currentMedia != null && fallbackEpisode != null) {
             currentMedia.anime?.selectedEpisode = fallbackEpisode
-            mediaDetailsModel.setMedia(currentMedia)
+
+            mediaDetailsModel.setMedia(
+                currentMedia
+            )
         }
-        viewModelScope.launch(Dispatchers.IO) { extractor?.onVideoStopped(video) }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            extractor?.onVideoStopped(video)
+        }
     }
 
     private fun openEpisodeSelector(
-        index: Int,
-        activity: AppCompatActivity,
-        mediaDetailsModel: MediaDetailsViewModel
+        index: Int, activity: AppCompatActivity, mediaDetailsModel: MediaDetailsViewModel
     ) {
         val currentMedia = media ?: return
-        if (index !in episodeArr.indices) return
+        if (index !in episodeArr.indices) {
+            return
+        }
 
         saveCurrentPosition()
         val targetEpisodeNumber = episodeArr[index]
 
         mediaDetailsModel.epChanged.postValue(false)
+
         mediaDetailsModel.onEpisodeClick(
-            currentMedia,
-            targetEpisodeNumber,
-            activity.supportFragmentManager,
-            launch = false
+            currentMedia, targetEpisodeNumber, activity.supportFragmentManager, launch = false
         )
+
         pause()
     }
 
@@ -863,27 +1179,35 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         saveData("${currentMedia.id}_current_ep", ep.number, getApplication())
         val continueSet =
             loadData<MutableSet<Int>>("continue_ANIME", getApplication()) ?: mutableSetOf()
+
         continueSet.remove(currentMedia.id)
         continueSet.add(currentMedia.id)
-        saveData("continue_ANIME", continueSet, getApplication())
+        saveData(
+            "continue_ANIME", continueSet
+        )
     }
 
     private fun publishUi() {
         val current =
-            currentEpisode ?: episodeArr.getOrNull(currentEpisodeIndex)?.let { episodes[it] }
-        val builtEpisodeTitle = current?.let { ep ->
-            val title = ep.title?.takeIf { it.isNotBlank() && it != "null" }
-            val number = ep.number
+            episodeArr.getOrNull(currentEpisodeIndex)?.let { episodes[it] } ?: currentEpisode
 
+        val builtEpisodeTitle = current?.let { ep ->
+
+            val title = ep.title?.takeIf {
+                it.isNotBlank() && it != "null"
+            }
+            val number = ep.number
             when {
                 title == null -> "Episode $number"
-                title.contains("episode", ignoreCase = true) -> title
-                true -> "Episode $number: $title"
-                else -> title
+                title.contains(
+                    "episode", ignoreCase = true
+                ) -> title
+
+                else -> "Episode $number: $title"
             }
         } ?: ""
 
-        _uiState.value = PlayerEpisodeUiState(
+        val state = PlayerEpisodeUiState(
             mainTitle = media?.let { it.userPreferredName ?: it.nameRomaji ?: it.name }
                 ?: "Unknown",
             episodeTitle = builtEpisodeTitle,
@@ -894,6 +1218,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             backdropUrl = media?.anime?.tmdbBackdrop,
             logo = media?.anime?.tmdbLogo
         )
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            _uiState.value = state
+        } else {
+            viewModelScope.launch(Dispatchers.Main) {
+                _uiState.value = state
+            }
+        }
     }
 
     fun loadMedia(
@@ -917,11 +1248,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun pause() {
-        saveCurrentPosition(); player?.pause()
+        saveCurrentPosition()
+        player?.pause()
     }
 
     fun stop() {
-        saveCurrentPosition(); player?.stop()
+        saveCurrentPosition()
+        player?.stop()
     }
 
     fun seekTo(positionMs: Long) {
@@ -949,7 +1282,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setVideoScaleMode(mode: VideoScaleMode) {
-        player?.setVideoScaleMode(mode); _videoScaleMode.value = mode
+        player?.setVideoScaleMode(mode)
+        _videoScaleMode.value = mode
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -960,16 +1294,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         player?.setExternalSubtitles(subs)
     }
 
-    fun setVolume(level: Int) {
-        playbackService?.setSystemVolume(level)
-        player?.setVolume(level)
-        _volume.value = level
-        _volumeChangeEvent.tryEmit(level)
-    }
-
     fun detachPlayerState() {
         clearStateJobs()
         timestampCollectionJob?.cancel()
+        removeVolumeObserver()
+        volumeUpdateJob?.cancel()
+        volumeUpdateJob = null
         strongPlayer = null
         _playerRef?.clear()
         _playerRef = null
@@ -991,11 +1321,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun releasePlayer(mediaDetailsModel: MediaDetailsViewModel) {
         clearStateJobs()
         timestampCollectionJob?.cancel()
+        removeVolumeObserver()
+        volumeUpdateJob?.cancel()
+        volumeUpdateJob = null
         release(mediaDetailsModel)
         discordRPC.close()
         torrServerService?.releaseStream()
         stopTorrentStatsMonitoring()
-
         _playbackState.value = PlaybackState.ENDED
         _isPlaying.value = false
         _currentPosition.value = 0L
@@ -1013,11 +1345,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _playerRef?.clear()
         _playerRef = null
         _attachedPlayerView.value = null
+        _mediaLoaded.value = false
     }
 
     override fun onCleared() {
-        super.onCleared()
+        volumeUpdateJob?.cancel()
+        volumeUpdateJob = null
         torrServerService?.releaseStream()
+        removeVolumeObserver()
+        super.onCleared()
     }
 
     private fun clearStateJobs() {
@@ -1027,16 +1363,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun updateAnimeProgress() {
         val dur = duration.value
-        if (dur <= 0L) return
+        if (dur <= 0L) {
+            return
+        }
 
         val ratio = currentPosition.value.toDouble() / dur.toDouble()
-        if (ratio <= settings.watchPercentage || Anilist.userid == null) return
+        if (ratio <= settings.watchPercentage || Anilist.userid == null) {
+            return
+        }
 
         val currentMedia = media ?: return
         val epNumber = (currentEpisode ?: episodeArr.getOrNull(currentEpisodeIndex)
             ?.let { episodes[it] })?.number ?: return
 
-        if (loadData<Boolean>("${media?.id}_save_progress") != false && if (media?.isAdult == true) settings.updateForH else true) {
+        if (loadData<Boolean>("${media?.id}_save_progress") != false && if (media?.isAdult == true) {
+                settings.updateForH
+            } else {
+                true
+            }
+        ) {
             updateProgress(currentMedia, epNumber)
         }
     }

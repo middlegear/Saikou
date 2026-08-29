@@ -27,7 +27,7 @@ object TheMovieDatabase {
         return tryWithSuspend {
             val anilistId = media.id
             val response =
-                client.get("https://api.kenjitsu.workers.dev/api/meta/anilist/$anilistId?platform=tmdb")
+                client.get("https://api.kenjitsu.workers.dev/api/meta/anilist/$anilistId?platform=tmdb", timeout = 15L)
             response.parsed<TmdbMetaResponse>()
         }
     }

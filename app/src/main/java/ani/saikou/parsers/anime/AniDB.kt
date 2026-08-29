@@ -2,48 +2,44 @@ package ani.saikou.parsers.anime
 
 import ani.saikou.FileUrl
 import ani.saikou.client
-import ani.saikou.parsers.AnimeApiParser
 import ani.saikou.parsers.AnimeParser
 import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.parsers.VideoExtractor
 import ani.saikou.parsers.VideoServer
 import ani.saikou.parsers.anime.extractors.AniDBExtractor
-
-
 import ani.saikou.tryWithSuspend
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import java.net.URLEncoder
 
 @OptIn(InternalSerializationApi::class)
-class AniDB : AnimeApiParser() {
+class AniDB : AnimeParser() {
 
     override val name = "AniDB"
     override val saveName = "AniDB"
+    override val hostUrl = "https://anidb.app"
     override val isDubAvailableSeparately = false
-
-    override val providerName = "anidb"
 
     override suspend fun search(query: String): List<ShowResponse> {
         return tryWithSuspend(post = false, snackbar = true) {
             if (query.isBlank()) return@tryWithSuspend emptyList()
             val encoded = URLEncoder.encode(query, "utf-8")
-            val res = client.get(
-                "$hostUrl/api/anidb/anime/search?q=$encoded",
-                headers = mapOf("x-api-key" to apiKey)
-            )
-                .parsed<SearchApiResponse>()
+            val doc = client.get("$hostUrl/browse?q=$encoded").document
 
-            res.data.map {
+            doc.select("div.anime-grid > a").mapNotNull { element ->
+                val href = element.attr("href")
+                val id = href.split("/").lastOrNull() ?: return@mapNotNull null
+                val name = element.attr("title").ifBlank { element.text() }
+                val poster = element.selectFirst("div > img")?.attr("src") ?: ""
+
                 ShowResponse(
-                    name = it.name,
-                    link = it.id,
-                    coverUrl = FileUrl(it.posterImage)
+                    name = name,
+                    link = id,
+                    coverUrl = FileUrl(poster)
                 )
             }
         } ?: emptyList()
-
     }
 
     override suspend fun loadEpisodes(
@@ -52,19 +48,21 @@ class AniDB : AnimeApiParser() {
     ): List<Episode> {
         return tryWithSuspend(post = false, snackbar = true) {
             if (animeLink.isBlank()) return@tryWithSuspend emptyList()
-            val url = "$hostUrl/api/anidb/anime/$animeLink/episodes"
-            val res =
-                client.get(url, headers = mapOf("x-api-key" to apiKey)).parsed<EpisodesResponse>()
 
-            res.data.map { ep ->
-                Episode(
-                    number = ep.episodeNumber.toString(),
-                    link = ep.episodeId,
-                    title = ep.title ?: "Episode ${ep.episodeNumber}",
+            val numericId = animeLink.substringAfterLast("-")
+            val url = "$hostUrl/api/frontend/anime/$numericId/episodes"
+            val res = client.get(url).parsed<EpisodeResponse>()
 
+            res.episodes
+                .filter { (it.number ?: 0f) >= 0f }
+                .sortedBy { it.number ?: 0f }
+                .mapIndexed { index, ep ->
+                    Episode(
+                        number = (index + 1).toString(),
+                        link = ep.id,
+                        title = ep.title ?: "Episode ${index + 1}"
                     )
-            }
-
+                }
         } ?: emptyList()
     }
 
@@ -73,29 +71,25 @@ class AniDB : AnimeApiParser() {
         extra: Map<String, String>?
     ): List<VideoServer> {
         return tryWithSuspend(post = false, snackbar = true) {
-            val res = client.get(
-                "$hostUrl/api/anidb/episode/$episodeLink/servers",
-                headers = mapOf("x-api-key" to apiKey)
-            ).parsed<EpisodeServersResponse>()
+            if (episodeLink.isBlank()) return@tryWithSuspend emptyList()
 
-            val allServers = mutableListOf<VideoServer>()
+            val url = "$hostUrl/api/frontend/episode/$episodeLink/languages"
+            val res = client.get(url).parsed<LanguageResponse>()
 
-            res.data.sub.forEach { server ->
-                allServers += VideoServer(
-                    name = "Sub - ${server.serverName}",
-                    embed = FileUrl(server.serverId)
+            val servers = mutableListOf<VideoServer>()
+
+            res.languages.forEach { lang ->
+                val embedUrl = lang.embed_url ?: return@forEach
+                val isDub = lang.code?.equals("eng", ignoreCase = true) == true
+                val prefix = if (isDub) "Dub" else "Sub"
+
+                servers += VideoServer(
+                    name = "$prefix - ${lang.name}",
+                    embed = FileUrl(embedUrl)
                 )
             }
 
-            res.data.dub.forEach { server ->
-                allServers += VideoServer(
-                    name = "Dub - ${server.serverName}",
-                    embed = FileUrl(server.serverId)
-                )
-            }
-
-
-            allServers
+            servers
         } ?: emptyList()
     }
 
@@ -103,54 +97,28 @@ class AniDB : AnimeApiParser() {
         return AniDBExtractor(server)
     }
 
-
     @Serializable
-    private data class SearchApiResponse(
-        val data: List<SearchItems>
-    )
-
-
-    @Serializable
-    private data class SearchItems(
-        val id: String,
-        val name: String,
-        val posterImage: String
-
-    )
-
-
-    @Serializable
-    private data class EpisodesResponse(
-        val data: List<EpisodeItem>
+    private data class EpisodeResponse(
+        val episodes: List<EpisodeItem> = emptyList()
     )
 
     @Serializable
     private data class EpisodeItem(
-        val episodeId: String,
-        val title: String?,
-        val episodeNumber: Int,
-
-        )
-
-    @Serializable
-    private data class EpisodeServersResponse(
-        val data: EpisodeServers
+        val id: String,
+        val number: Float? = null,
+        val filler: Boolean = false,
+        val title: String? = null
     )
 
     @Serializable
-    private data class ServerItem(
-        val serverName: String,
-        val serverId: String,
-
-        )
+    private data class LanguageResponse(
+        val languages: List<LanguageItem> = emptyList()
+    )
 
     @Serializable
-    private data class EpisodeServers(
-        val sub: List<ServerItem> = emptyList(),
-        val dub: List<ServerItem> = emptyList(),
-        val raw: List<ServerItem> = emptyList(),
-
-        )
-
-
+    private data class LanguageItem(
+        val name: String,
+        val code: String? = null,
+        val embed_url: String? = null
+    )
 }

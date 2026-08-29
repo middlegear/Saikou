@@ -12,7 +12,6 @@ enum class PlaybackState {
     PAUSED,    // Media loaded, playback paused by user
     ENDED, // Media playback reached the end
 
-    READY,
 }
 
 enum class AudioChannels(val title: String, val property: String, val value: String) {

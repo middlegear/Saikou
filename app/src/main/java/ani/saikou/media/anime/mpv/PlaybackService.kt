@@ -15,13 +15,11 @@ import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
-import ani.saikou.settings.PlayerSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 class PlaybackService : Service() {
 
@@ -47,7 +45,7 @@ class PlaybackService : Service() {
 
     private var resumeOnFocusGain = false
 
-    private var preDuckVolumeLevel: Int? = null
+    private var preDuckStep: Int? = null
 
     private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
@@ -55,7 +53,7 @@ class PlaybackService : Service() {
                 Log.d(TAG, "AUDIOFOCUS_LOSS ")
                 hasAudioFocus = false
                 resumeOnFocusGain = false
-                preDuckVolumeLevel = null
+                preDuckStep = null
                 player.pause()
                 publishState(PlaybackStateCompat.STATE_PAUSED)
             }
@@ -68,20 +66,23 @@ class PlaybackService : Service() {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 Log.d(TAG, "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK — ducking to half volume")
 
-                if (preDuckVolumeLevel == null) {
-                    preDuckVolumeLevel = currentVolumeLevel()
+                if (preDuckStep == null) {
+                    preDuckStep = getCurrentVolumeStep()
                 }
-                val duckedLevel = ((preDuckVolumeLevel ?: 100) / 2).coerceIn(0, 100)
-                applyVolume(duckedLevel)
+                val duckedStep = ((preDuckStep ?: getMaxVolumeStep()) / 2).coerceIn(0, getMaxVolumeStep())
+                setVolumeStep(duckedStep)
+                player.setVolume(100)
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
                 Log.d(TAG, "AUDIOFOCUS_GAIN")
                 hasAudioFocus = true
 
-                preDuckVolumeLevel?.let { originalLevel ->
-                    applyVolume(originalLevel)
-                    preDuckVolumeLevel = null
+                preDuckStep?.let { originalStep ->
+                    setVolumeStep(originalStep)
+                    preDuckStep = null
                 }
+
+                player.setVolume(100)
 
                 if (resumeOnFocusGain) {
                     resumeOnFocusGain = false
@@ -92,27 +93,17 @@ class PlaybackService : Service() {
         }
     }
 
-    private fun currentVolumeLevel(): Int {
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        if (maxVolume <= 0) return 100
-        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        return ((currentVolume.toFloat() / maxVolume.toFloat()) * 100f).roundToInt().coerceIn(0, 100)
-    }
+    fun getMaxVolumeStep(): Int = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
 
-    private fun applyVolume(level: Int) {
-        setSystemVolume(level)
-        player.setVolume(level)
-    }
+    fun getCurrentVolumeStep(): Int = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
 
-    fun setSystemVolume(level: Int) {
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val targetVolume = ((level.coerceIn(0, 100).toFloat() / 100f) * maxVolume).roundToInt()
-
-        audioManager.setStreamVolume(
-            AudioManager.STREAM_MUSIC,
-            targetVolume,
-            0
-        )
+    fun setVolumeStep(step: Int) {
+        val target = step.coerceIn(0, getMaxVolumeStep())
+        try {
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Failed to set system volume: ${e.message}")
+        }
     }
 
     private fun requestAudioFocus(): Boolean {
@@ -148,15 +139,10 @@ class PlaybackService : Service() {
 
     private fun abandonAudioFocus() {
         if (!hasAudioFocus && focusRequest == null) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.abandonAudioFocus(audioFocusListener)
-        }
+        focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
         hasAudioFocus = false
         resumeOnFocusGain = false
-        preDuckVolumeLevel = null
+        preDuckStep = null
         focusRequest = null
     }
 
@@ -175,6 +161,7 @@ class PlaybackService : Service() {
 
         player = MpvVideoPlayer(this)
         player.init(Unit)
+        player.setVolume(100)
 
         mediaSession = MediaSessionCompat(this, "SaikouSession").apply {
             setCallback(sessionCallback)

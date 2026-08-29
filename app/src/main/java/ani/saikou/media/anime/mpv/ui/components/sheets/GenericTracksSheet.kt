@@ -195,7 +195,7 @@ fun <T> GenericTracksSheet(
                                 Text(
                                     text = trackToText(track),
                                     style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f)
                                 )

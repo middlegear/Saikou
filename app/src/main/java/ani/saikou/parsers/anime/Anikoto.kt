@@ -82,21 +82,21 @@ class Anikoto : AnimeApiParser() {
             val allServers = mutableListOf<VideoServer>()
 
             fun addServers(version: String, list: List<ServerItem>) {
-                list.forEach { item ->
-                    val serverName = "${version.uppercase()} - ${item.serverName}"
-                    val embedUrl =
-                        "$hostUrl/api/anikoto/sources/$episodeLink?version=$version&server=${item.serverName}"
-                    allServers += VideoServer(
-                        name = serverName,
-                        embed = FileUrl(embedUrl),
-                        extraData = null
-                    )
-                }
+                list.filter { it.serverName.equals("vidstream-2", ignoreCase = true) }
+                    .forEach { item ->
+                        val serverName = "${version.uppercase()} - ${item.serverName}"
+                        val embedUrl =
+                            "$hostUrl/api/anikoto/sources/$episodeLink?version=$version&server=${item.serverName}"
+                        allServers += VideoServer(
+                            name = serverName,
+                            embed = FileUrl(embedUrl),
+                            extraData = null
+                        )
+                    }
             }
 
             addServers("sub", res.data.sub)
             addServers("dub", res.data.dub)
-            addServers("raw", res.data.raw)
 
             allServers
         } ?: emptyList()

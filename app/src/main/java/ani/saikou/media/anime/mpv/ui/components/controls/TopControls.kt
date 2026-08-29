@@ -81,7 +81,7 @@ fun TopControlsBar(
     ) {
 
         Row(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(0.65f),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -109,11 +109,12 @@ fun TopControlsBar(
             }
 
             Spacer(modifier = Modifier.width(8.dp))
-            Column {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
                     text = episodeName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall,
                     color = Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

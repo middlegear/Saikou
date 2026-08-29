@@ -92,7 +92,7 @@ fun BottomLeftControls(
             Text(
                 text = speedLabel,
                 style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 color = if (isLocked) elementTint.copy(alpha = 0.4f) else elementTint,
                 modifier = Modifier.fillMaxWidth()
