@@ -70,7 +70,7 @@ fun <T> GenericTracksSheet(
 
     val screenHeightDp = configuration.screenHeightDp.dp
     val minSheetHeight = screenHeightDp * 0.80f
-    val maxSheetWidth = configuration.screenWidthDp.dp * 0.70f
+    val maxSheetWidth = configuration.screenWidthDp.dp * 0.65f
 
 
     LaunchedEffect(Unit) {
@@ -162,21 +162,22 @@ fun <T> GenericTracksSheet(
                             .fillMaxWidth()
                             .weight(1f, fill = false)
                             .selectableGroup()
-                            .padding(horizontal = 20.dp)
+                            .padding(horizontal = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         items(trackList) { track ->
                             val isSelected = track == selectedTrackInternal
 
                             Row(
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .fillMaxWidth(0.9f)
                                     .clickable {
                                         selectedTrackInternal = track
                                         onTrackSelected(track)
                                     }
                                     .padding(vertical = 4.dp, horizontal = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Start
+                                horizontalArrangement = Arrangement.Center
                             ) {
                                 RadioButton(
                                     selected = isSelected,
@@ -197,6 +198,7 @@ fun <T> GenericTracksSheet(
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Start,
                                     modifier = Modifier.weight(1f)
                                 )
                             }

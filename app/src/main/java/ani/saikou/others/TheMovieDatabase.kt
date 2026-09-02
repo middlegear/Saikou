@@ -1,5 +1,6 @@
 package ani.saikou.others
 
+import android.content.res.Resources.getSystem
 import ani.saikou.FileUrl
 import ani.saikou.client
 import ani.saikou.currContext
@@ -13,15 +14,19 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 object TheMovieDatabase {
+
+
+    private val prefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private suspend fun fetchMetadata(media: Media): TmdbMetaResponse? {
         return tryWithSuspend {
@@ -47,11 +52,13 @@ object TheMovieDatabase {
         media.anime?.tmdbLogo = bestLogo
         media.anime?.tmdbBackdrop = bestBackdrop
 
-        preloadArtwork(
-            bestLogo,
-            bestBackdrop,
-            data.posterImage?.large ?: data.posterImage?.original
-        )
+        prefetchScope.launch {
+            preloadArtwork(
+                bestLogo,
+                bestBackdrop,
+                data.posterImage?.large ?: data.posterImage?.original
+            )
+        }
 
         val episodes = data.parsedEpisodes ?: return null
 
@@ -68,25 +75,35 @@ object TheMovieDatabase {
         }.toMap()
     }
 
-    private suspend fun preloadArtwork(vararg urls: String?) = coroutineScope {
-        val context = currContext() ?: return@coroutineScope
+    private  fun preloadArtwork(logoUrl: String?, backdropUrl: String?, posterUrl: String?) {
+        val context = currContext() ?: return
         val appContext = context.applicationContext
 
-        urls.filterNotNull()
-            .mapNotNull { url -> FileUrl[url] }
-            .map { fileUrl ->
-                launch {
-                    tryWithSuspend {
-                        preloadOne(appContext, fileUrl)
-                    }
+        val screenWidth = getSystem().displayMetrics.widthPixels
+        val screenHeight = getSystem().displayMetrics.heightPixels
+
+        listOfNotNull(
+            logoUrl?.let { FileUrl[it] to null },
+            backdropUrl?.let { FileUrl[it] to (screenWidth to screenHeight) },
+            posterUrl?.let { FileUrl[it] to null }
+        ).forEach { (fileUrl, overrideSize) ->
+            fileUrl ?: return@forEach
+            prefetchScope.launch {
+                tryWithSuspend {
+                    preloadOne(appContext, fileUrl, overrideSize)
                 }
-            }.joinAll()
+            }
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun preloadOne(context: android.content.Context, model: FileUrl) {
+    private suspend fun preloadOne(
+        context: android.content.Context,
+        model: FileUrl,
+        overrideSize: Pair<Int, Int>? = null
+    ) {
         suspendCancellableCoroutine<Unit> { cont ->
-            val target = Glide.with(context)
+            val request = Glide.with(context)
                 .load(model)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
                 .listener(object : RequestListener<android.graphics.drawable.Drawable> {
@@ -111,7 +128,12 @@ object TheMovieDatabase {
                         return false
                     }
                 })
-                .preload()
+
+            val target = if (overrideSize != null) {
+                request.override(overrideSize.first, overrideSize.second).preload()
+            } else {
+                request.preload()
+            }
 
             cont.invokeOnCancellation {
                 Glide.with(context).clear(target)
@@ -186,8 +208,6 @@ object TheMovieDatabase {
         @SerialName("start_ms") val startMs: Long?,
         @SerialName("end_ms") val endMs: Long?
     )
-
-
 
     @Serializable
     data class TmdbMetaResponse(

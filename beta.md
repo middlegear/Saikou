@@ -4,5 +4,8 @@
 * **Manga:** Auto search improvements with support to save entries.
 
 ### Changes
-* **Anime:** Enabled Anikoto provider. 
-* **Player:** Fix UI and other stuff can't remember.
+* **Settings:** Rework settings . 
+
+
+### Fixes
+* **Player:**  Stop demuxer network activity on background and soft-recover on resume

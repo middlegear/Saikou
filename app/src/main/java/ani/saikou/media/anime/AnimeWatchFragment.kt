@@ -20,7 +20,7 @@ import ani.saikou.media.MediaDetailsViewModel
 import ani.saikou.parsers.AnimeParser
 import ani.saikou.parsers.AnimeSources
 import ani.saikou.parsers.HAnimeSources
-import ani.saikou.settings.PlayerSettings
+import ani.saikou.settings.player.PlayerSettings
 import ani.saikou.settings.UserInterfaceSettings
 import ani.saikou.subcriptions.Notifications
 import ani.saikou.subcriptions.Notifications.Group.ANIME_GROUP

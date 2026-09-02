@@ -3,7 +3,6 @@ package ani.saikou.media.anime.mpv
 import android.app.Application
 import android.content.ComponentName
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.content.ServiceConnection
 import android.database.ContentObserver
@@ -30,7 +29,7 @@ import ani.saikou.parsers.Subtitle
 import ani.saikou.parsers.Video
 import ani.saikou.parsers.VideoExtractor
 import ani.saikou.saveData
-import ani.saikou.settings.PlayerSettings
+import ani.saikou.settings.player.PlayerSettings
 import ani.saikou.snackString
 import ani.saikou.toast
 import ani.saikou.torrserver.TorrServerService

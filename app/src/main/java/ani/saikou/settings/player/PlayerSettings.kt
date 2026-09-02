@@ -1,4 +1,4 @@
-package ani.saikou.settings
+package ani.saikou.settings.player
 
 import java.io.Serializable
 
@@ -46,7 +46,4 @@ data class PlayerSettings(
     var seekTime: Int = 10,
     var skipTime: Int = 85,
 
-    //Other
-    var cast: Boolean = false,
-    var pip: Boolean = true
 ) : Serializable

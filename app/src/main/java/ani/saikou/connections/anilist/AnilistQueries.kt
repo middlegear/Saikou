@@ -25,13 +25,21 @@ import kotlinx.coroutines.runBlocking
 import kotlin.system.measureTimeMillis
 
 class AnilistQueries {
+
     suspend fun getUserData(): Boolean {
         val response: Query.Viewer?
         measureTimeMillis {
             response =
                 executeQuery("""{Viewer{name options{displayAdultContent}avatar{medium}bannerImage id mediaListOptions{rowOrder animeList{sectionOrder customLists}mangaList{sectionOrder customLists}}statistics{anime{episodesWatched}manga{chaptersRead}}}}""")
         }.also { println("time : $it") }
-        val user = response?.data?.user ?: return false
+
+        val user = response?.data?.user
+        if (user == null) {
+            if (Anilist.lastErrorMessage == null) {
+                snackString(currContext()?.getString(R.string.error_getting_data))
+            }
+            return false
+        }
 
         Anilist.userid = user.id
         Anilist.username = user.name
@@ -83,14 +91,11 @@ class AnilistQueries {
                                 "${i.id.toString().trim('"')}"
                             else null
                         }
-//
 
                         fetchedMedia.synonyms?.apply {
                             media.synonyms = arrayListOf()
                             this.forEach { i ->
-                                media.synonyms.add(
-                                    i
-                                )
+                                media.synonyms.add(i)
                             }
                         }
 
@@ -114,9 +119,13 @@ class AnilistQueries {
                                             name = i.node?.name?.userPreferred,
                                             image = i.node?.image?.medium,
                                             banner = media.banner ?: media.cover,
-                                            role = when (i.role.toString()){
-                                                "MAIN" -> currContext()?.getString(R.string.main_role) ?: "MAIN"
-                                                "SUPPORTING" -> currContext()?.getString(R.string.supporting_role) ?: "SUPPORTING"
+                                            role = when (i.role.toString()) {
+                                                "MAIN" -> currContext()?.getString(R.string.main_role)
+                                                    ?: "MAIN"
+
+                                                "SUPPORTING" -> currContext()?.getString(R.string.supporting_role)
+                                                    ?: "SUPPORTING"
+
                                                 else -> i.role.toString()
                                             }
                                         )
@@ -130,11 +139,15 @@ class AnilistQueries {
                                 val m = Media(mediaEdge)
                                 media.relations?.add(m)
                                 if (m.relation == "SEQUEL") {
-                                    media.sequel = if ((media.sequel?.popularity ?: 0) < (m.popularity ?: 0)) m else media.sequel
-
+                                    media.sequel =
+                                        if ((media.sequel?.popularity ?: 0) < (m.popularity
+                                                ?: 0)
+                                        ) m else media.sequel
                                 } else if (m.relation == "PREQUEL") {
                                     media.prequel =
-                                        if ((media.prequel?.popularity ?: 0) < (m.popularity ?: 0)) m else media.prequel
+                                        if ((media.prequel?.popularity ?: 0) < (m.popularity
+                                                ?: 0)
+                                        ) m else media.prequel
                                 }
                             }
                             media.relations?.sortByDescending { it.popularity }
@@ -145,9 +158,7 @@ class AnilistQueries {
                             media.recommendations = arrayListOf()
                             fetchedMedia.recommendations?.nodes?.forEach { i ->
                                 i.mediaRecommendation?.apply {
-                                    media.recommendations?.add(
-                                        Media(this)
-                                    )
+                                    media.recommendations?.add(Media(this))
                                 }
                             }
                         }
@@ -200,17 +211,19 @@ class AnilistQueries {
                                 )
                             }
 
-                            media.anime.nextAiringEpisodeTime = fetchedMedia.nextAiringEpisode?.airingAt?.toLong()
+                            media.anime.nextAiringEpisodeTime =
+                                fetchedMedia.nextAiringEpisode?.airingAt?.toLong()
 
                             fetchedMedia.externalLinks?.forEach { i ->
                                 when (i.site.lowercase()) {
-                                    "youtube"     -> media.anime.youtube = i.url
-                                    "crunchyroll" -> media.crunchySlug = i.url?.split("/")?.getOrNull(3)
-                                    "vrv"         -> media.vrvId = i.url?.split("/")?.getOrNull(4)
+                                    "youtube" -> media.anime.youtube = i.url
+                                    "crunchyroll" -> media.crunchySlug =
+                                        i.url?.split("/")?.getOrNull(3)
+
+                                    "vrv" -> media.vrvId = i.url?.split("/")?.getOrNull(4)
                                 }
                             }
-                        }
-                        else if (media.manga != null) {
+                        } else if (media.manga != null) {
                             fetchedMedia.staff?.edges?.find { authorRoles.contains(it.role?.trim()) }?.node?.let {
                                 media.manga.author = Author(
                                     it.id.toString(),
@@ -229,11 +242,14 @@ class AnilistQueries {
                         else snackString(currContext()?.getString(R.string.what_did_you_open))
                     }
                 } else {
-                    snackString(currContext()?.getString(R.string.error_getting_data))
+
+                    if (Anilist.lastErrorMessage == null) {
+                        snackString(currContext()?.getString(R.string.error_getting_data))
+                    }
                 }
             }
             val mal = async {
-                if (media.idMAL != null  ) {
+                if (media.idMAL != null) {
                     MalScraper.loadMedia(media)
                 }
             }
@@ -242,10 +258,10 @@ class AnilistQueries {
         return media
     }
 
-    suspend fun continueMedia(type: String,planned:Boolean=false): ArrayList<Media> {
+    suspend fun continueMedia(type: String, planned: Boolean = false): ArrayList<Media> {
         val returnArray = arrayListOf<Media>()
         val map = mutableMapOf<Int, Media>()
-        val statuses = if(!planned) arrayOf("CURRENT", "REPEATING") else arrayOf("PLANNING")
+        val statuses = if (!planned) arrayOf("CURRENT", "REPEATING") else arrayOf("PLANNING")
         suspend fun repeat(status: String) {
             val response =
                 executeQuery<Query.MediaListCollection>(""" { MediaListCollection(userId: ${Anilist.userid}, type: $type, status: $status , sort: UPDATED_TIME ) { lists { entries { progress private score(format:POINT_100) status media { id idMal type isAdult status chapters episodes nextAiringEpisode {episode} meanScore isFavourite format bannerImage coverImage{large} title { english romaji userPreferred } } } } } } """)
@@ -276,21 +292,21 @@ class AnilistQueries {
         var hasNextPage = true
         var page = 0
 
-        suspend fun getNextPage(page:Int): List<Media> {
+        suspend fun getNextPage(page: Int): List<Media> {
             val response =
                 executeQuery<Query.User>("""{User(id:${Anilist.userid}){id favourites{${if (anime) "anime" else "manga"}(page:$page){pageInfo{hasNextPage}edges{favouriteOrder node{id idMal isAdult mediaListEntry{ progress private score(format:POINT_100) status } chapters isFavourite format episodes nextAiringEpisode{episode}meanScore isFavourite format startDate{year month day} title{english romaji userPreferred}type status(version:2)bannerImage coverImage{large}}}}}}}""")
             val favourites = response?.data?.user?.favourites
             val apiMediaList = if (anime) favourites?.anime else favourites?.manga
             hasNextPage = apiMediaList?.pageInfo?.hasNextPage ?: false
             return apiMediaList?.edges?.mapNotNull {
-                it.node?.let { i->
+                it.node?.let { i ->
                     Media(i).apply { isFav = true }
                 }
             } ?: return listOf()
         }
 
         val responseArray = arrayListOf<Media>()
-        while(hasNextPage){
+        while (hasNextPage) {
             page++
             responseArray.addAll(getNextPage(page))
         }
@@ -389,7 +405,7 @@ class AnilistQueries {
             if (unsorted.containsKey(it)) sorted[it] = unsorted[it]!!
         }
         unsorted.forEach {
-            if(!sorted.containsKey(it.key)) sorted[it.key] = it.value
+            if (!sorted.containsKey(it.key)) sorted[it.key] = it.value
         }
 
         sorted["Favourites"] = favMedia(anime)
@@ -400,16 +416,17 @@ class AnilistQueries {
         val sort = sortOrder ?: options?.rowOrder
         for (i in sorted.keys) {
             when (sort) {
-                "score"     -> sorted[i]?.sortWith { b, a -> compareValuesBy(a, b, { it.userScore }, { it.meanScore }) }
-                "title"     -> sorted[i]?.sortWith(compareBy { it.userPreferredName })
+                "score" -> sorted[i]?.sortWith { b, a ->
+                    compareValuesBy(a, b, { it.userScore }, { it.meanScore })
+                }
+                "title" -> sorted[i]?.sortWith(compareBy { it.userPreferredName })
                 "updatedAt" -> sorted[i]?.sortWith(compareByDescending { it.userUpdatedAt })
-                "release"   -> sorted[i]?.sortWith(compareByDescending { it.startDate })
-                "id"        -> sorted[i]?.sortWith(compareBy { it.id })
+                "release" -> sorted[i]?.sortWith(compareByDescending { it.startDate })
+                "id" -> sorted[i]?.sortWith(compareBy { it.id })
             }
         }
         return sorted
     }
-
 
     suspend fun getGenresAndTags(activity: Activity): Boolean {
         var genres: ArrayList<String>? = loadData("genres_list", activity)
@@ -560,18 +577,36 @@ query (${"$"}page: Int = 1, ${"$"}id: Int, ${"$"}type: MediaType, ${"$"}isAdult:
             ${if (seasonYear != null) ""","seasonYear":"$seasonYear"""" else ""}
             ${if (season != null) ""","season":"$season"""" else ""}
             ${if (search != null) ""","search":"$search"""" else ""}
-            ${if (sort!=null) ""","sort":"$sort"""" else ""}
+            ${if (sort != null) ""","sort":"$sort"""" else ""}
             ${if (format != null) ""","format":"${format.replace(" ", "_")}"""" else ""}
             ${if (genres?.isNotEmpty() == true) ""","genres":[${genres.joinToString { "\"$it\"" }}]""" else ""}
             ${
             if (excludedGenres?.isNotEmpty() == true)
-                ""","excludedGenres":[${excludedGenres.joinToString { "\"${it.replace("Not ", "")}\"" }}]"""
+                ""","excludedGenres":[${
+                    excludedGenres.joinToString {
+                        "\"${
+                            it.replace(
+                                "Not ",
+                                ""
+                            )
+                        }\""
+                    }
+                }]"""
             else ""
         }
             ${if (tags?.isNotEmpty() == true) ""","tags":[${tags.joinToString { "\"$it\"" }}]""" else ""}
             ${
             if (excludedTags?.isNotEmpty() == true)
-                ""","excludedTags":[${excludedTags.joinToString { "\"${it.replace("Not ", "")}\"" }}]"""
+                ""","excludedTags":[${
+                    excludedTags.joinToString {
+                        "\"${
+                            it.replace(
+                                "Not ",
+                                ""
+                            )
+                        }\""
+                    }
+                }]"""
             else ""
         }
             }""".replace("\n", " ").replace("""  """, "")
@@ -614,7 +649,13 @@ query (${"$"}page: Int = 1, ${"$"}id: Int, ${"$"}type: MediaType, ${"$"}isAdult:
                 page = pageInfo.currentPage.toString().toIntOrNull() ?: 0,
                 hasNextPage = pageInfo.hasNextPage == true,
             )
-        } else snackString(currContext()?.getString(R.string.empty_response))
+        } else {
+
+            snackString(
+                Anilist.lastErrorMessage
+                    ?: currContext()?.getString(R.string.empty_response)
+            )
+        }
         return null
     }
 
@@ -623,7 +664,7 @@ query (${"$"}page: Int = 1, ${"$"}id: Int, ${"$"}type: MediaType, ${"$"}isAdult:
         greater: Long = 0,
         lesser: Long = System.currentTimeMillis() / 1000 - 10000
     ): MutableList<Media>? {
-        suspend fun execute(page:Int = 1):Page?{
+        suspend fun execute(page: Int = 1): Page? {
             val query = """{
 Page(page:$page,perPage:50) {
     pageInfo {
@@ -669,7 +710,7 @@ Page(page:$page,perPage:50) {
         }""".replace("\n", " ").replace("""  """, "")
             return executeQuery<Query.Page>(query, force = true)?.data?.page
         }
-        if(smaller) {
+        if (smaller) {
             val response = execute()?.airingSchedules ?: return null
             val idArr = mutableListOf<Int>()
             val listOnly = loadData("recently_list_only") ?: false
@@ -683,11 +724,11 @@ Page(page:$page,perPage:50) {
                     else null
                 }
             }.toMutableList()
-        }else{
+        } else {
             var i = 1
             val list = mutableListOf<Media>()
-            var res : Page? = null
-            suspend fun next(){
+            var res: Page? = null
+            suspend fun next() {
                 res = execute(i)
                 list.addAll(res?.airingSchedules?.mapNotNull { j ->
                     j.media?.let {
@@ -695,10 +736,10 @@ Page(page:$page,perPage:50) {
                             Media(it).apply { relation = "${j.episode},${j.airingAt}" }
                         } else null
                     }
-                }?: listOf())
+                } ?: listOf())
             }
             next()
-            while (res?.pageInfo?.hasNextPage == true){
+            while (res?.pageInfo?.hasNextPage == true) {
                 next()
                 i++
             }
@@ -823,19 +864,20 @@ Page(page:$page,perPage:50) {
         var page = 0
         while (hasNextPage) {
             page++
-            hasNextPage = executeQuery<Query.Studio>(query(page), force = true)?.data?.studio?.media?.let {
-                it.edges?.forEach { i ->
-                    i.node?.apply {
-                        val status = status.toString()
-                        val year = startDate?.year?.toString() ?: "TBA"
-                        val title = if (status != "CANCELLED") year else status
-                        if (!yearMedia.containsKey(title))
-                            yearMedia[title] = arrayListOf()
-                        yearMedia[title]?.add(Media(this))
+            hasNextPage =
+                executeQuery<Query.Studio>(query(page), force = true)?.data?.studio?.media?.let {
+                    it.edges?.forEach { i ->
+                        i.node?.apply {
+                            val status = status.toString()
+                            val year = startDate?.year?.toString() ?: "TBA"
+                            val title = if (status != "CANCELLED") year else status
+                            if (!yearMedia.containsKey(title))
+                                yearMedia[title] = arrayListOf()
+                            yearMedia[title]?.add(Media(this))
+                        }
                     }
-                }
-                it.pageInfo?.hasNextPage == true
-            } ?: false
+                    it.pageInfo?.hasNextPage == true
+                } ?: false
         }
         if (yearMedia.contains("CANCELLED")) {
             val a = yearMedia["CANCELLED"]!!
@@ -845,7 +887,6 @@ Page(page:$page,perPage:50) {
         studio.yearMedia = yearMedia
         return studio
     }
-
 
     suspend fun getAuthorDetails(author: Author): Author {
         fun query(page: Int = 0) = """ {
@@ -897,21 +938,25 @@ Page(page:$page,perPage:50) {
 
         while (hasNextPage) {
             page++
-            hasNextPage = executeQuery<Query.Author>(query(page), force = true)?.data?.author?.staffMedia?.let {
-                it.edges?.forEach { i ->
-                    i.node?.apply {
-                        val status = status.toString()
-                        val year = startDate?.year?.toString() ?: "TBA"
-                        val title = if (status != "CANCELLED") year else status
-                        if (!yearMedia.containsKey(title))
-                            yearMedia[title] = arrayListOf()
-                        val media = Media(this)
-                        media.relation = i.staffRole
-                        yearMedia[title]?.add(media)
+            hasNextPage =
+                executeQuery<Query.Author>(
+                    query(page),
+                    force = true
+                )?.data?.author?.staffMedia?.let {
+                    it.edges?.forEach { i ->
+                        i.node?.apply {
+                            val status = status.toString()
+                            val year = startDate?.year?.toString() ?: "TBA"
+                            val title = if (status != "CANCELLED") year else status
+                            if (!yearMedia.containsKey(title))
+                                yearMedia[title] = arrayListOf()
+                            val media = Media(this)
+                            media.relation = i.staffRole
+                            yearMedia[title]?.add(media)
+                        }
                     }
-                }
-                it.pageInfo?.hasNextPage == true
-            } ?: false
+                    it.pageInfo?.hasNextPage == true
+                } ?: false
         }
 
         if (yearMedia.contains("CANCELLED")) {
@@ -922,5 +967,4 @@ Page(page:$page,perPage:50) {
         author.yearMedia = yearMedia
         return author
     }
-
 }

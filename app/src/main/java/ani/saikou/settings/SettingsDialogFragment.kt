@@ -45,8 +45,12 @@ class SettingsDialogFragment : BottomSheetDialogFragment() {
             }
         }
 
+//        binding.settingsSettings.setSafeOnClickListener {
+//            startActivity(Intent(activity, SettingsActivity::class.java))
+//            dismiss()
+//        }
         binding.settingsSettings.setSafeOnClickListener {
-            startActivity(Intent(activity, SettingsActivity::class.java))
+            startActivity(Intent(activity, SettingActivity::class.java))
             dismiss()
         }
         binding.settingsAnilistSettings.setOnClickListener {

@@ -212,7 +212,6 @@ suspend fun webViewInterface(webViewDialog: WebViewBottomDialog): Map<String, St
     }
     val fragmentManager = (currContext() as FragmentActivity?)?.supportFragmentManager ?: return null
     webViewDialog.show(fragmentManager, "web-view")
-    delay(0)
     latch.await(2,TimeUnit.MINUTES)
     return map
 }

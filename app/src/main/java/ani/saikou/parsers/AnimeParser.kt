@@ -1,23 +1,17 @@
 package ani.saikou.parsers
 
-import android.net.Uri
 import ani.saikou.FileUrl
-import ani.saikou.R
 import ani.saikou.asyncMap
-import ani.saikou.currContext
-import ani.saikou.loadData
-import ani.saikou.others.MalSyncBackup
 import ani.saikou.parsers.anime.extractors.ALions
 import ani.saikou.parsers.anime.extractors.AWish
 import ani.saikou.parsers.anime.extractors.DoodStream
 import ani.saikou.parsers.anime.extractors.FileMoon
-
 import ani.saikou.parsers.anime.extractors.Mp4Upload
 import ani.saikou.parsers.anime.extractors.OkRu
 import ani.saikou.parsers.anime.extractors.StreamTape
-import ani.saikou.saveData
 import ani.saikou.tryWithSuspend
 import kotlin.properties.Delegates
+import androidx.core.net.toUri
 
 /**
  * An abstract class for creating a new Source
@@ -78,7 +72,7 @@ abstract class AnimeParser : BaseParser() {
      * if there's only extractor, you can directly return it.
      * **/
     open suspend fun getVideoExtractor(server: VideoServer): VideoExtractor? {
-        var domain = Uri.parse(server.embed.url).host ?: return null
+        var domain = server.embed.url.toUri().host ?: return null
         if (domain.startsWith("www.")) {
             domain = domain.substring(4)
         }
@@ -166,33 +160,8 @@ abstract class AnimeParser : BaseParser() {
      * **/
     open var selectDub = false
 
-    /**
-     * Name used to get Shows Directly from MALSyncBackup's github dump
-     *
-     * Do not override if the site is not present on it.
-     * **/
-    open val malSyncBackupName = ""
 
-    /**
-     * Overridden to add MalSyncBackup support for Anime Sites
-     * **/
-    override suspend fun loadSavedShowResponse(mediaId: Int): ShowResponse? {
-        checkIfVariablesAreEmpty()
-        val dub = if (isDubAvailableSeparately) "_${if (selectDub) "dub" else "sub"}" else ""
-        var loaded = loadData<ShowResponse>("${saveName}${dub}_$mediaId")
-        if (loaded == null && malSyncBackupName.isNotEmpty())
-            loaded = MalSyncBackup.get(mediaId, malSyncBackupName, selectDub)?.also { saveShowResponse(mediaId, it, true) }
-        return loaded
-    }
 
-    override fun saveShowResponse(mediaId: Int, response: ShowResponse?, selected: Boolean) {
-        if (response != null) {
-            checkIfVariablesAreEmpty()
-            setUserText("${if (selected) currContext()!!.getString(R.string.selected) else currContext()!!.getString(R.string.found)} : ${response.name}")
-            val dub = if (isDubAvailableSeparately) "_${if (selectDub) "dub" else "sub"}" else ""
-            saveData("${saveName}${dub}_$mediaId", response)
-        }
-    }
 }
 
 /**

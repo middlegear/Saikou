@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="ani.saikou.settings.about.AboutSettingsActivity">
+
+    <LinearLayout
+        android:id="@+id/aboutMainLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Header Navigation Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Back Button -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="32dp"
+                app:cardBackgroundColor="@color/nav_bg_inv"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp">
+
+                <ImageButton
+                    android:id="@+id/aboutSettingsBack"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:background="@color/nav_bg_inv"
+                    android:padding="16dp"
+                    app:srcCompat="@drawable/ic_round_arrow_back_ios_new_24"
+                    app:tint="@color/bg_opp"
+                    tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+            </androidx.cardview.widget.CardView>
+
+            <!-- Page Title Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                tools:ignore="UseCompoundDrawables">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="32dp"
+                    android:layout_weight="1"
+                    android:text="About"
+                    android:textSize="28sp"
+                    tools:ignore="HardcodedText" />
+
+                <ImageView
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:layout_gravity="bottom"
+                    android:layout_marginEnd="20dp"
+                    android:layout_marginBottom="20dp"
+                    android:padding="16dp"
+                    app:srcCompat="@drawable/ic_round_info_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- About Settings Items Container -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:animateLayoutChanges="true"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp">
+
+            <!-- FAQ Button -->
+            <Button
+                android:id="@+id/settingsFAQ"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginStart="-32dp"
+                android:layout_marginEnd="-32dp"
+                android:background="@drawable/ui_bg"
+                android:backgroundTint="@color/bg_opp"
+                android:backgroundTintMode="src_atop"
+                android:fontFamily="@font/poppins_bold"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp"
+                android:text="FAQ"
+                android:textAlignment="viewStart"
+                android:textAllCaps="false"
+                android:textColor="@color/bg_opp"
+                app:cornerRadius="0dp"
+                app:icon="@drawable/ic_round_help_24"
+                app:iconPadding="16dp"
+                app:iconSize="24dp"
+                app:iconTint="?attr/colorPrimary"
+                tools:ignore="HardcodedText" />
+
+            <!-- Check App Updates Switch -->
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/settingsCheckUpdate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:drawableStart="@drawable/ic_round_new_releases_24"
+                android:drawablePadding="16dp"
+                android:elegantTextHeight="true"
+                android:fontFamily="@font/poppins_bold"
+                android:minHeight="64dp"
+                android:text="Check App Updates"
+                android:textAlignment="viewStart"
+                android:textColor="@color/bg_opp"
+                app:cornerRadius="0dp"
+                app:drawableTint="?attr/colorPrimary"
+                app:showText="false"
+                app:thumbTint="@color/button_switch_track"
+                tools:ignore="HardcodedText" />
+
+            <!-- Developers Button -->
+            <Button
+                android:id="@+id/settingsDev"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginStart="-32dp"
+                android:layout_marginEnd="-32dp"
+                android:fontFamily="@font/poppins_bold"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp"
+                android:text="Developers"
+                android:textAlignment="viewStart"
+                android:textAllCaps="false"
+                android:textColor="@color/bg_opp"
+                app:cornerRadius="0dp"
+                app:icon="@drawable/ic_round_accessible_forward_24"
+                app:iconPadding="16dp"
+                app:iconSize="24dp"
+                tools:ignore="HardcodedText" />
+
+            <!-- Forks Button -->
+            <Button
+                android:id="@+id/settingsForks"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginStart="-32dp"
+                android:layout_marginEnd="-32dp"
+                android:fontFamily="@font/poppins_bold"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp"
+                android:text="Forks &amp; Credits"
+                android:textAlignment="viewStart"
+                android:textAllCaps="false"
+                android:textColor="@color/bg_opp"
+                app:cornerRadius="0dp"
+                app:icon="@drawable/ic_round_restaurant_24"
+                app:iconPadding="16dp"
+                app:iconSize="24dp"
+                tools:ignore="HardcodedText" />
+
+            <!-- Disclaimer Button -->
+            <Button
+                android:id="@+id/settingsDisclaimer"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginStart="-32dp"
+                android:layout_marginEnd="-32dp"
+                android:fontFamily="@font/poppins_bold"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp"
+                android:text="Disclaimer"
+                android:textAlignment="viewStart"
+                android:textAllCaps="false"
+                android:textColor="@color/bg_opp"
+                app:cornerRadius="0dp"
+                app:icon="@drawable/ic_round_info_24"
+                app:iconPadding="16dp"
+                app:iconSize="24dp"
+                tools:ignore="HardcodedText" />
+
+            <!-- Donation Section Header -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/poppins_bold"
+                android:maxLines="3"
+                android:text="Support the Development"
+                android:textAlignment="center"
+                tools:ignore="HardcodedText,TextContrastCheck" />
+
+            <!-- Donation Buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingTop="16dp"
+                android:paddingBottom="16dp">
+
+                <ImageView
+                    android:id="@+id/settingBuyMeCoffee"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:srcCompat="@drawable/ic_bmc_button"
+                    tools:ignore="ContentDescription" />
+
+            </LinearLayout>
+            <!-- Social Media / Community Icons -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginBottom="8dp"
+                android:alpha="0.5"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/loginDiscord"
+                    android:layout_width="48dp"
+                    android:layout_height="64dp"
+                    android:layout_margin="8dp"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_discord"
+                    app:tint="@color/bg_opp"
+                    tools:ignore="ContentDescription" />
+
+                <ImageView
+                    android:id="@+id/loginGithub"
+                    android:layout_width="48dp"
+                    android:layout_height="64dp"
+                    android:layout_margin="8dp"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_github"
+                    app:tint="@color/bg_opp"
+                    tools:ignore="ContentDescription" />
+
+                <ImageView
+                    android:id="@+id/loginTelegram"
+                    android:layout_width="48dp"
+                    android:layout_height="64dp"
+                    android:layout_margin="8dp"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_telegram"
+                    app:tint="@color/bg_opp"
+                    tools:ignore="ContentDescription" />
+
+            </LinearLayout>
+
+            <!-- Version Info -->
+            <TextView
+                android:id="@+id/settingsVersion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="64dp"
+                android:alpha="0.58"
+                android:ellipsize="end"
+                android:fontFamily="@font/poppins"
+                android:maxLines="3"
+                android:text="Version 1.0.0"
+                android:textAlignment="center"
+                tools:ignore="HardcodedText,TextContrastCheck" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:alpha="0.58"
+                android:ellipsize="end"
+                android:maxLines="3"
+                android:text="Help keep the app free and ad-free!"
+                android:textAlignment="center"
+                tools:ignore="HardcodedText,TextContrastCheck" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

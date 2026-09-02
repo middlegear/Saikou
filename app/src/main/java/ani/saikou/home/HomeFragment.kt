@@ -19,25 +19,24 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import ani.saikou.R
+import ani.saikou.MainActivity
 import ani.saikou.Refresh
 import ani.saikou.bottomBar
 import ani.saikou.connections.anilist.Anilist
 import ani.saikou.connections.anilist.AnilistHomeViewModel
 import ani.saikou.connections.anilist.getUserId
-import ani.saikou.currContext
 import ani.saikou.databinding.FragmentHomeBinding
 import ani.saikou.loadData
 import ani.saikou.loadImage
 import ani.saikou.media.Media
 import ani.saikou.media.MediaAdaptor
-import ani.saikou.settings.SettingsDialogFragment
-import ani.saikou.settings.UserInterfaceSettings
 import ani.saikou.media.user.ListActivity
 import ani.saikou.navBarHeight
 import ani.saikou.setSafeOnClickListener
 import ani.saikou.setSlideIn
 import ani.saikou.setSlideUp
+import ani.saikou.settings.SettingsDialogFragment
+import ani.saikou.settings.UserInterfaceSettings
 import ani.saikou.snackString
 import ani.saikou.statusBarHeight
 import kotlinx.coroutines.Dispatchers
@@ -47,12 +46,15 @@ import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 
-
 class HomeFragment : Fragment() {
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -67,42 +69,44 @@ class HomeFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val scope = lifecycleScope
         var uiSettings = loadData<UserInterfaceSettings>("ui_settings") ?: UserInterfaceSettings()
+
         fun load() {
-            if (activity != null && _binding != null) lifecycleScope.launch(Dispatchers.Main) {
-                binding.homeUserName.text = Anilist.username
-                binding.homeUserEpisodesWatched.text = Anilist.episodesWatched.toString()
-                binding.homeUserChaptersRead.text = Anilist.chapterRead.toString()
-                binding.homeUserAvatar.loadImage(Anilist.avatar)
-                if (!uiSettings.bannerAnimations) binding.homeUserBg.pause()
-                binding.homeUserBg.loadImage(Anilist.bg)
-                binding.homeUserDataProgressBar.visibility = View.GONE
+            if (activity != null && _binding != null) {
+                lifecycleScope.launch(Dispatchers.Main) {
+                    binding.homeUserName.text = Anilist.username
+                    binding.homeUserEpisodesWatched.text = Anilist.episodesWatched.toString()
+                    binding.homeUserChaptersRead.text = Anilist.chapterRead.toString()
+                    binding.homeUserAvatar.loadImage(Anilist.avatar)
+                    if (!uiSettings.bannerAnimations) binding.homeUserBg.pause()
+                    binding.homeUserBg.loadImage(Anilist.bg)
+                    binding.homeUserDataProgressBar.visibility = View.GONE
 
-                binding.homeAnimeList.setOnClickListener {
-                    ContextCompat.startActivity(
-                        requireActivity(), Intent(requireActivity(), ListActivity::class.java)
-                            .putExtra("anime", true)
-                            .putExtra("userId", Anilist.userid)
-                            .putExtra("username", Anilist.username), null
-                    )
-                }
-                binding.homeMangaList.setOnClickListener {
-                    ContextCompat.startActivity(
-                        requireActivity(), Intent(requireActivity(), ListActivity::class.java)
-                            .putExtra("anime", false)
-                            .putExtra("userId", Anilist.userid)
-                            .putExtra("username", Anilist.username), null
-                    )
-                }
+                    binding.homeAnimeList.setOnClickListener {
+                        ContextCompat.startActivity(
+                            requireActivity(), Intent(requireActivity(), ListActivity::class.java)
+                                .putExtra("anime", true)
+                                .putExtra("userId", Anilist.userid)
+                                .putExtra("username", Anilist.username), null
+                        )
+                    }
+                    binding.homeMangaList.setOnClickListener {
+                        ContextCompat.startActivity(
+                            requireActivity(), Intent(requireActivity(), ListActivity::class.java)
+                                .putExtra("anime", false)
+                                .putExtra("userId", Anilist.userid)
+                                .putExtra("username", Anilist.username), null
+                        )
+                    }
 
-                binding.homeUserAvatarContainer.startAnimation(setSlideUp(uiSettings))
-                binding.homeUserDataContainer.visibility = View.VISIBLE
-                binding.homeUserDataContainer.layoutAnimation = LayoutAnimationController(setSlideUp(uiSettings), 0.25f)
-                binding.homeAnimeList.visibility = View.VISIBLE
-                binding.homeMangaList.visibility = View.VISIBLE
-                binding.homeListContainer.layoutAnimation = LayoutAnimationController(setSlideIn(uiSettings), 0.25f)
-            }
-            else {
-                snackString(currContext()?.getString(R.string.please_reload))
+                    binding.homeUserAvatarContainer.startAnimation(setSlideUp(uiSettings))
+                    binding.homeUserDataContainer.visibility = View.VISIBLE
+                    binding.homeUserDataContainer.layoutAnimation =
+                        LayoutAnimationController(setSlideUp(uiSettings), 0.25f)
+                    binding.homeAnimeList.visibility = View.VISIBLE
+                    binding.homeMangaList.visibility = View.VISIBLE
+                    binding.homeListContainer.layoutAnimation =
+                        LayoutAnimationController(setSlideIn(uiSettings), 0.25f)
+                }
             }
         }
 
@@ -123,11 +127,13 @@ class HomeFragment : Fragment() {
                 if (!binding.homeScroll.canScrollVertically(1)) {
                     reached = true
                     bottomBar.animate().translationZ(0f).setDuration(duration).start()
-                    ObjectAnimator.ofFloat(bottomBar, "elevation", 4f, 0f).setDuration(duration).start()
+                    ObjectAnimator.ofFloat(bottomBar, "elevation", 4f, 0f).setDuration(duration)
+                        .start()
                 } else {
                     if (reached) {
                         bottomBar.animate().translationZ(12f).setDuration(duration).start()
-                        ObjectAnimator.ofFloat(bottomBar, "elevation", 0f, 4f).setDuration(duration).start()
+                        ObjectAnimator.ofFloat(bottomBar, "elevation", 0f, 4f).setDuration(duration)
+                            .start()
                     }
                 }
             }
@@ -138,7 +144,13 @@ class HomeFragment : Fragment() {
             if (displayCutout != null) {
                 if (displayCutout.boundingRects.size > 0) {
                     height =
-                        max(statusBarHeight, min(displayCutout.boundingRects[0].width(), displayCutout.boundingRects[0].height()))
+                        max(
+                            statusBarHeight,
+                            min(
+                                displayCutout.boundingRects[0].width(),
+                                displayCutout.boundingRects[0].height()
+                            )
+                        )
                 }
             }
         }
@@ -148,13 +160,12 @@ class HomeFragment : Fragment() {
             Refresh.activity[1]!!.postValue(true)
         }
 
-        //UserData
         binding.homeUserDataProgressBar.visibility = View.VISIBLE
         binding.homeUserDataContainer.visibility = View.GONE
         if (model.loaded) {
             load()
         }
-        //List Images
+
         model.getListImages().observe(viewLifecycleOwner) {
             if (it.isNotEmpty()) {
                 binding.homeAnimeListImage.loadImage(it[0] ?: "https://bit.ly/31bsIHq")
@@ -162,7 +173,6 @@ class HomeFragment : Fragment() {
             }
         }
 
-        //Function For Recycler Views
         fun initRecyclerView(
             mode: LiveData<ArrayList<Media>>,
             container: View,
@@ -189,7 +199,8 @@ class HomeFragment : Fragment() {
                             false
                         )
                         recyclerView.visibility = View.VISIBLE
-                        recyclerView.layoutAnimation = LayoutAnimationController(setSlideIn(uiSettings), 0.25f)
+                        recyclerView.layoutAnimation =
+                            LayoutAnimationController(setSlideIn(uiSettings), 0.25f)
 
                     } else {
                         empty.visibility = View.VISIBLE
@@ -199,10 +210,8 @@ class HomeFragment : Fragment() {
                     progress.visibility = View.GONE
                 }
             }
-
         }
 
-        // Recycler Views
         initRecyclerView(
             model.getAnimeContinue(),
             binding.homeContinueWatchingContainer,
@@ -212,7 +221,7 @@ class HomeFragment : Fragment() {
             binding.homeContinueWatch
         )
         binding.homeWatchingBrowseButton.setOnClickListener {
-            bottomBar.selectTabAt(0)
+            (activity as? MainActivity)?.navigateToTab(0)
         }
 
         initRecyclerView(
@@ -233,7 +242,7 @@ class HomeFragment : Fragment() {
             binding.homePlannedAnime
         )
         binding.homePlannedAnimeBrowseButton.setOnClickListener {
-            bottomBar.selectTabAt(0)
+            (activity as? MainActivity)?.navigateToTab(0)
         }
 
         initRecyclerView(
@@ -245,7 +254,7 @@ class HomeFragment : Fragment() {
             binding.homeContinueRead
         )
         binding.homeReadingBrowseButton.setOnClickListener {
-            bottomBar.selectTabAt(2)
+            (activity as? MainActivity)?.navigateToTab(2)
         }
 
         initRecyclerView(
@@ -266,7 +275,7 @@ class HomeFragment : Fragment() {
             binding.homePlannedManga
         )
         binding.homePlannedMangaBrowseButton.setOnClickListener {
-            bottomBar.selectTabAt(2)
+            (activity as? MainActivity)?.navigateToTab(2)
         }
 
         initRecyclerView(
@@ -305,35 +314,44 @@ class HomeFragment : Fragment() {
             binding.homePlannedAnimeContainer,
             binding.homeContinueReadingContainer,
             binding.homeFavMangaContainer,
-            binding.homePlannedMangaContainer,
+            binding.homeFavMangaContainer,
             binding.homeRecommendedContainer
         )
 
         val live = Refresh.activity.getOrPut(1) { MutableLiveData(false) }
-        live.observe(viewLifecycleOwner) {
-            if (it) {
+        live.observe(viewLifecycleOwner) { isRefreshing ->
+            if (isRefreshing) {
                 scope.launch {
                     uiSettings = loadData<UserInterfaceSettings>("ui_settings") ?: UserInterfaceSettings()
-                    withContext(Dispatchers.IO) {
-                        //Get userData First
-                        getUserId(requireContext()) {
-                            load()
-                        }
-                        model.loaded = true
-                        model.setListImages()
-                        var empty = true
-                        (array.indices).forEach { i ->
-                            if (uiSettings.homeLayoutShow[i]) {
-                                array[i].run()
-                                empty = false
-                            } else withContext(Dispatchers.Main) {
-                                containers[i].visibility = View.GONE
+                    try {
+                        withContext(Dispatchers.IO) {
+                            getUserId(requireContext()) {
+                                load()
                             }
+                            model.loaded = true
+                            model.setListImages()
+                            var empty = true
+                            (array.indices).forEach { i ->
+                                if (uiSettings.homeLayoutShow[i]) {
+                                    array[i].run()
+                                    empty = false
+                                } else withContext(Dispatchers.Main) {
+                                    containers[i].visibility = View.GONE
+                                }
+                            }
+                            model.empty.postValue(empty)
                         }
-                        model.empty.postValue(empty)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        withContext(Dispatchers.Main) {
+                            snackString("Failed to load AniList data.")
+                            binding.homeSaikouContainer.visibility = View.VISIBLE
+                            binding.homeUserDataProgressBar.visibility = View.GONE
+                        }
+                    } finally {
+                        live.postValue(false)
+                        _binding?.homeRefresh?.isRefreshing = false
                     }
-                    live.postValue(false)
-                    _binding?.homeRefresh?.isRefreshing = false
                 }
             }
         }

@@ -426,6 +426,11 @@
     <string name="note">NOTE</string>
 
 
+    <string name="anilist_rate_limited">Too many requests. Please wait a moment(just a minute) and try again.</string>
+    <string name="anilist_temporarily_disabled">AniList is temporarily unavailable. Check their Discord for status.</string>
+    <string name="anilist_unauthorized">Session expired or invalid token. Please relogin.</string>
+
+
     <string name="jobless_message">DAMN! YOU TRULY ARE JOBLESS\nYOU REACHED THE END</string>
     <string name="file_manager_not_found">Couldn\'t find any File Manager to open SD card</string>
     <string name="error_loading_data">Error loading data %1$s</string>

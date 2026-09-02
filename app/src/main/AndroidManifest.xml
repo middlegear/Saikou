@@ -66,8 +66,9 @@
         <activity android:name=".settings.FAQActivity" />
         <activity android:name=".settings.ReaderSettingsActivity" />
         <activity android:name=".settings.UserInterfaceSettingsActivity" />
-        <activity android:name=".settings.PlayerSettingsActivity" />
-        <activity android:name=".settings.SettingsActivity" android:parentActivityName=".MainActivity" />
+        <activity android:name=".settings.player.PlayerSettingsActivity" />
+        <activity android:name=".settings.SettingActivity" android:parentActivityName=".MainActivity" />
+<!--        <activity android:name=".settings.SettingsActivity" android:parentActivityName=".MainActivity" />-->
         <activity android:name=".others.imagesearch.ImageSearchActivity" android:parentActivityName=".MainActivity" />
         <activity android:name=".media.SearchActivity" android:parentActivityName=".MainActivity" />
         <activity android:name=".media.StudioActivity" />
@@ -92,6 +93,24 @@
             android:name="ani.saikou.torrserver.TorrServerActivity" >
         </activity>
 
+        <activity
+            android:name="ani.saikou.settings.accounts.AccountsActivity"
+            android:exported="false" />
+        <activity
+            android:name="ani.saikou.settings.about.AboutSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name="ani.saikou.settings.anime.AnimeSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name="ani.saikou.settings.manga.MangaSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name="ani.saikou.settings.notifications.NotificationSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name="ani.saikou.settings.common.CommonSettingsActivity"
+            android:exported="false" />
 
         <service
             android:name=".torrserver.TorrServerService"

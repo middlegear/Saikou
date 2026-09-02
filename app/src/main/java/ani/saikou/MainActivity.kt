@@ -47,6 +47,7 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import java.io.Serializable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,9 +56,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-    private val scope = lifecycleScope
     private var load = false
-
     private var uiSettings = UserInterfaceSettings()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,29 +77,25 @@ class MainActivity : AppCompatActivity() {
 
         binding.root.isMotionEventSplittingEnabled = false
 
-        lifecycleScope.launch {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                val splash = SplashScreenBinding.inflate(layoutInflater)
-                binding.root.addView(splash.root)
-                (splash.splashImage.drawable as Animatable).start()
-                launch {
-                    delay(2000)
-                    ObjectAnimator.ofFloat(
-                        splash.root,
-                        View.TRANSLATION_Y,
-                        0f,
-                        -splash.root.height.toFloat()
-                    ).apply {
-                        interpolator = AnticipateInterpolator()
-                        duration = 200L
-                        doOnEnd { binding.root.removeView(splash.root) }
-                        start()
-                    }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            val splash = SplashScreenBinding.inflate(layoutInflater)
+            binding.root.addView(splash.root)
+            (splash.splashImage.drawable as Animatable).start()
+            lifecycleScope.launch {
+                delay(2000.milliseconds)
+                ObjectAnimator.ofFloat(
+                    splash.root,
+                    View.TRANSLATION_Y,
+                    0f,
+                    -splash.root.height.toFloat()
+                ).apply {
+                    interpolator = AnticipateInterpolator()
+                    duration = 200L
+                    doOnEnd { binding.root.removeView(splash.root) }
+                    start()
                 }
             }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        } else {
             splashScreen.setOnExitAnimationListener { splashScreenView ->
                 ObjectAnimator.ofFloat(
                     splashScreenView,
@@ -130,37 +125,34 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, NoInternet::class.java))
         } else {
             val model: AnilistHomeViewModel by viewModels()
-            model.genres.observe(this) {
-                if (it != null) {
-                    if (it) {
-                        val navbar = binding.navbar
-                        bottomBar = navbar
-                        navbar.visibility = View.VISIBLE
-                        binding.mainProgressBar.visibility = View.GONE
-                        val mainViewPager = binding.viewpager
-                        mainViewPager.isUserInputEnabled = false
-                        mainViewPager.adapter = ViewPagerAdapter(supportFragmentManager, lifecycle)
-                        mainViewPager.setPageTransformer(ZoomOutPageTransformer(uiSettings))
-                        navbar.setOnTabSelectListener(object :
-                            AnimatedBottomBar.OnTabSelectListener {
-                            override fun onTabSelected(
-                                lastIndex: Int,
-                                lastTab: AnimatedBottomBar.Tab?,
-                                newIndex: Int,
-                                newTab: AnimatedBottomBar.Tab
-                            ) {
-                                navbar.animate().translationZ(12f).setDuration(200).start()
-                                selectedOption = newIndex
-                                mainViewPager.setCurrentItem(newIndex, false)
-                            }
-                        })
-                        navbar.selectTabAt(selectedOption)
-                        mainViewPager.post { mainViewPager.setCurrentItem(selectedOption, false) }
-                    } else {
-                        binding.mainProgressBar.visibility = View.GONE
+
+            val navbar = binding.navbar
+            bottomBar = navbar
+            navbar.visibility = View.VISIBLE
+            binding.mainProgressBar.visibility = View.GONE
+
+            val mainViewPager = binding.viewpager
+            mainViewPager.isUserInputEnabled = false
+            mainViewPager.adapter = ViewPagerAdapter(supportFragmentManager, lifecycle)
+            mainViewPager.setPageTransformer(ZoomOutPageTransformer(uiSettings))
+
+            navbar.setOnTabSelectListener(object : AnimatedBottomBar.OnTabSelectListener {
+                override fun onTabSelected(
+                    lastIndex: Int,
+                    lastTab: AnimatedBottomBar.Tab?,
+                    newIndex: Int,
+                    newTab: AnimatedBottomBar.Tab
+                ) {
+                    navbar.animate().translationZ(12f).setDuration(200).start()
+                    selectedOption = newIndex
+                    if (mainViewPager.currentItem != newIndex) {
+                        mainViewPager.setCurrentItem(newIndex, false)
                     }
                 }
-            }
+            })
+
+            val initialTab = if (Anilist.token.isNullOrEmpty()) 1 else selectedOption
+            navigateToTab(initialTab)
 
 
             lifecycleScope.launch {
@@ -175,33 +167,42 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-
             if (!load) {
-                scope.launch(Dispatchers.IO) {
-                    model.loadMain(this@MainActivity)
-                    val id = intent.extras?.getInt("mediaId", 0)
-                    val isMAL = intent.extras?.getBoolean("mal") ?: false
-                    val cont = intent.extras?.getBoolean("continue") ?: false
-                    if (id != null && id != 0) {
-                        val media = withContext(Dispatchers.IO) {
-                            Anilist.query.getMedia(id, isMAL)
-                        }
-                        if (media != null) {
-                            media.cameFromContinue = cont
-                            startActivity(
-                                Intent(this@MainActivity, MediaDetailsActivity::class.java)
-                                    .putExtra("media", media as Serializable)
-                            )
-                        } else {
-                            snackString(this@MainActivity.getString(R.string.anilist_not_found))
+                load = true
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val intentTask = async {
+                        val id = intent.extras?.getInt("mediaId", 0) ?: 0
+                        val isMAL = intent.extras?.getBoolean("mal") ?: false
+                        val cont = intent.extras?.getBoolean("continue") ?: false
+                        if (id != 0) {
+                            val media = Anilist.query.getMedia(id, isMAL)
+                            if (media != null) {
+                                media.cameFromContinue = cont
+                                withContext(Dispatchers.Main) {
+                                    startActivity(
+                                        Intent(this@MainActivity, MediaDetailsActivity::class.java)
+                                            .putExtra("media", media as Serializable)
+                                    )
+                                }
+                            } else {
+                                withContext(Dispatchers.Main) {
+                                    snackString(getString(R.string.anilist_not_found))
+                                }
+                            }
                         }
                     }
-                    delay(500.milliseconds)
+
+                    try {
+                        model.loadMain(this@MainActivity)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    intentTask.await()
                     startSubscription()
                 }
-                load = true
             }
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (!isDialogDisabled(this)) {
                     val manager = getSystemService(android.content.pm.verify.domain.DomainVerificationManager::class.java)
@@ -247,19 +248,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ViewPager
+    fun navigateToTab(index: Int) {
+        selectedOption = index
+        if (binding.navbar.selectedIndex != index) {
+            binding.navbar.selectTabAt(index)
+        }
+        if (binding.viewpager.currentItem != index) {
+            binding.viewpager.setCurrentItem(index, false)
+        }
+    }
+
     private class ViewPagerAdapter(fragmentManager: FragmentManager, lifecycle: Lifecycle) :
         FragmentStateAdapter(fragmentManager, lifecycle) {
 
         override fun getItemCount(): Int = 3
 
         override fun createFragment(position: Int): Fragment {
-            when (position) {
-                0 -> return AnimeFragment()
-                1 -> return if (Anilist.token != null) HomeFragment() else LoginFragment()
-                2 -> return MangaFragment()
+            return when (position) {
+                0 -> AnimeFragment()
+                1 -> if (!Anilist.token.isNullOrEmpty()) HomeFragment() else LoginFragment()
+                2 -> MangaFragment()
+                else -> LoginFragment()
             }
-            return LoginFragment()
         }
     }
 

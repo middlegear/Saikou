@@ -30,15 +30,15 @@ open class ImageAdapter(
 
     inner class ImageViewHolder(binding: ItemImageBinding) : RecyclerView.ViewHolder(binding.root)
 
-    open suspend fun loadBitmap(position: Int, parent: View) : Bitmap? {
+    open suspend fun loadBitmap(position: Int, parent: View): Bitmap? {
         val link = images.getOrNull(position)?.url ?: return null
         if (link.url.isEmpty()) return null
 
         val transforms = mutableListOf<BitmapTransformation>()
         val parserTransformation = activity.getTransformation(images[position])
 
-        if(parserTransformation!=null) transforms.add(parserTransformation)
-        if(settings.cropBorders) {
+        if (parserTransformation != null) transforms.add(parserTransformation)
+        if (settings.cropBorders) {
             transforms.add(RemoveBordersTransformation(true, settings.cropBorderThreshold))
             transforms.add(RemoveBordersTransformation(false, settings.cropBorderThreshold))
         }
@@ -49,6 +49,13 @@ open class ImageAdapter(
     override suspend fun loadImage(position: Int, parent: View): Boolean {
         val imageView = parent.findViewById<SubsamplingScaleImageView>(R.id.imgProgImageNoGestures) ?: return false
         val progress = parent.findViewById<View>(R.id.imgProgProgress) ?: return false
+
+        (imageView.tag as? Bitmap)?.let { old ->
+            if (!old.isRecycled) old.recycle()
+        }
+        imageView.tag = null
+        parent.clearAnimation()
+
         imageView.recycle()
         imageView.visibility = View.GONE
 
@@ -70,6 +77,7 @@ open class ImageAdapter(
 
         imageView.visibility = View.VISIBLE
         imageView.setImage(ImageSource.cachedBitmap(bitmap))
+        imageView.tag = bitmap
 
         val parentArea = sWidth * sHeight * 1f
         val bitmapArea = bitmap.width * bitmap.height * 1f

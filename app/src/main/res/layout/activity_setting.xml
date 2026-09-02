@@ -1,0 +1,551 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="ani.saikou.settings.SettingActivity">
+
+    <LinearLayout
+        android:id="@+id/settingsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Header Navigation Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Back Button -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="32dp"
+                app:cardBackgroundColor="@color/nav_bg_inv"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp">
+
+                <ImageButton
+                    android:id="@+id/settingsBack"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:background="@color/nav_bg_inv"
+                    android:padding="16dp"
+                    app:srcCompat="@drawable/ic_round_arrow_back_ios_new_24"
+                    app:tint="@color/bg_opp"
+                    tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+            </androidx.cardview.widget.CardView>
+
+            <!-- Page Title Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                tools:ignore="UseCompoundDrawables">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="32dp"
+                    android:layout_weight="1"
+                    android:text="@string/settings"
+                    android:textColor="@color/bg_opp"
+                    android:textSize="28sp" />
+
+                <ImageView
+                    android:id="@+id/settingsLogo"
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:layout_gravity="bottom"
+                    android:layout_marginEnd="20dp"
+                    android:layout_marginBottom="20dp"
+                    app:srcCompat="@drawable/anim_splash"
+                    tools:ignore="ContentDescription" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Main Settings Content Container -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:animateLayoutChanges="true"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp">
+
+            <!-- Theme Row -->
+            <RelativeLayout
+                android:id="@+id/settingsThemeRow"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginBottom="12dp">
+
+                <ImageView
+                    android:id="@+id/iconTheme"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_round_brightness_4_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="16dp"
+                    android:layout_toEndOf="@id/iconTheme"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="@string/theme"
+                    android:textColor="@color/bg_opp"
+                    android:textSize="16sp" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:orientation="horizontal">
+
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="4dp"
+                        app:cardBackgroundColor="@color/nav_bg_inv"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="0dp">
+
+                        <ImageButton
+                            android:id="@+id/settingsUiLight"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:alpha="0.33"
+                            android:background="?android:attr/selectableItemBackground"
+                            android:padding="12dp"
+                            android:src="@drawable/ic_round_brightness_high_24"
+                            app:tint="@color/bg_opp"
+                            tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                    </androidx.cardview.widget.CardView>
+
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="4dp"
+                        app:cardBackgroundColor="@color/nav_bg_inv"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="0dp">
+
+                        <ImageButton
+                            android:id="@+id/settingsUiDark"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:alpha="0.33"
+                            android:background="?android:attr/selectableItemBackground"
+                            android:padding="12dp"
+                            android:scaleX="-1"
+                            android:src="@drawable/ic_round_brightness_4_24"
+                            app:tint="@color/bg_opp"
+                            tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                    </androidx.cardview.widget.CardView>
+
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        app:cardBackgroundColor="@color/nav_bg_inv"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="0dp">
+
+                        <ImageButton
+                            android:id="@+id/settingsUiAuto"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:alpha="0.33"
+                            android:background="?android:attr/selectableItemBackground"
+                            android:padding="12dp"
+                            android:src="@drawable/ic_round_brightness_auto_24"
+                            app:tint="@color/bg_opp"
+                            tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                    </androidx.cardview.widget.CardView>
+
+                </LinearLayout>
+            </RelativeLayout>
+
+            <!-- 1. Account Row -->
+            <RelativeLayout
+                android:id="@+id/settingsAccountRow"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginBottom="12dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/iconAccount"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_round_person_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="16dp"
+                    android:layout_toEndOf="@id/iconAccount"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="Account"
+                    android:textColor="@color/bg_opp"
+                    android:textSize="16sp"
+                    tools:ignore="HardcodedText" />
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_alignParentEnd="true"
+                    android:duplicateParentState="true"
+                    app:cardBackgroundColor="@color/nav_bg_inv"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <ImageButton
+                        android:id="@+id/btnAccountChevron"
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:background="@color/nav_bg_inv"
+                        android:duplicateParentState="true"
+                        android:padding="16dp"
+                        app:srcCompat="@drawable/round_chevron_right_24"
+                        app:tint="@color/bg_opp"
+                        tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                </androidx.cardview.widget.CardView>
+            </RelativeLayout>
+
+            <!-- 2. Common Row -->
+            <RelativeLayout
+                android:id="@+id/settingsCommonRow"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginBottom="12dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/iconCommon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_round_auto_awesome_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="16dp"
+                    android:layout_toEndOf="@id/iconCommon"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="Common"
+                    android:textColor="@color/bg_opp"
+                    android:textSize="16sp"
+                    tools:ignore="HardcodedText" />
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_alignParentEnd="true"
+                    android:duplicateParentState="true"
+                    app:cardBackgroundColor="@color/nav_bg_inv"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <ImageButton
+                        android:id="@+id/btnCommonChevron"
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:background="@color/nav_bg_inv"
+                        android:duplicateParentState="true"
+                        android:padding="16dp"
+                        app:srcCompat="@drawable/round_chevron_right_24"
+                        app:tint="@color/bg_opp"
+                        tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                </androidx.cardview.widget.CardView>
+            </RelativeLayout>
+
+            <!-- 3. Anime Row -->
+            <RelativeLayout
+                android:id="@+id/settingsAnimeRow"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginBottom="12dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/iconAnime"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_round_movie_filter_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="16dp"
+                    android:layout_toEndOf="@id/iconAnime"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="Anime"
+                    android:textColor="@color/bg_opp"
+                    android:textSize="16sp"
+                    tools:ignore="HardcodedText" />
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_alignParentEnd="true"
+                    android:duplicateParentState="true"
+                    app:cardBackgroundColor="@color/nav_bg_inv"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <ImageButton
+                        android:id="@+id/btnAnimeChevron"
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:background="@color/nav_bg_inv"
+                        android:duplicateParentState="true"
+                        android:padding="16dp"
+                        app:srcCompat="@drawable/round_chevron_right_24"
+                        app:tint="@color/bg_opp"
+                        tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                </androidx.cardview.widget.CardView>
+            </RelativeLayout>
+
+            <!-- 4. Manga Row -->
+            <RelativeLayout
+                android:id="@+id/settingsMangaRow"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginBottom="12dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/iconManga"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_round_import_contacts_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="16dp"
+                    android:layout_toEndOf="@id/iconManga"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="Manga"
+                    android:textColor="@color/bg_opp"
+                    android:textSize="16sp"
+                    tools:ignore="HardcodedText" />
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_alignParentEnd="true"
+                    android:duplicateParentState="true"
+                    app:cardBackgroundColor="@color/nav_bg_inv"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <ImageButton
+                        android:id="@+id/btnMangaChevron"
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:background="@color/nav_bg_inv"
+                        android:duplicateParentState="true"
+                        android:padding="16dp"
+                        app:srcCompat="@drawable/round_chevron_right_24"
+                        app:tint="@color/bg_opp"
+                        tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                </androidx.cardview.widget.CardView>
+            </RelativeLayout>
+
+            <!-- 5. Notifications Row -->
+<!--            <RelativeLayout-->
+<!--                android:id="@+id/settingsNotificationsRow"-->
+<!--                android:layout_width="match_parent"-->
+<!--                android:layout_height="64dp"-->
+<!--                android:layout_marginBottom="12dp"-->
+<!--                android:background="?android:attr/selectableItemBackground"-->
+<!--                android:clickable="true"-->
+<!--                android:focusable="true">-->
+
+<!--                <ImageView-->
+<!--                    android:id="@+id/iconNotifications"-->
+<!--                    android:layout_width="24dp"-->
+<!--                    android:layout_height="24dp"-->
+<!--                    android:layout_centerVertical="true"-->
+<!--                    android:src="@drawable/rounded_notifications_24"-->
+<!--                    app:tint="?attr/colorPrimary"-->
+<!--                    tools:ignore="ContentDescription" />-->
+
+<!--                <TextView-->
+<!--                    android:layout_width="wrap_content"-->
+<!--                    android:layout_height="wrap_content"-->
+<!--                    android:layout_centerVertical="true"-->
+<!--                    android:layout_marginStart="16dp"-->
+<!--                    android:layout_toEndOf="@id/iconNotifications"-->
+<!--                    android:fontFamily="@font/poppins_bold"-->
+<!--                    android:text="Notifications"-->
+<!--                    android:textColor="@color/bg_opp"-->
+<!--                    android:textSize="16sp"-->
+<!--                    tools:ignore="HardcodedText" />-->
+
+<!--                <androidx.cardview.widget.CardView-->
+<!--                    android:layout_width="64dp"-->
+<!--                    android:layout_height="64dp"-->
+<!--                    android:layout_alignParentEnd="true"-->
+<!--                    android:duplicateParentState="true"-->
+<!--                    app:cardBackgroundColor="@color/nav_bg_inv"-->
+<!--                    app:cardCornerRadius="16dp"-->
+<!--                    app:cardElevation="0dp">-->
+
+<!--                    <ImageButton-->
+<!--                        android:id="@+id/btnNotificationsChevron"-->
+<!--                        android:layout_width="64dp"-->
+<!--                        android:layout_height="64dp"-->
+<!--                        android:background="@color/nav_bg_inv"-->
+<!--                        android:duplicateParentState="true"-->
+<!--                        android:padding="16dp"-->
+<!--                        app:srcCompat="@drawable/round_chevron_right_24"-->
+<!--                        app:tint="@color/bg_opp"-->
+<!--                        tools:ignore="ContentDescription,SpeakableTextPresentCheck" />-->
+<!--                </androidx.cardview.widget.CardView>-->
+<!--            </RelativeLayout>-->
+            <!-- 6. Updater Row -->
+            <RelativeLayout
+                android:id="@+id/settingsUpdaterRow"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginBottom="12dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/iconSystemUpdater"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/baseline_system_update_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="16dp"
+                    android:layout_toEndOf="@id/iconSystemUpdater"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="Updater"
+                    android:textColor="@color/bg_opp"
+                    android:textSize="16sp"
+                    tools:ignore="HardcodedText" />
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_alignParentEnd="true"
+                    android:duplicateParentState="true"
+                    app:cardBackgroundColor="@color/nav_bg_inv"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <ImageButton
+                        android:id="@+id/btnUpdaterChevron"
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:background="@color/nav_bg_inv"
+                        android:duplicateParentState="true"
+                        android:padding="16dp"
+                        app:srcCompat="@drawable/round_chevron_right_24"
+                        app:tint="@color/bg_opp"
+                        tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                </androidx.cardview.widget.CardView>
+            </RelativeLayout>
+            <!-- 7. About Row -->
+            <RelativeLayout
+                android:id="@+id/settingsAboutRow"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginBottom="32dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/iconAbout"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_round_info_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="16dp"
+                    android:layout_toEndOf="@id/iconAbout"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="About"
+                    android:textColor="@color/bg_opp"
+                    android:textSize="16sp"
+                    tools:ignore="HardcodedText" />
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_alignParentEnd="true"
+                    android:duplicateParentState="true"
+                    app:cardBackgroundColor="@color/nav_bg_inv"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <ImageButton
+                        android:id="@+id/btnAboutChevron"
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:background="@color/nav_bg_inv"
+                        android:duplicateParentState="true"
+                        android:padding="16dp"
+                        app:srcCompat="@drawable/round_chevron_right_24"
+                        app:tint="@color/bg_opp"
+                        tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                </androidx.cardview.widget.CardView>
+            </RelativeLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

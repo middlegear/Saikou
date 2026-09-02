@@ -77,7 +77,7 @@ fun DecoderSettingsSheet(
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp.dp
     val minSheetHeight = screenHeightDp * 0.80f
-    val maxSheetWidth = configuration.screenWidthDp.dp * 0.70f
+    val maxSheetWidth = configuration.screenWidthDp.dp * 0.65f
 
     LaunchedEffect(Unit) {
         if (!isPreview) {

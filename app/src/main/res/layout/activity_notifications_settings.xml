@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="ani.saikou.settings.notifications.NotificationSettingsActivity">
+
+    <LinearLayout
+        android:id="@+id/notificationsMainLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Top Bar Container -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Back Button -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="32dp"
+                app:cardBackgroundColor="@color/nav_bg_inv"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp">
+
+                <ImageButton
+                    android:id="@+id/notificationSettingsBack"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:background="@color/nav_bg_inv"
+                    android:padding="16dp"
+                    app:srcCompat="@drawable/ic_round_arrow_back_ios_new_24"
+                    app:tint="@color/bg_opp"
+                    tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+            </androidx.cardview.widget.CardView>
+
+            <!-- Header Title and Icon -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                tools:ignore="UseCompoundDrawables">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="32dp"
+                    android:layout_weight="1"
+                    android:text="Notifications"
+                    android:textSize="28sp" />
+
+                <ImageView
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:layout_gravity="bottom"
+                    android:layout_marginEnd="20dp"
+                    android:layout_marginBottom="20dp"
+                    android:padding="16dp"
+                    app:srcCompat="@drawable/rounded_notifications_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Notification Settings Items Container -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:animateLayoutChanges="true"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp">
+
+            <!-- Master Toggle Switch -->
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/settingsEnableNotifications"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:drawableStart="@drawable/ic_round_notifications_active_24"
+                android:drawablePadding="16dp"
+                android:elegantTextHeight="true"
+                android:fontFamily="@font/poppins_bold"
+                android:minHeight="64dp"
+                android:text="Enable Notifications"
+                android:textAlignment="viewStart"
+                android:textColor="@color/bg_opp"
+                app:cornerRadius="0dp"
+                app:drawableTint="?attr/colorPrimary"
+                app:showText="false"
+                app:thumbTint="@color/button_switch_track"
+                tools:ignore="HardcodedText" />
+
+
+            <!-- Anime Release Notifications -->
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/settingsAnimeReleaseNotifications"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:drawableStart="@drawable/ic_round_movie_filter_24"
+                android:drawablePadding="16dp"
+                android:elegantTextHeight="true"
+                android:fontFamily="@font/poppins_bold"
+                android:minHeight="64dp"
+                android:text="Anime Releases"
+                android:textAlignment="viewStart"
+                android:textColor="@color/bg_opp"
+                app:cornerRadius="0dp"
+                app:drawableTint="?attr/colorPrimary"
+                app:showText="false"
+                app:thumbTint="@color/button_switch_track"
+                tools:ignore="HardcodedText" />
+
+            <!-- Manga Release Notifications -->
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/settingsMangaReleaseNotifications"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:drawableStart="@drawable/ic_round_import_contacts_24"
+                android:drawablePadding="16dp"
+                android:elegantTextHeight="true"
+                android:fontFamily="@font/poppins_bold"
+                android:minHeight="64dp"
+                android:text="Manga Releases"
+                android:textAlignment="viewStart"
+                android:textColor="@color/bg_opp"
+                app:cornerRadius="0dp"
+                app:drawableTint="?attr/colorPrimary"
+                app:showText="false"
+                app:thumbTint="@color/button_switch_track"
+                tools:ignore="HardcodedText" />
+
+<!--            &lt;!&ndash; Application Updates &ndash;&gt;-->
+<!--            <com.google.android.material.switchmaterial.SwitchMaterial-->
+<!--                android:id="@+id/settingsAppUpdateNotifications"-->
+<!--                android:layout_width="match_parent"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:layout_marginBottom="32dp"-->
+<!--                android:checked="true"-->
+<!--                android:drawableStart="@drawable/ic_round_system_update_24"-->
+<!--                android:drawablePadding="16dp"-->
+<!--                android:elegantTextHeight="true"-->
+<!--                android:fontFamily="@font/poppins_bold"-->
+<!--                android:minHeight="64dp"-->
+<!--                android:text="App Updates"-->
+<!--                android:textAlignment="viewStart"-->
+<!--                android:textColor="@color/bg_opp"-->
+<!--                app:cornerRadius="0dp"-->
+<!--                app:drawableTint="?attr/colorPrimary"-->
+<!--                app:showText="false"-->
+<!--                app:thumbTint="@color/button_switch_track"-->
+<!--                tools:ignore="HardcodedText" />-->
+
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

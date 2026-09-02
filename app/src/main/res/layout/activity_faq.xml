@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
     tools:context=".settings.FAQActivity">
 
@@ -11,24 +11,26 @@
         android:id="@+id/devsTitle2"
         android:layout_width="match_parent"
         android:layout_height="64dp"
-        android:paddingStart="32dp"
         android:layout_marginTop="16dp"
-        android:paddingEnd="64dp"
         android:fontFamily="@font/poppins"
         android:gravity="center"
+        android:paddingStart="32dp"
+        android:paddingEnd="64dp"
         android:text="@string/faq"
         android:textSize="20sp"
         android:textStyle="bold"
-        app:drawableTint="@color/bg_opp"
-        app:drawableStartCompat="@drawable/ic_round_arrow_back_ios_new_24" />
+        app:drawableStartCompat="@drawable/ic_round_arrow_back_ios_new_24"
+        app:drawableTint="@color/bg_opp" />
 
     <ani.saikou.FadingEdgeRecyclerView
         android:id="@+id/devsRecyclerView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:clipToPadding="false"
-        android:paddingTop="8dp"
+        android:fadingEdgeLength="24dp"
         android:paddingStart="8dp"
+        android:paddingTop="8dp"
         android:paddingEnd="8dp"
         android:paddingBottom="64dp"
         android:requiresFadingEdge="vertical"
@@ -36,4 +38,5 @@
         tools:itemCount="10"
         tools:listitem="@layout/item_question"
         tools:orientation="vertical" />
+
 </LinearLayout>

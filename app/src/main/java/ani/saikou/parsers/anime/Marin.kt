@@ -12,7 +12,7 @@ open class Marin : AnimeParser() {
     override val name: String = "Marin"
     override val saveName: String = "marin"
     override val hostUrl: String = "https://marin.moe"
-    override val malSyncBackupName: String = "Tenshi"
+
     override val isDubAvailableSeparately: Boolean = false
 
     private var cookie:String?=null

@@ -9,9 +9,8 @@ import android.os.CountDownTimer
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-
-import android.webkit.WebSettings
-
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -26,6 +25,7 @@ import ani.saikou.*
 import ani.saikou.connections.anilist.Anilist
 import ani.saikou.connections.anilist.GenresViewModel
 import ani.saikou.databinding.*
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
 import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import kotlinx.coroutines.Dispatchers
@@ -192,175 +192,36 @@ class MediaInfoFragment : Fragment() {
                 }
 
                 if (media.trailer != null) {
-                    val trailerBinding = ItemTitleTrailerBinding.inflate(LayoutInflater.from(context), parent, false)
-
+                    val trailerBinding = ItemTitleTrailerBinding.inflate(
+                        LayoutInflater.from(context), parent, false
+                    )
 
                     val videoId = media.trailer!!.let {
                         if (it.contains("v=")) it.substringAfter("v=").substringBefore("&")
                         else it.substringAfterLast("/")
                     }
 
+                    viewLifecycleOwner.lifecycle.addObserver(trailerBinding.mediaInfoTrailer)
 
-                    val displayMetrics = resources.displayMetrics
-                    val screenWidthPx = displayMetrics.widthPixels
-                    val aspectRatioHeight = (screenWidthPx * 10) / 16
+                    trailerBinding.mediaInfoTrailer.enableAutomaticInitialization = false
 
-                    var trailerLoaded = false
+                    val options = IFramePlayerOptions.Builder()
+                        .controls(1)
+                        .rel(0)
+                        .origin("https://${requireContext().packageName}")
+                        .build()
 
-                    trailerBinding.mediaInfoTrailer.apply {
-
-                        layoutParams.height = aspectRatioHeight
-                        layoutParams.width = ViewGroup.LayoutParams.MATCH_PARENT
-
-
-                        setLayerType(View.LAYER_TYPE_HARDWARE, null)
-
-
-                        setBackgroundColor(android.graphics.Color.BLACK)
-
-                        settings.apply {
-                            javaScriptEnabled = true
-                            domStorageEnabled = true
-                            useWideViewPort = true
-                            loadWithOverviewMode = true
-                            mediaPlaybackRequiresUserGesture = false
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    trailerBinding.mediaInfoTrailer.initialize(
+                        object : AbstractYouTubePlayerListener() {
+                            override fun onReady(youTubePlayer: YouTubePlayer) {
+                                youTubePlayer.cueVideo(videoId, 0f)
                             }
-                        }
-
-
-                        val placeholderHtml = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                    * { 
-                        margin: 0; 
-                        padding: 0; 
-                        box-sizing: border-box;
-                        -webkit-tap-highlight-color: transparent;
-                        -webkit-touch-callout: none;
-                        -webkit-user-select: none;
-                        user-select: none;
-                    }
-                    body, html { 
-                        width: 100%; 
-                        height: 100%; 
-                        background: #000;
-                        overflow: hidden;
-                    }
-                    .thumbnail-container {
-                        position: relative;
-                        width: 100%;
-                        height: 100%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        background: #000;
-                    }
-                    .thumbnail {
-                        width: 100%;
-                        height: 100%;
-                        object-fit: contain;
-                    }
-                    .play-button {
-                        position: absolute;
-                        width: 68px;
-                        height: 48px;
-                        background: rgba(255, 0, 0, 0.8);
-                        border-radius: 12px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        transition: transform 0.2s;
-                    }
-                    .thumbnail-container:active .play-button {
-                        transform: scale(0.95);
-                    }
-                    .play-icon {
-                        width: 0;
-                        height: 0;
-                        border-left: 20px solid white;
-                        border-top: 12px solid transparent;
-                        border-bottom: 12px solid transparent;
-                        margin-left: 4px;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="thumbnail-container" onclick="Android.loadVideo()">
-                    <img class="thumbnail" src="https://img.youtube.com/vi/$videoId/maxresdefault.jpg" 
-                         onerror="this.src='https://img.youtube.com/vi/$videoId/hqdefault.jpg'" alt="Trailer">
-                    <div class="play-button">
-                        <div class="play-icon"></div>
-                    </div>
-                </div>
-            </body>
-            </html>
-        """.trimIndent()
-
-
-                        addJavascriptInterface(object {
-                            @android.webkit.JavascriptInterface
-                            fun loadVideo() {
-                                post {
-                                    val trailerHtml = """
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <style>
-                                * { 
-                                    margin: 0; 
-                                    padding: 0; 
-                                    box-sizing: border-box;
-                                    -webkit-tap-highlight-color: transparent;
-                                }
-                                html, body { 
-                                    width: 100%; 
-                                    height: 100%; 
-                                    background: #000; 
-                                    overflow: hidden;
-                                }
-                                iframe {
-                                    width: 100%;
-                                    height: 100%;
-                                    border: none;
-                                    display: block;
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <iframe 
-                                src="https://www.youtube-nocookie.com/embed/$videoId?autoplay=1&rel=0&modestbranding=1&controls=1&fs=0" 
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                frameborder="0">
-                            </iframe>
-                        </body>
-                        </html>
-                    """.trimIndent()
-
-                                    loadDataWithBaseURL(
-                                        "https://www.youtube-nocookie.com",
-                                        trailerHtml,
-                                        "text/html",
-                                        "UTF-8",
-                                        null
-                                    )
-                                }
-                            }
-                        }, "Android")
-
-                        loadDataWithBaseURL(null, placeholderHtml, "text/html", "UTF-8", null)
-                    }
-
-
+                        },
+                        options
+                    )
 
                     parent.addView(trailerBinding.root)
                 }
-
                 if (media.anime != null && (media.anime.op.isNotEmpty() || media.anime.ed.isNotEmpty())) {
                     val markWon = Markwon.builder(requireContext())
                         .usePlugin(SoftBreakAddsNewLinePlugin.create()).build()

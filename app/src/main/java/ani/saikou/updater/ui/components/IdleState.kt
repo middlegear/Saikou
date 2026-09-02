@@ -75,7 +75,6 @@ fun IdleStateContent(
 
         Button(
             onClick = onCheckForUpdates,
-            modifier = Modifier.fillMaxWidth()
         ) {
             Text(
                 text = "Check for updates",

@@ -37,7 +37,6 @@ class MpvVideoPlayer(
     private val _bufferingProgress = MutableStateFlow(0f)
     val bufferingProgress: StateFlow<Float> = _bufferingProgress.asStateFlow()
 
-
     private val _mediaLoaded = MutableStateFlow(false)
     val mediaLoaded: StateFlow<Boolean> = _mediaLoaded.asStateFlow()
 
@@ -87,6 +86,7 @@ class MpvVideoPlayer(
     private var isFileLoaded = false
     private var initialBufferingDone = false
     private var pendingMediaState: PendingMediaState? = null
+    private var currentMediaState: PendingMediaState? = null
 
     private val isShutdown = AtomicBoolean(false)
     private var configDir: String = ""
@@ -94,6 +94,10 @@ class MpvVideoPlayer(
     private var currentSurfaceHolder: SurfaceHolder? = null
 
     private val targetBufferSeconds = 5.0
+
+
+    private var wasBackgrounded = false
+    private var lastGoodPositionMs = 0L
 
     private fun copyFontsForMpv(): String {
         val fontsDir = File(context.filesDir, "mpv_fonts")
@@ -122,7 +126,7 @@ class MpvVideoPlayer(
 
     override fun initOptions() {
         mpv.setOptionString("profile", "fast")
-        mpv.setOptionString("msg-level", "all=error")
+        mpv.setOptionString("msg-level", "all=v")
         mpv.setOptionString("ytdl", "no")
 
         mpv.setOptionString("video-sync", "audio")
@@ -135,6 +139,10 @@ class MpvVideoPlayer(
         mpv.setOptionString("cache-pause", "yes")
         mpv.setOptionString("cache-pause-initial", "yes")
         mpv.setOptionString("cache-pause-wait", "5")
+
+
+        mpv.setOptionString("network-timeout", "10")
+        mpv.setOptionString("stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5")
 
         val cache =
             (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) 150 else 64) * 1024 * 1024
@@ -216,7 +224,6 @@ class MpvVideoPlayer(
                         _bufferingProgress.value = 0f
 
                         _mediaLoaded.value = true
-
                         _playbackState.value = PlaybackState.BUFFERING
 
                         pendingMediaState?.audioTracks?.forEach { audio ->
@@ -259,6 +266,10 @@ class MpvVideoPlayer(
                             Log.d(TAG, "Ignoring END_FILE because new media load is pending")
                             return
                         }
+                        if (wasBackgrounded) {
+                            Log.d(TAG, "Ignoring END_FILE while recovering from background")
+                            return
+                        }
                         if (_duration.value > 0L) {
                             _playbackState.value = PlaybackState.ENDED
                             _isPlaying.value = false
@@ -273,9 +284,7 @@ class MpvVideoPlayer(
                         isFileLoaded = false
                         initialBufferingDone = false
                         _bufferingProgress.value = 0f
-
                         _mediaLoaded.value = false
-
                         isShutdown.set(true)
                         return
                     }
@@ -417,7 +426,7 @@ class MpvVideoPlayer(
         val isActuallyPlaying = !isPaused && !isCoreIdle && !eof && filename != null
 
         _playbackState.value = when {
-            eof -> PlaybackState.ENDED
+            eof && !wasBackgrounded -> PlaybackState.ENDED
             filename == null || !isFileLoaded -> {
                 if (pendingMediaState != null) PlaybackState.BUFFERING else PlaybackState.IDLE
             }
@@ -515,6 +524,9 @@ class MpvVideoPlayer(
         isFileLoaded = false
         initialBufferingDone = false
         pendingMediaState = null
+        currentMediaState = null
+        wasBackgrounded = false
+        lastGoodPositionMs = 0L
 
         _isPlaying.value = false
         _playbackState.value = PlaybackState.IDLE
@@ -522,7 +534,6 @@ class MpvVideoPlayer(
         _duration.value = 0L
         _bufferCacheDuration.value = 0L
         _bufferingProgress.value = 0f
-
         _mediaLoaded.value = false
 
         isInitialized = false
@@ -556,9 +567,10 @@ class MpvVideoPlayer(
             initialBufferingDone = false
             _bufferingProgress.value = 0f
             pendingMediaState = null
-
+            currentMediaState = null
+            wasBackgrounded = false
+            lastGoodPositionMs = 0L
             _mediaLoaded.value = false
-
             _currentPosition.value = 0L
             _duration.value = 0L
             return
@@ -571,15 +583,18 @@ class MpvVideoPlayer(
         isFileLoaded = false
         initialBufferingDone = false
         _bufferingProgress.value = 0f
-
         _mediaLoaded.value = false
-
         _currentPosition.value = 0L
         _duration.value = 0L
 
         _audioTracks.value = emptyList()
         _subtitleTracks.value = emptyList()
         _videoTracks.value = emptyList()
+
+        currentMediaState = null
+        pendingMediaState = null
+        wasBackgrounded = false
+        lastGoodPositionMs = 0L
     }
 
     fun loadMedia(
@@ -591,7 +606,11 @@ class MpvVideoPlayer(
     ) {
         val mediaState =
             PendingMediaState(videoUrl, headers, startPositionMs, audioTracks, subtitles)
+
+        currentMediaState = mediaState
         pendingMediaState = mediaState
+        wasBackgrounded = false
+        lastGoodPositionMs = 0L
 
         if (!isInitialized || isShutdown.get() || !surfaceReady) {
             Log.d(
@@ -612,7 +631,6 @@ class MpvVideoPlayer(
     }
 
     private fun loadMediaInternal(mediaState: PendingMediaState) {
-
         _mediaLoaded.value = false
 
         isFileLoaded = false
@@ -773,6 +791,7 @@ class MpvVideoPlayer(
     fun detachVideoOutput() {
         if (!isInitialized || isShutdown.get()) return
         Log.d(TAG, "detachVideoOutput() - disabling video rendering")
+        // Keep video track alive; only the surface is gone :D
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -791,6 +810,16 @@ class MpvVideoPlayer(
             isFileLoaded -> {
                 Log.d(TAG, "surfaceCreated: file already loaded — reattaching video output only")
                 attachVideoOutput()
+
+                mpv.setOptionString("demuxer-readahead-secs", "240")
+                mpv.setOptionString("cache-secs", "30")
+
+                if (wasBackgrounded) {
+                    wasBackgrounded = false
+                    val target = lastGoodPositionMs.coerceAtLeast(0L)
+                    Log.d(TAG, "surfaceCreated: soft-recover after background → seek to ${target}ms")
+                    mpv.command("seek", (target / 1000.0).toString(), "absolute", "exact")
+                }
             }
 
             pendingMediaState != null -> {
@@ -811,6 +840,17 @@ class MpvVideoPlayer(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         Log.d(TAG, "surfaceDestroyed() called")
+
+        lastGoodPositionMs = _currentPosition.value
+
+        if (isFileLoaded) {
+            mpv.command("set", "pause", "yes")
+            mpv.setOptionString("demuxer-readahead-secs", "0")
+            mpv.setOptionString("cache-secs", "0")
+            wasBackgrounded = true
+            Log.d(TAG, "surfaceDestroyed: demuxer readahead disabled, wasBackgrounded=true")
+        }
+
         detachVideoOutput()
         surfaceReady = false
         super.surfaceDestroyed(holder)
@@ -821,4 +861,3 @@ class MpvVideoPlayer(
         super.surfaceChanged(holder, format, width, height)
     }
 }
-

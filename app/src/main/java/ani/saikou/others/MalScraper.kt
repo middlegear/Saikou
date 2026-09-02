@@ -15,7 +15,7 @@ object MalScraper {
 
     suspend fun loadMedia(media: Media) {
         try {
-            withTimeout(6000) {
+            withTimeout(4000) {
                 if (media.anime != null && MAL.isLoggedIn()) {
                     val res = client.get("https://myanimelist.net/anime/${media.idMAL}", headers).document
                     val a = res.select(".title-english").text()

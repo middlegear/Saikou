@@ -106,16 +106,14 @@ fun AppUpdateContent(
     }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 32.dp)
+        modifier = modifier.fillMaxSize()
     ) {
 
         // --- BACK BUTTON ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp)
+                .padding(start = 16.dp, top = 32.dp)
         ) {
             Surface(
                 onClick = handleDismiss,
@@ -136,7 +134,7 @@ fun AppUpdateContent(
             }
         }
 
-        // --- TITLE & CHECK FOR UPDATES BUTTON ---
+        // --- TITLE & CHECK FOR UPDATES ICON ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -148,22 +146,24 @@ fun AppUpdateContent(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = 16.dp)
+                    .padding(start = 32.dp, top = 16.dp, bottom = 16.dp, end = 16.dp)
             )
 
-            IconButton(
-                onClick = onCheckForUpdatesWithDelay,
-                modifier = Modifier.size(64.dp)
+
+            Box(
+                modifier = Modifier
+                    .padding(end = 20.dp)
+                    .size(64.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.SystemUpdate,
-                    contentDescription = "Check for updates",
-                    modifier = Modifier.size(36.dp)
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(64.dp)
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
 
         // --- DYNAMIC CONTENT ---
         Box(
@@ -323,86 +323,86 @@ private fun AppUpdatePreview_Idle() {
     }
 }
 
-@Preview(name = "2. Checking State", showBackground = true)
-@Composable
-private fun AppUpdatePreview_Checking() {
-    SaikouTheme {
-        Surface {
-            AppUpdateContent(
-                state = UpdateState.Checking,
-                onCheckForUpdates = {},
-                onStartDownload = { _, _ -> },
-                onCancelDownload = {},
-                onInstall = {},
-                onDontShowAgain = { _, _ -> },
-                onDismiss = {}
-            )
-        }
-    }
-}
+//@Preview(name = "2. Checking State", showBackground = true)
+//@Composable
+//private fun AppUpdatePreview_Checking() {
+//    SaikouTheme {
+//        Surface {
+//            AppUpdateContent(
+//                state = UpdateState.Checking,
+//                onCheckForUpdates = {},
+//                onStartDownload = { _, _ -> },
+//                onCancelDownload = {},
+//                onInstall = {},
+//                onDontShowAgain = { _, _ -> },
+//                onDismiss = {}
+//            )
+//        }
+//    }
+//}
+//
+//@Preview(name = "3. Available Update", showBackground = true)
+//@Composable
+//private fun AppUpdatePreview_Available() {
+//    SaikouTheme {
+//        Surface {
+//            AppUpdateContent(
+//                state = UpdateState.Available(
+//                    version = "1.2.5-beta",
+//                    changelog = """
+//                        ### Fixes
+//                        * **Anizone:** Fixed search errors, missing sources, and incomplete episode counts.
+//                        * **Player:** Resolved video frame dropping during high bitrate playback.
+//                    """.trimIndent(),
+//                    downloadUrl = "https://github.com/supboys/releases"
+//                ),
+//                onCheckForUpdates = {},
+//                onStartDownload = { _, _ -> },
+//                onCancelDownload = {},
+//                onInstall = {},
+//                onDontShowAgain = { _, _ -> },
+//                onDismiss = {}
+//            )
+//        }
+//    }
+//}
+//
+//@Preview(name = "4. Downloading State", showBackground = true)
+//@Composable
+//private fun AppUpdatePreview_Downloading() {
+//    SaikouTheme {
+//        Surface {
+//            AppUpdateContent(
+//                state = UpdateState.Downloading(
+//                    downloadedBytes = 15_400_000L,
+//                    totalBytes = 32_000_000L,
+//                    progressPercentage = 48
+//                ),
+//                onCheckForUpdates = {},
+//                onStartDownload = { _, _ -> },
+//                onCancelDownload = {},
+//                onInstall = {},
+//                onDontShowAgain = { _, _ -> },
+//                onDismiss = {}
+//            )
+//        }
+//    }
+//}
 
-@Preview(name = "3. Available Update", showBackground = true)
-@Composable
-private fun AppUpdatePreview_Available() {
-    SaikouTheme {
-        Surface {
-            AppUpdateContent(
-                state = UpdateState.Available(
-                    version = "1.2.5-beta",
-                    changelog = """
-                        ### Fixes
-                        * **Anizone:** Fixed search errors, missing sources, and incomplete episode counts.
-                        * **Player:** Resolved video frame dropping during high bitrate playback.
-                    """.trimIndent(),
-                    downloadUrl = "https://github.com/supboys/releases"
-                ),
-                onCheckForUpdates = {},
-                onStartDownload = { _, _ -> },
-                onCancelDownload = {},
-                onInstall = {},
-                onDontShowAgain = { _, _ -> },
-                onDismiss = {}
-            )
-        }
-    }
-}
-
-@Preview(name = "4. Downloading State", showBackground = true)
-@Composable
-private fun AppUpdatePreview_Downloading() {
-    SaikouTheme {
-        Surface {
-            AppUpdateContent(
-                state = UpdateState.Downloading(
-                    downloadedBytes = 15_400_000L,
-                    totalBytes = 32_000_000L,
-                    progressPercentage = 48
-                ),
-                onCheckForUpdates = {},
-                onStartDownload = { _, _ -> },
-                onCancelDownload = {},
-                onInstall = {},
-                onDontShowAgain = { _, _ -> },
-                onDismiss = {}
-            )
-        }
-    }
-}
-
-@Preview(name = "5. Error State", showBackground = true)
-@Composable
-private fun AppUpdatePreview_Error() {
-    SaikouTheme {
-        Surface {
-            AppUpdateContent(
-                state = UpdateState.Error("Unable to connect to GitHub API (HTTP 429 Rate Limit Exceeded)."),
-                onCheckForUpdates = {},
-                onStartDownload = { _, _ -> },
-                onCancelDownload = {},
-                onInstall = {},
-                onDontShowAgain = { _, _ -> },
-                onDismiss = {}
-            )
-        }
-    }
-}
+//@Preview(name = "5. Error State", showBackground = true)
+//@Composable
+//private fun AppUpdatePreview_Error() {
+//    SaikouTheme {
+//        Surface {
+//            AppUpdateContent(
+//                state = UpdateState.Error("Unable to connect to GitHub API (HTTP 429 Rate Limit Exceeded)."),
+//                onCheckForUpdates = {},
+//                onStartDownload = { _, _ -> },
+//                onCancelDownload = {},
+//                onInstall = {},
+//                onDontShowAgain = { _, _ -> },
+//                onDismiss = {}
+//            )
+//        }
+//    }
+//}
