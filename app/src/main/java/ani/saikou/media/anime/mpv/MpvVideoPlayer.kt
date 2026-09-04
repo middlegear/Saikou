@@ -129,6 +129,12 @@ class MpvVideoPlayer(
         mpv.setOptionString("msg-level", "all=v")
         mpv.setOptionString("ytdl", "no")
 
+        mpv.setOptionString("audio-channels", "7.1,5.1,stereo")
+        mpv.setOptionString("ad-lavc-downmix", "no")
+
+
+        mpv.setOptionString("audio-buffer", "0.5")
+
         mpv.setOptionString("video-sync", "audio")
         mpv.setOptionString("initial-audio-sync", "yes")
 
@@ -139,7 +145,6 @@ class MpvVideoPlayer(
         mpv.setOptionString("cache-pause", "yes")
         mpv.setOptionString("cache-pause-initial", "yes")
         mpv.setOptionString("cache-pause-wait", "5")
-
 
         mpv.setOptionString("network-timeout", "10")
         mpv.setOptionString("stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5")
@@ -727,7 +732,7 @@ class MpvVideoPlayer(
             mpv.setPropertyString("audio-channels", "auto-safe")
         } else {
             mpv.setPropertyString("af", "")
-            mpv.setPropertyString("audio-channels", channel.value)
+            mpv.setPropertyString(channel.property, channel.value)
         }
         _audioChannel.value = channel
     }

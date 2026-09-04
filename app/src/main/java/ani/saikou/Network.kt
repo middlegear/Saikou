@@ -3,6 +3,7 @@ package ani.saikou
 import android.content.Context
 import android.os.Build
 import androidx.fragment.app.FragmentActivity
+import ani.saikou.connections.anilist.room.AnilistCache
 import ani.saikou.others.webview.CloudFlare
 import ani.saikou.others.webview.WebViewBottomDialog
 import com.lagradost.nicehttp.Requests
@@ -60,6 +61,7 @@ fun initializeNetwork(context: Context) {
         defaultCacheTimeUnit = TimeUnit.HOURS,
         responseParser = Mapper
     )
+    AnilistCache.init(context)
 }
 
 object Mapper : ResponseParser {

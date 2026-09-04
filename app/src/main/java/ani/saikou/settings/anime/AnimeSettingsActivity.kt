@@ -76,11 +76,11 @@ class AnimeSettingsActivity : AppCompatActivity() {
     }
 
     private fun setupSwitches() {
-        // Prefer Dub preference
-        binding.settingsPreferDub.isChecked = loadData("settings_prefer_dub") ?: false
-        binding.settingsPreferDub.setOnCheckedChangeListener { _, isChecked ->
-            saveData("settings_prefer_dub", isChecked)
-        }
+//        // Prefer Dub preference disabled cause sources
+//        binding.settingsPreferDub.isChecked = loadData("settings_prefer_dub") ?: false
+//        binding.settingsPreferDub.setOnCheckedChangeListener { _, isChecked ->
+//            saveData("settings_prefer_dub", isChecked)
+//        }
 
         // Show YouTube Trailer preference inside UserInterfaceSettings
         val uiSettings: UserInterfaceSettings = loadData("ui_settings", toast = false)

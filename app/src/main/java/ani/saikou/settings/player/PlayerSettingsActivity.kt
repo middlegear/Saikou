@@ -28,8 +28,8 @@ class PlayerSettingsActivity : AppCompatActivity() {
     lateinit var binding: ActivityPlayerSettingsBinding
     private val player = "player_settings"
 
-    var media: Media?=null
-    var subtitle: Subtitle?=null
+    var media: Media? = null
+    var subtitle: Subtitle? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,59 +62,6 @@ class PlayerSettingsActivity : AppCompatActivity() {
             onBackPressedDispatcher.onBackPressed()
         }
 
-        //Video
-//        binding.playerSettingsVideoInfo.isChecked = settings.videoInfo
-//        binding.playerSettingsVideoInfo.setOnCheckedChangeListener { _, isChecked ->
-//            settings.videoInfo = isChecked
-//            saveData(player, settings)
-//        }
-//
-//        binding.playerSettingsQualityHeight.setText((loadData<Int>("maxHeight", toast = false) ?: 480).toString())
-//        binding.playerSettingsQualityHeight.addTextChangedListener {
-//            val height = binding.playerSettingsQualityHeight.text.toString().toIntOrNull()
-//            saveData("maxHeight", height)
-//        }
-//        binding.playerSettingsQualityWidth.setText((loadData<Int>("maxWidth", toast = false) ?: 720).toString())
-//        binding.playerSettingsQualityWidth.addTextChangedListener {
-//            val height = binding.playerSettingsQualityWidth.text.toString().toIntOrNull()
-//            saveData("maxWidth", height)
-//        }
-
-
-//        val speeds = arrayOf(0.25f, 0.33f, 0.5f, 0.66f, 0.75f, 1f, 1.1f, 1.15f, 1.25f, 1.33f, 1.5f, 1.66f, 1.75f, 2f)
-//        val cursedSpeeds = arrayOf(1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f, 5f, 10f, 25f, 50f)
-//        var curSpeedArr = if (settings.cursedSpeeds) cursedSpeeds else speeds
-//        var speedsName = curSpeedArr.map { "${it}x" }.toTypedArray()
-//        binding.playerSettingsSpeed.text = getString(R.string.default_playback_speed, speedsName[settings.defaultSpeed])
-//        val speedDialog = AlertDialog.Builder(this, R.style.DialogTheme).setTitle(getString(R.string.default_speed))
-//        binding.playerSettingsSpeed.setOnClickListener {
-//            speedDialog.setSingleChoiceItems(speedsName, settings.defaultSpeed) { dialog, i ->
-//                settings.defaultSpeed = i
-//                binding.playerSettingsSpeed.text = getString(R.string.default_playback_speed, speedsName[i])
-//                saveData(player, settings)
-//                dialog.dismiss()
-//            }.show()
-//        }
-//
-//        binding.playerSettingsCursedSpeeds.isChecked = settings.cursedSpeeds
-//        binding.playerSettingsCursedSpeeds.setOnCheckedChangeListener { _, isChecked ->
-//            settings.cursedSpeeds = isChecked
-//            curSpeedArr = if (settings.cursedSpeeds) cursedSpeeds else speeds
-//            settings.defaultSpeed = if (settings.cursedSpeeds) 0 else 5
-//            speedsName = curSpeedArr.map { "${it}x" }.toTypedArray()
-//            binding.playerSettingsSpeed.text = getString(R.string.default_playback_speed, speedsName[settings.defaultSpeed])
-//            saveData(player, settings)
-//        }
-
-//        val resizeModes = arrayOf("Original", "Zoom", "Stretch")
-//        val resizeDialog = AlertDialog.Builder(this, R.style.DialogTheme).setTitle(getString(R.string.default_resize_mode))
-//        binding.playerResizeMode.setOnClickListener {
-//            resizeDialog.setSingleChoiceItems(resizeModes, settings.resize) { dialog, count ->
-//                settings.resize = count
-//                saveData(player, settings)
-//                dialog.dismiss()
-//            }.show()
-//        }
 
         //Time Stamp
         binding.playerSettingsTimeStamps.isChecked = settings.timeStampsEnabled
@@ -123,7 +70,8 @@ class PlayerSettingsActivity : AppCompatActivity() {
             saveData(player, settings)
         }
 
-        binding.playerSettingsTimeStampsProvider.isChecked = settings.useAlternativeTimestampProvider
+        binding.playerSettingsTimeStampsProvider.isChecked =
+            settings.useAlternativeTimestampProvider
         binding.playerSettingsTimeStampsProvider.setOnCheckedChangeListener { _, isChecked ->
             settings.useAlternativeTimestampProvider = isChecked
             saveData(player, settings)
@@ -166,7 +114,8 @@ class PlayerSettingsActivity : AppCompatActivity() {
             if (isChecked) snackString(getString(R.string.very_bold))
             saveData(player, settings)
         }
-        binding.playerSettingsCompletePercentage.value = (settings.watchPercentage * 100).roundToInt().toFloat()
+        binding.playerSettingsCompletePercentage.value =
+            (settings.watchPercentage * 100).roundToInt().toFloat()
         binding.playerSettingsCompletePercentage.addOnChangeListener { _, value, _ ->
             settings.watchPercentage = value / 100
             saveData(player, settings)
@@ -197,11 +146,17 @@ class PlayerSettingsActivity : AppCompatActivity() {
             saveData(player, settings)
         }
 
-//        binding.playerSettingsFastForward.isChecked = settings.fastforward
-//        binding.playerSettingsFastForward.setOnCheckedChangeListener { _, isChecked ->
-//            settings.fastforward = isChecked
-//            saveData(player, settings)
-//        }
+        binding.playerSettingsPlayerLongPressForwardGestures.isChecked = settings.holdToFastForward
+        binding.playerSettingsPlayerLongPressForwardGestures.setOnCheckedChangeListener { _, isChecked ->
+            settings.holdToFastForward = isChecked
+            saveData(player, settings)
+        }
+
+        binding.playerSettingsLoadingScreen.isChecked = settings.customLoadingScreen
+        binding.playerSettingsLoadingScreen.setOnCheckedChangeListener { _, isChecked ->
+            settings.customLoadingScreen = isChecked
+            saveData(player, settings)
+        }
 
         binding.playerSettingsSeekTime.value = settings.seekTime.toFloat()
         binding.playerSettingsSeekTime.addOnChangeListener { _, value, _ ->
@@ -248,7 +203,11 @@ class PlayerSettingsActivity : AppCompatActivity() {
                 R.string.restart_app, Snackbar.LENGTH_SHORT
             ).apply {
                 val mainIntent =
-                    Intent.makeRestartActivityTask(context.packageManager.getLaunchIntentForPackage(context.packageName)!!.component)
+                    Intent.makeRestartActivityTask(
+                        context.packageManager.getLaunchIntentForPackage(
+                            context.packageName
+                        )!!.component
+                    )
                 setAction("Do it!") {
                     context.startActivity(mainIntent)
                     Runtime.getRuntime().exit(0)
@@ -260,7 +219,7 @@ class PlayerSettingsActivity : AppCompatActivity() {
         fun toggleButton(button: Button, toggle: Boolean) {
             button.isClickable = toggle
             button.alpha = when (toggle) {
-                true  -> 1f
+                true -> 1f
                 false -> 0.5f
             }
         }

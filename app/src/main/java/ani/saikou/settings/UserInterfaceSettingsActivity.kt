@@ -37,6 +37,9 @@ class UserInterfaceSettingsActivity : AppCompatActivity() {
                     settings.homeLayoutShow[i] = value
                     saveData(ui, settings)
                 }
+                setOnDismissListener {
+                    Refresh.activity[1]?.postValue(true)
+                }
             }.show()
         }
 

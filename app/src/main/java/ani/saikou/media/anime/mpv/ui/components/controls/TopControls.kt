@@ -63,7 +63,6 @@ fun TopControlsBar(
 
     videoQualityTracks: List<VideoTrack>,
     onVideoTrackButtonClicked: () -> Unit,
-    showVideoInfo: Boolean,
 
     onMoreSettingsClicked: () -> Unit,
     onSourcesClicked: () -> Unit,
@@ -207,7 +206,7 @@ fun TopControlsBar(
                 }
             }
 
-            if (videoQualityTracks.size > 1 && showVideoInfo) {
+            if (videoQualityTracks.size > 1) {
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -404,7 +403,6 @@ private fun TopControlsBarPreview() {
                 )
             ),
             onVideoTrackButtonClicked = {},
-            showVideoInfo = true,
             onMoreSettingsClicked = {},
             onSourcesClicked = {}
         )

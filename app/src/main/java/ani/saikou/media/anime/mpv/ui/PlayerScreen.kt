@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -78,12 +77,14 @@ fun PlayerScreen(
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
 
-    val isPlayerReady =
-        duration > 0L || bufferProgress >= 1f || isMediaLoaded
+    val showCustomLoadingScreen = viewModel.settings.customLoadingScreen
+
+    val isPlayerReady = duration > 0L || bufferProgress >= 1f || isMediaLoaded
 
     val hasArtwork = !episodeUiState.backdropUrl.isNullOrEmpty() &&
             !episodeUiState.logo.isNullOrEmpty()
-    val showCustomLoadingScreen = hasArtwork && !isPlayerReady
+
+    val showArtworkLoadingScreen = showCustomLoadingScreen && hasArtwork && !isPlayerReady
 
     Box(
         modifier = Modifier
@@ -103,6 +104,7 @@ fun PlayerScreen(
                             }
                         } ?: Log.w(TAG, "SKIPPED onSurfaceReady — activity is null")
                     }
+
                     override fun surfaceChanged(
                         holder: SurfaceHolder,
                         format: Int,
@@ -137,7 +139,7 @@ fun PlayerScreen(
 
         // 1. Artwork Backdrop Overlay Layer – hides automatically when ready
         AnimatedVisibility(
-            visible = showCustomLoadingScreen,
+            visible = showArtworkLoadingScreen,
             enter = fadeIn(animationSpec = tween(200)),
             exit = fadeOut(animationSpec = tween(200)),
             modifier = Modifier.fillMaxSize()
@@ -151,10 +153,10 @@ fun PlayerScreen(
             )
         }
 
-        // 2. UI Controls Layer – shows once ready or if no custom artwork is used
+        // 2. UI Controls Layer – shows once ready or if custom loading screen is disabled
         if (!isDialogShowing) {
             AnimatedVisibility(
-                visible = isPlayerReady || !hasArtwork,
+                visible = isPlayerReady || !showCustomLoadingScreen,
                 enter = fadeIn(animationSpec = tween(250)),
                 exit = fadeOut(animationSpec = tween(250))
             ) {

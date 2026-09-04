@@ -15,7 +15,7 @@ enum class TorrentProfile(val displayName: String) : Serializable {
                 maxConnections = 25,
                 downloadRateLimitKb = 0,
                 uploadRateLimitKb = 0,
-                enableDHT = false,
+                enableDHT = true,
                 enablePEX = true,
                 enableUpload = false,
                 enableEncryption = false

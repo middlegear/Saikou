@@ -14,12 +14,19 @@ enum class PlaybackState {
 
 }
 
+
 enum class AudioChannels(val title: String, val property: String, val value: String) {
     Auto("Auto", "audio-channels", "auto-safe"),
     AutoSafe("Auto Safe", "audio-channels", "auto"),
     Mono("Mono", "audio-channels", "mono"),
     Stereo("Stereo", "audio-channels", "stereo"),
     ReverseStereo("Reverse Stereo", "af", "pan=[stereo|c0=c1|c1=c0]"),
+
+
+    Surround51("5.1 Surround", "audio-channels", "5.1,stereo"),
+
+    //might have to remove surround 7.1
+    Surround71("7.1 Surround", "audio-channels", "7.1,5.1,stereo"),
 }
 
 enum class VideoScaleMode {

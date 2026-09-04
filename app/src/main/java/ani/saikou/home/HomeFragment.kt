@@ -314,7 +314,7 @@ class HomeFragment : Fragment() {
             binding.homePlannedAnimeContainer,
             binding.homeContinueReadingContainer,
             binding.homeFavMangaContainer,
-            binding.homeFavMangaContainer,
+            binding.homePlannedMangaContainer,
             binding.homeRecommendedContainer
         )
 
@@ -333,6 +333,9 @@ class HomeFragment : Fragment() {
                             var empty = true
                             (array.indices).forEach { i ->
                                 if (uiSettings.homeLayoutShow[i]) {
+                                    withContext(Dispatchers.Main) {
+                                        containers[i].visibility = View.VISIBLE
+                                    }
                                     array[i].run()
                                     empty = false
                                 } else withContext(Dispatchers.Main) {

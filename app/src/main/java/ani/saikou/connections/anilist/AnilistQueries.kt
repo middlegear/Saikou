@@ -9,6 +9,7 @@ import ani.saikou.connections.anilist.api.Page
 import ani.saikou.connections.anilist.api.Query
 import ani.saikou.checkGenreTime
 import ani.saikou.checkId
+import ani.saikou.connections.anilist.room.AnilistCache
 import ani.saikou.currContext
 import ani.saikou.loadData
 import ani.saikou.logError
@@ -67,7 +68,12 @@ class AnilistQueries {
             """{Media(id:${media.id}){id mediaListEntry{id status score(format:POINT_100) progress private notes repeat customLists updatedAt startedAt{year month day}completedAt{year month day}}isFavourite siteUrl idMal nextAiringEpisode{episode airingAt}source countryOfOrigin format duration season seasonYear startDate{year month day}endDate{year month day}genres studios(isMain:true){nodes{id name siteUrl}}description trailer { site id } synonyms tags { name rank isMediaSpoiler } characters(sort:[ROLE,FAVOURITES_DESC],perPage:25,page:1){edges{role node{id image{medium}name{userPreferred}}}}relations{edges{relationType(version:2)node{id idMal mediaListEntry{progress private score(format:POINT_100) status} episodes chapters nextAiringEpisode{episode} popularity meanScore isAdult isFavourite format title{english romaji userPreferred}type status(version:2)bannerImage coverImage{large}}}}staffPreview: staff(perPage: 8, sort: [RELEVANCE, ID]) {edges{role node{id name{userPreferred}}}}recommendations(sort:RATING_DESC){nodes{mediaRecommendation{id idMal mediaListEntry{progress private score(format:POINT_100) status} episodes chapters nextAiringEpisode{episode}meanScore isAdult isFavourite format title{english romaji userPreferred}type status(version:2)bannerImage coverImage{large}}}}externalLinks{url site}}}"""
         runBlocking {
             val anilist = async {
-                var response = executeQuery<Query.Media>(query, force = true, show = true)
+                var response = executeQuery<Query.Media>(
+                    query,
+                    force = true,
+                    show = true,
+                    cache = AnilistCache.SIX_HOURS_MINUTES
+                )
                 if (response != null) {
                     fun parse() {
                         val fetchedMedia = response?.data?.media ?: return
@@ -237,7 +243,12 @@ class AnilistQueries {
                     if (response.data?.media != null) parse()
                     else {
                         snackString(currContext()?.getString(R.string.adult_stuff))
-                        response = executeQuery(query, force = true, useToken = false)
+                        response = executeQuery(
+                            query,
+                            force = true,
+                            useToken = false,
+                            cache = AnilistCache.SIX_HOURS_MINUTES
+                        )
                         if (response?.data?.media != null) parse()
                         else snackString(currContext()?.getString(R.string.what_did_you_open))
                     }
@@ -315,7 +326,10 @@ class AnilistQueries {
 
     suspend fun recommendations(): ArrayList<Media> {
         val response =
-            executeQuery<Query.Page>(""" { Page(page: 1, perPage:30) { pageInfo { total currentPage hasNextPage } recommendations(sort: RATING_DESC, onList: true) { rating userRating mediaRecommendation { id idMal isAdult mediaListEntry { progress private score(format:POINT_100) status } chapters isFavourite format episodes nextAiringEpisode {episode} popularity meanScore isFavourite format title {english romaji userPreferred } type status(version: 2) bannerImage coverImage { large } } } } } """)
+            executeQuery<Query.Page>(
+                """ { Page(page: 1, perPage:30) { pageInfo { total currentPage hasNextPage } recommendations(sort: RATING_DESC, onList: true) { rating userRating mediaRecommendation { id idMal isAdult mediaListEntry { progress private score(format:POINT_100) status } chapters isFavourite format episodes nextAiringEpisode {episode} popularity meanScore isFavourite format title {english romaji userPreferred } type status(version: 2) bannerImage coverImage { large } } } } } """,
+                cache = AnilistCache.SIX_HOURS_MINUTES
+            )
         val map = mutableMapOf<Int, Media>()
         response?.data?.page?.apply {
             recommendations?.onEach {
@@ -331,7 +345,10 @@ class AnilistQueries {
         val types = arrayOf("ANIME", "MANGA")
         suspend fun repeat(type: String) {
             val res =
-                executeQuery<Query.MediaListCollection>(""" { MediaListCollection(userId: ${Anilist.userid}, type: $type, status: PLANNING , sort: MEDIA_POPULARITY_DESC ) { lists { entries { media { id mediaListEntry { progress private score(format:POINT_100) status } idMal type isAdult popularity status(version: 2) chapters episodes nextAiringEpisode {episode} meanScore isFavourite format bannerImage coverImage{large} title { english romaji userPreferred } } } } } } """)
+                executeQuery<Query.MediaListCollection>(
+                    """ { MediaListCollection(userId: ${Anilist.userid}, type: $type, status: PLANNING , sort: MEDIA_POPULARITY_DESC ) { lists { entries { media { id mediaListEntry { progress private score(format:POINT_100) status } idMal type isAdult popularity status(version: 2) chapters episodes nextAiringEpisode {episode} meanScore isFavourite format bannerImage coverImage{large} title { english romaji userPreferred } } } } } } """,
+                    cache = AnilistCache.SIX_HOURS_MINUTES
+                )
             res?.data?.mediaListCollection?.lists?.forEach { li ->
                 li.entries?.forEach {
                     val m = Media(it)
@@ -378,7 +395,12 @@ class AnilistQueries {
         return default
     }
 
-    suspend fun getMediaLists(anime: Boolean, userId: Int, sortOrder: String? = null): MutableMap<String, ArrayList<Media>> {
+
+    suspend fun getMediaLists(
+        anime: Boolean,
+        userId: Int,
+        sortOrder: String? = null
+    ): MutableMap<String, ArrayList<Media>> {
         val response =
             executeQuery<Query.MediaListCollection>("""{ MediaListCollection(userId: $userId, type: ${if (anime) "ANIME" else "MANGA"}) { lists { name isCustomList entries { status progress private score(format:POINT_100) updatedAt media { id idMal isAdult type status chapters episodes nextAiringEpisode {episode} bannerImage meanScore isFavourite format coverImage{large} startDate{year month day} title {english romaji userPreferred } } } } user { id mediaListOptions { rowOrder animeList { sectionOrder } mangaList { sectionOrder } } } } }""")
         val sorted = mutableMapOf<String, ArrayList<Media>>()
@@ -419,6 +441,7 @@ class AnilistQueries {
                 "score" -> sorted[i]?.sortWith { b, a ->
                     compareValuesBy(a, b, { it.userScore }, { it.meanScore })
                 }
+
                 "title" -> sorted[i]?.sortWith(compareBy { it.userPreferredName })
                 "updatedAt" -> sorted[i]?.sortWith(compareByDescending { it.userUpdatedAt })
                 "release" -> sorted[i]?.sortWith(compareByDescending { it.startDate })
@@ -524,6 +547,7 @@ class AnilistQueries {
         season: String? = null,
         id: Int? = null,
         hd: Boolean = false,
+        cache: Int? = null,
     ): SearchResults? {
         val query = """
 query (${"$"}page: Int = 1, ${"$"}id: Int, ${"$"}type: MediaType, ${"$"}isAdult: Boolean = false, ${"$"}search: String, ${"$"}format: [MediaFormat], ${"$"}status: MediaStatus, ${"$"}countryOfOrigin: CountryCode, ${"$"}source: MediaSource, ${"$"}season: MediaSeason, ${"$"}seasonYear: Int, ${"$"}year: String, ${"$"}onList: Boolean, ${"$"}yearLesser: FuzzyDateInt, ${"$"}yearGreater: FuzzyDateInt, ${"$"}episodeLesser: Int, ${"$"}episodeGreater: Int, ${"$"}durationLesser: Int, ${"$"}durationGreater: Int, ${"$"}chapterLesser: Int, ${"$"}chapterGreater: Int, ${"$"}volumeLesser: Int, ${"$"}volumeGreater: Int, ${"$"}licensedBy: [String], ${"$"}isLicensed: Boolean, ${"$"}genres: [String], ${"$"}excludedGenres: [String], ${"$"}tags: [String], ${"$"}excludedTags: [String], ${"$"}minimumTagRank: Int, ${"$"}sort: [MediaSort] = [POPULARITY_DESC, SCORE_DESC]) {
@@ -611,7 +635,8 @@ query (${"$"}page: Int = 1, ${"$"}id: Int, ${"$"}type: MediaType, ${"$"}isAdult:
         }
             }""".replace("\n", " ").replace("""  """, "")
 
-        val response = executeQuery<Query.Page>(query, variables, true)?.data?.page
+        val response =
+            executeQuery<Query.Page>(query, variables, force = true, cache = cache)?.data?.page
         if (response?.media != null) {
             val responseArray = arrayListOf<Media>()
             response.media?.forEach { i ->
@@ -662,8 +687,14 @@ query (${"$"}page: Int = 1, ${"$"}id: Int, ${"$"}type: MediaType, ${"$"}isAdult:
     suspend fun recentlyUpdated(
         smaller: Boolean = true,
         greater: Long = 0,
-        lesser: Long = System.currentTimeMillis() / 1000 - 10000
+        lesser: Long = 0
     ): MutableList<Media>? {
+        val now = System.currentTimeMillis() / 1000
+        val cacheWindow = (now / (24 * 60 * 60)) * (24 * 60 * 60)
+
+        val airingAtGreater = if (greater > 0) greater else cacheWindow
+        val airingAtLesser = if (lesser > 0) lesser else airingAtGreater + (24 * 60 * 60)
+
         suspend fun execute(page: Int = 1): Page? {
             val query = """{
 Page(page:$page,perPage:50) {
@@ -672,8 +703,8 @@ Page(page:$page,perPage:50) {
         total
     }
     airingSchedules(
-        airingAt_greater: $greater
-        airingAt_lesser: $lesser
+        airingAt_greater: $airingAtGreater
+        airingAt_lesser: $airingAtLesser
         sort:TIME_DESC
     ) {
         episode
@@ -708,16 +739,28 @@ Page(page:$page,perPage:50) {
     }
 }
         }""".replace("\n", " ").replace("""  """, "")
-            return executeQuery<Query.Page>(query, force = true)?.data?.page
+
+            return executeQuery<Query.Page>(
+                query,
+                force = true,
+                cache = AnilistCache.SIX_HOURS_MINUTES
+            )?.data?.page
         }
+
         if (smaller) {
             val response = execute()?.airingSchedules ?: return null
             val idArr = mutableListOf<Int>()
             val listOnly = loadData("recently_list_only") ?: false
+
             return response.mapNotNull { i ->
                 i.media?.let {
                     if (!idArr.contains(it.id))
-                        if (!listOnly && (it.countryOfOrigin == "JP" && (if (!Anilist.adult) it.isAdult == false else true)) || (listOnly && it.mediaListEntry != null)) {
+                        if (
+                            (!listOnly &&
+                                    it.countryOfOrigin == "JP" &&
+                                    (if (!Anilist.adult) it.isAdult == false else true)) ||
+                            (listOnly && it.mediaListEntry != null)
+                        ) {
                             idArr.add(it.id)
                             Media(it)
                         } else null
@@ -728,21 +771,32 @@ Page(page:$page,perPage:50) {
             var i = 1
             val list = mutableListOf<Media>()
             var res: Page? = null
+
             suspend fun next() {
                 res = execute(i)
-                list.addAll(res?.airingSchedules?.mapNotNull { j ->
-                    j.media?.let {
-                        if (it.countryOfOrigin == "JP" && (if (!Anilist.adult) it.isAdult == false else true)) {
-                            Media(it).apply { relation = "${j.episode},${j.airingAt}" }
-                        } else null
-                    }
-                } ?: listOf())
+                list.addAll(
+                    res?.airingSchedules?.mapNotNull { j ->
+                        j.media?.let {
+                            if (
+                                it.countryOfOrigin == "JP" &&
+                                (if (!Anilist.adult) it.isAdult == false else true)
+                            ) {
+                                Media(it).apply {
+                                    relation = "${j.episode},${j.airingAt}"
+                                }
+                            } else null
+                        }
+                    } ?: listOf()
+                )
             }
+
             next()
+
             while (res?.pageInfo?.hasNextPage == true) {
-                next()
                 i++
+                next()
             }
+
             return list.reversed().toMutableList()
         }
     }
@@ -801,7 +855,11 @@ Page(page:$page,perPage:50) {
     }
   }
 }""".replace("\n", " ").replace("""  """, "")
-        executeQuery<Query.Character>(query, force = true)?.data?.character?.apply {
+        executeQuery<Query.Character>(
+            query,
+            force = true,
+            cache = AnilistCache.SIX_HOURS_MINUTES
+        )?.data?.character?.apply {
             character.age = age
             character.gender = gender
             character.description = description
@@ -865,7 +923,11 @@ Page(page:$page,perPage:50) {
         while (hasNextPage) {
             page++
             hasNextPage =
-                executeQuery<Query.Studio>(query(page), force = true)?.data?.studio?.media?.let {
+                executeQuery<Query.Studio>(
+                    query(page),
+                    force = true,
+                    cache = AnilistCache.SIX_HOURS_MINUTES
+                )?.data?.studio?.media?.let {
                     it.edges?.forEach { i ->
                         i.node?.apply {
                             val status = status.toString()
@@ -887,6 +949,7 @@ Page(page:$page,perPage:50) {
         studio.yearMedia = yearMedia
         return studio
     }
+
 
     suspend fun getAuthorDetails(author: Author): Author {
         fun query(page: Int = 0) = """ {
@@ -941,7 +1004,8 @@ Page(page:$page,perPage:50) {
             hasNextPage =
                 executeQuery<Query.Author>(
                     query(page),
-                    force = true
+                    force = true,
+                    cache = AnilistCache.SIX_HOURS_MINUTES
                 )?.data?.author?.staffMedia?.let {
                     it.edges?.forEach { i ->
                         i.node?.apply {

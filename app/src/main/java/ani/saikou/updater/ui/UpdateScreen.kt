@@ -160,7 +160,7 @@ fun AppUpdateContent(
                     imageVector = Icons.Default.SystemUpdate,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(64.dp)
+                    modifier = Modifier.size(60.dp)
                 )
             }
         }

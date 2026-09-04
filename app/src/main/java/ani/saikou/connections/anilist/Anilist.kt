@@ -7,12 +7,18 @@ import androidx.core.net.toUri
 import ani.saikou.Mapper
 import ani.saikou.R
 import ani.saikou.client
+import ani.saikou.connections.anilist.room.AnilistCache
 import ani.saikou.currContext
 import ani.saikou.logError
 import ani.saikou.openLinkInBrowser
+import ani.saikou.tryWith
 import ani.saikou.tryWithSuspend
 import java.io.File
 import java.util.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -121,6 +127,8 @@ object Anilist {
         return false
     }
 
+    private val cacheScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     fun removeSavedToken(context: Context) {
         token = null
         username = null
@@ -131,6 +139,7 @@ object Anilist {
         episodesWatched = null
         chapterRead = null
         isTokenChecked = false
+        cacheScope.launch { AnilistCache.clear() }
         if ("anilistToken" in context.fileList()) {
             File(context.filesDir, "anilistToken").delete()
         }
@@ -207,6 +216,13 @@ object Anilist {
         return true
     }
 
+    /**
+     * @param cache Minutes to persist a successful response for in [AnilistCache].
+     *   Leave `null` (the default) to skip caching entirely — use this for anything
+     *   that must stay live, e.g. search queries and progress/list-status mutations.
+     *   Pass [AnilistCache.SIX_HOURS_MINUTES] for data that's fine to be a few hours stale
+     *   (media details, static lists, etc.) to cut down on rate-limit hits.
+     */
     suspend inline fun <reified T : Any> executeQuery(
         query: String,
         variables: String = "",
@@ -218,6 +234,14 @@ object Anilist {
         lastErrorMessage = null
 
         ensureToken()
+
+        val key = AnilistCache.key(query, variables, if (useToken) token else null)
+
+        if (cache != null && cache > 0) {
+            AnilistCache.get(key)?.let { rawJson ->
+                tryWith(post = false) { Mapper.parse<T>(rawJson) }?.let { return it }
+            }
+        }
 
         return tryWithSuspend(post = true, snackbar = true) {
             val data = mapOf(
@@ -239,7 +263,7 @@ object Anilist {
                     "https://graphql.anilist.co/",
                     headers,
                     data = data,
-                    cacheTime = cache ?: 10
+                    cacheTime = 0
                 )
 
                 val statusCode = json.code
@@ -258,6 +282,10 @@ object Anilist {
                 if (statusCode !in 200..299) {
                     lastErrorMessage = snackForStatus(statusCode, null)
                     throw Exception(lastErrorMessage)
+                }
+
+                if (cache != null && cache > 0) {
+                    AnilistCache.put(key, json.text, cache)
                 }
 
                 json.parsed()

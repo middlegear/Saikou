@@ -4,7 +4,7 @@ import java.io.Serializable
 
 data class UserInterfaceSettings(
     var darkMode: Boolean? = null,
-    var showYtButton: Boolean = true,
+    var showYtButton: Boolean = false,
     var animeDefaultView: Int = 0,
     var mangaDefaultView: Int = 0,
 

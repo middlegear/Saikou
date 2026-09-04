@@ -20,6 +20,7 @@ fun PlayerGestures(
     isControlsLocked: Boolean,
     isDoubleTapEnabled: Boolean,
     isVerticalSwipeEnabled: Boolean,
+    holdToFastForward: Boolean,
     onSingleTap: () -> Unit,
     onDoubleTapLeft: () -> Unit,
     onDoubleTapRight: () -> Unit,
@@ -43,10 +44,13 @@ fun PlayerGestures(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(isControlsLocked) {
+            .pointerInput(isControlsLocked, isDoubleTapEnabled) {
                 if (isControlsLocked) return@pointerInput
+
                 detectTapGestures(
-                    onTap = { currentSingleTap() },
+                    onTap = {
+                        currentSingleTap()
+                    },
                     onDoubleTap = { offset ->
                         if (isDoubleTapEnabled) {
                             if (offset.x < size.width / 2f) {
@@ -58,8 +62,7 @@ fun PlayerGestures(
                     }
                 )
             }
-
-            .pointerInput(isControlsLocked) {
+            .pointerInput(isControlsLocked, isVerticalSwipeEnabled, holdToFastForward) {
                 if (isControlsLocked) return@pointerInput
 
                 val dragSlopPx = 30.dp.toPx()
@@ -69,56 +72,110 @@ fun PlayerGestures(
                     val down = awaitFirstDown(requireUnconsumed = false)
 
                     val isNearTopEdge = down.position.y < 40.dp.toPx()
-                    val isNearBottomEdge = down.position.y > (size.height - 48.dp.toPx())
-                    val isNearLeftEdge = down.position.x <= size.width * 0.05f
-                    val isNearRightEdge = down.position.x >= size.width * 0.95f
-                    if (isNearTopEdge || isNearBottomEdge || isNearLeftEdge || isNearRightEdge) return@awaitEachGesture
+                    val isNearBottomEdge =
+                        down.position.y > size.height - 48.dp.toPx()
+                    val isNearLeftEdge =
+                        down.position.x <= size.width * 0.05f
+                    val isNearRightEdge =
+                        down.position.x >= size.width * 0.95f
+
+                    if (isNearTopEdge || isNearBottomEdge || isNearLeftEdge || isNearRightEdge) {
+                        return@awaitEachGesture
+                    }
 
                     val touchStartX = down.position.x
                     val touchStartY = down.position.y
                     val isLeftSide = touchStartX < size.width / 2f
+                    val pointerId = down.id
 
                     var dragStarted = false
                     var isSpeedBoosted = false
-                    val pointerId = down.id
-
-                    val gestureResult = withTimeoutOrNull(longPressTimeout) {
+                    if (!holdToFastForward) {
                         while (true) {
-
                             val event = awaitPointerEvent(PointerEventPass.Initial)
-                            val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                            val change =
+                                event.changes.firstOrNull { it.id == pointerId }
+                                    ?: break
 
                             if (!change.pressed) {
-                                return@withTimeoutOrNull false
+                                break
                             }
 
-                            val totalAccumulatedY = change.position.y - touchStartY
-                            val totalAccumulatedX = change.position.x - touchStartX
+                            val totalAccumulatedY =
+                                change.position.y - touchStartY
+                            val totalAccumulatedX =
+                                change.position.x - touchStartX
 
-                            if (abs(totalAccumulatedY) > dragSlopPx && abs(totalAccumulatedY) > abs(
-                                    totalAccumulatedX
-                                )
+                            if (
+                                isVerticalSwipeEnabled &&
+                                abs(totalAccumulatedY) > dragSlopPx &&
+                                abs(totalAccumulatedY) > abs(totalAccumulatedX)
                             ) {
-                                if (isVerticalSwipeEnabled) {
-                                    dragStarted = true
-                                    if (isLeftSide) currentBrightnessStart() else currentVolumeStart()
-                                    break
+                                dragStarted = true
+
+                                if (isLeftSide) {
+                                    currentBrightnessStart()
+                                } else {
+                                    currentVolumeStart()
                                 }
+
+                                break
                             }
                         }
-                        dragStarted
-                    }
-                    if (gestureResult == null) {
-                        isSpeedBoosted = true
-                        currentSpeedChanged(2.0f)
+                    } else {
+                        val gestureResult = withTimeoutOrNull(longPressTimeout) {
+                            while (true) {
+                                val event =
+                                    awaitPointerEvent(PointerEventPass.Initial)
+
+                                val change =
+                                    event.changes.firstOrNull { it.id == pointerId }
+                                        ?: break
+
+                                if (!change.pressed) {
+                                    return@withTimeoutOrNull false
+                                }
+
+                                val totalAccumulatedY =
+                                    change.position.y - touchStartY
+                                val totalAccumulatedX =
+                                    change.position.x - touchStartX
+
+                                if (
+                                    isVerticalSwipeEnabled &&
+                                    abs(totalAccumulatedY) > dragSlopPx &&
+                                    abs(totalAccumulatedY) > abs(totalAccumulatedX)
+                                ) {
+                                    dragStarted = true
+
+                                    if (isLeftSide) {
+                                        currentBrightnessStart()
+                                    } else {
+                                        currentVolumeStart()
+                                    }
+
+                                    return@withTimeoutOrNull false
+                                }
+                            }
+
+                            false
+                        }
+
+                        if (gestureResult == null) {
+                            isSpeedBoosted = true
+                            currentSpeedChanged(2.0f)
+                        }
                     }
 
-                    if (gestureResult == false && !isSpeedBoosted) return@awaitEachGesture
-
+                    if (!dragStarted && !isSpeedBoosted) {
+                        return@awaitEachGesture
+                    }
 
                     while (true) {
                         val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                        val change =
+                            event.changes.firstOrNull { it.id == pointerId }
+                                ?: break
 
                         if (!change.pressed) {
                             if (isSpeedBoosted) {
@@ -130,13 +187,23 @@ fun PlayerGestures(
 
                         val dragAmount = change.positionChange()
 
-                        if (dragStarted && !isSpeedBoosted && isVerticalSwipeEnabled) {
+                        if (
+                            dragStarted &&
+                            !isSpeedBoosted &&
+                            isVerticalSwipeEnabled
+                        ) {
                             if (abs(dragAmount.x) <= abs(dragAmount.y)) {
                                 change.consume()
+
                                 val deltaFraction =
-                                    (-dragAmount.y / size.height) * gestureSensitivity
-                                if (isLeftSide) currentBrightnessChanged(deltaFraction)
-                                else currentVolumeChanged(deltaFraction)
+                                    (-dragAmount.y / size.height) *
+                                            gestureSensitivity
+
+                                if (isLeftSide) {
+                                    currentBrightnessChanged(deltaFraction)
+                                } else {
+                                    currentVolumeChanged(deltaFraction)
+                                }
                             }
                         }
 

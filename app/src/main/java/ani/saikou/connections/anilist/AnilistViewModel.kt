@@ -6,6 +6,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import ani.saikou.R
+import ani.saikou.connections.anilist.room.AnilistCache
 import ani.saikou.loadData
 import ani.saikou.connections.mal.MAL
 import ani.saikou.media.Media
@@ -59,7 +60,8 @@ class AnilistHomeViewModel : ViewModel() {
 
     private val mangaPlanned: MutableLiveData<ArrayList<Media>> = MutableLiveData(null)
     fun getMangaPlanned(): LiveData<ArrayList<Media>> = mangaPlanned
-    suspend fun setMangaPlanned() = mangaPlanned.postValue(Anilist.query.continueMedia("MANGA", true))
+    suspend fun setMangaPlanned() =
+        mangaPlanned.postValue(Anilist.query.continueMedia("MANGA", true))
 
     private val recommendation: MutableLiveData<ArrayList<Media>> = MutableLiveData(null)
     fun getRecommendation(): LiveData<ArrayList<Media>> = recommendation
@@ -99,7 +101,8 @@ class AnilistAnimeViewModel : ViewModel() {
                 sort = Anilist.sortBy[2],
                 season = season,
                 seasonYear = year,
-                hd = true
+                hd = true,
+                cache = AnilistCache.SIX_HOURS_MINUTES
             )?.results
         )
     }
@@ -125,7 +128,8 @@ class AnilistAnimeViewModel : ViewModel() {
                 search = search_val,
                 onList = if (onList) null else false,
                 sort = sort,
-                genres = genres
+                genres = genres,
+                cache=  AnilistCache.SIX_HOURS_MINUTES
             )
         )
     }
@@ -142,7 +146,8 @@ class AnilistAnimeViewModel : ViewModel() {
                 r.tags,
                 r.format,
                 r.isAdult,
-                r.onList
+                r.onList,
+                cache=  AnilistCache.SIX_HOURS_MINUTES
             )
         )
     }
@@ -164,7 +169,8 @@ class AnilistMangaViewModel : ViewModel() {
                 type,
                 perPage = 10,
                 sort = Anilist.sortBy[2],
-                hd = true
+                hd = true,
+                cache=  AnilistCache.SIX_HOURS_MINUTES
             )?.results
         )
     }
@@ -177,7 +183,8 @@ class AnilistMangaViewModel : ViewModel() {
                 type,
                 perPage = 10,
                 sort = Anilist.sortBy[0],
-                format = "MANGA"
+                format = "MANGA",
+                cache=  AnilistCache.SIX_HOURS_MINUTES
             )?.results
         )
     }
@@ -197,7 +204,8 @@ class AnilistMangaViewModel : ViewModel() {
                 search = search_val,
                 onList = if (onList) null else false,
                 sort = sort,
-                genres = genres
+                genres = genres,
+                cache=  AnilistCache.SIX_HOURS_MINUTES
             )
         )
     }
@@ -283,17 +291,18 @@ class GenresViewModel : ViewModel() {
     var genres: MutableMap<String, String>? = null
     var done = false
     var doneListener: (() -> Unit)? = null
-    suspend fun loadGenres(genre: ArrayList<String>, listener: (Pair<String, String>) -> Unit) = withContext(Dispatchers.IO) {
-        if (genres == null) {
-            genres = mutableMapOf()
-            Anilist.query.getGenres(genre) {
-                genres!![it.first] = it.second
-                listener.invoke(it)
-                if (genres!!.size == genre.size) {
-                    done = true
-                    doneListener?.invoke()
+    suspend fun loadGenres(genre: ArrayList<String>, listener: (Pair<String, String>) -> Unit) =
+        withContext(Dispatchers.IO) {
+            if (genres == null) {
+                genres = mutableMapOf()
+                Anilist.query.getGenres(genre) {
+                    genres!![it.first] = it.second
+                    listener.invoke(it)
+                    if (genres!!.size == genre.size) {
+                        done = true
+                        doneListener?.invoke()
+                    }
                 }
             }
         }
-    }
 }

@@ -295,6 +295,7 @@ fun PlayerControlsLayout(
             isControlsLocked = isControlsLocked,
             onSingleTap = { isControlsVisible = !isControlsVisible },
             isDoubleTapEnabled = viewModel.settings.doubleTap,
+            holdToFastForward = viewModel.settings.holdToFastForward,
             isVerticalSwipeEnabled = viewModel.settings.verticalSwipe,
             onDoubleTapLeft = { triggerCompoundingSeek(SeekDirection.LEFT) },
             onDoubleTapRight = { triggerCompoundingSeek(SeekDirection.RIGHT) },
@@ -329,6 +330,7 @@ fun PlayerControlsLayout(
             },
             onSpeedChanged = { targetSpeed ->
                 viewModel.setPlaybackSpeed(targetSpeed)
+                viewModel.settings.holdToFastForward // this is the 2x fast forward when longpress
                 is2xActive = targetSpeed > 1.0f
                 if (is2xActive) isControlsVisible = false
             }
@@ -380,7 +382,6 @@ fun PlayerControlsLayout(
                 onSubtitleTracksButtonClicked = { showSubtitleTracksSheet = true },
                 subtitleTracks = subtitleTracks,
                 videoQualityTracks = videoTracks,
-                showVideoInfo = viewModel.settings.videoInfo,
                 onVideoTrackButtonClicked = { showVideoTracksSheet = true },
                 onMoreSettingsClicked = { openSheetState = true },
                 audioTracks = audioTracks,

@@ -5,6 +5,7 @@ plugins {
     id 'kotlin-kapt'
     id 'kotlinx-serialization'
     id 'org.jetbrains.kotlin.android'
+    id "com.google.devtools.ksp"
 }
 
 def gitCommitHash = providers.exec {
@@ -18,7 +19,7 @@ android {
         applicationId "ani.saikou"
         minSdk 26
         targetSdk 34
-        versionCode ((System.currentTimeMillis() / 60000).toInteger())
+        versionCode((System.currentTimeMillis() / 60000).toInteger())
         versionName "1.2.5"
         signingConfig signingConfigs.debug
 
@@ -103,6 +104,11 @@ dependencies {
 
     implementation 'com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0'
 
+    // Room
+    ext.roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 
     // Glide
     implementation 'com.github.bumptech.glide:glide:4.16.0'
@@ -113,11 +119,6 @@ dependencies {
 
     // ExoPlayer / Media3
     ext.exo_version = '1.5.1'
-    implementation "androidx.media3:media3-exoplayer:$exo_version"
-    implementation "androidx.media3:media3-ui:$exo_version"
-    implementation "androidx.media3:media3-exoplayer-hls:$exo_version"
-    implementation "androidx.media3:media3-exoplayer-dash:$exo_version"
-    implementation "androidx.media3:media3-datasource-okhttp:$exo_version"
     implementation "androidx.media3:media3-session:$exo_version"
 
     // UI
