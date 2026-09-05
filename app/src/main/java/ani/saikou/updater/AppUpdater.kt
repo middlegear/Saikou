@@ -8,8 +8,6 @@ import ani.saikou.BuildConfig
 import ani.saikou.R
 import ani.saikou.client
 import ani.saikou.loadData
-import ani.saikou.logError
-import ani.saikou.logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -144,7 +142,6 @@ object AppUpdater {
                         it.browserDownloadURL?.endsWith(".apk", ignoreCase = true) == true
                     }?.browserDownloadURL ?: "https://github.com/$repo/releases/tag/v$version"
                 } catch (e: Exception) {
-                    logger("AppUpdater: Failed to fetch specific release tag asset: ${e.message}. Falling back to default release page URL.")
                     "https://github.com/$repo/releases/tag/v$version"
                 }
 
@@ -163,7 +160,7 @@ object AppUpdater {
             if (elapsedTime < minDelay) {
                 delay((minDelay - elapsedTime).milliseconds)
             }
-            logError(e)
+
 
             val errorMessage = if (e.message?.contains("rate limit", ignoreCase = true) == true) {
                 "GitHub API rate limit exceeded. Try again later."
@@ -206,10 +203,9 @@ object AppUpdater {
                 .url(url)
                 .build()
 
-            logger("AppUpdater: Sending OkHttp request...")
+
             val response = okHttpClient.newCall(request).execute()
             if (!response.isSuccessful) {
-                logger("AppUpdater: Download HTTP failure ${response.code}: ${response.message}")
                 throw IOException("HTTP ${response.code}: ${response.message}")
             }
 
@@ -263,7 +259,7 @@ object AppUpdater {
                 throw e
             }
 
-            logError(e)
+
             _updateState.value = UpdateState.Error(e.localizedMessage ?: "Download failed")
         }
     }
@@ -276,14 +272,14 @@ object AppUpdater {
     }
 
     fun installApk(context: Context, file: File) {
-        logger("AppUpdater: Launching installation for file: ${file.absolutePath}")
+
         try {
             val contentUri: Uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.provider",
                 file
             )
-            logger("AppUpdater: Generated content URI: $contentUri")
+
             val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -291,10 +287,7 @@ object AppUpdater {
                 setDataAndType(contentUri, "application/vnd.android.package-archive")
             }
             context.startActivity(installIntent)
-            logger("AppUpdater: Package installer Intent started successfully.")
         } catch (e: Exception) {
-            logError(e)
-            logger("AppUpdater: Failed to launch installer Intent: ${e.message}")
             _updateState.value = UpdateState.Error("Failed to launch package installer")
         }
     }
@@ -316,7 +309,6 @@ object AppUpdater {
         val newVer = toDouble(version.split("."))
         val currVer = toDouble(BuildConfig.VERSION_NAME.split("."))
         val isNewer = newVer > currVer
-        logger("AppUpdater: Version parsed comparison -> Remote: $newVer | Local: $currVer | Result: $isNewer")
         return isNewer
     }
 
@@ -326,7 +318,7 @@ object AppUpdater {
                 timeZone = TimeZone.getTimeZone("UTC")
             }.parse(this)?.time ?: 0L
         } catch (e: Exception) {
-            logger("AppUpdater: Failed to parse timestamp '$this'")
+
             0L
         }
     }

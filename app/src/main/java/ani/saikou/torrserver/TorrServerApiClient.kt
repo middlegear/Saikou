@@ -21,7 +21,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class TorrServerApiClient(
-    private val baseUrl: String = "http://127.0.0.1:8090",
+    initialPort: Int = 8090,
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -30,6 +30,19 @@ class TorrServerApiClient(
 ) {
     companion object {
         private const val TAG = "TorrServer"
+    }
+
+    @Volatile
+    private var port: Int = initialPort
+
+    private val baseUrl: String
+        get() = "http://127.0.0.1:$port"
+
+    fun updatePort(newPort: Int) {
+        if (port != newPort) {
+            Log.d(TAG, "Repointing TorrServer API client from port $port to $newPort")
+            port = newPort
+        }
     }
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -115,8 +128,6 @@ class TorrServerApiClient(
         }
     }
 
-
-
     suspend fun removeTorrent(hash: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val payload = JSONObject().apply {
@@ -141,20 +152,6 @@ class TorrServerApiClient(
         val encodedFileName = Uri.encode(fileName)
         return "$baseUrl/stream/$encodedFileName?link=$hash&index=$fileIndex&play"
     }
-
-
-//    suspend fun healthCheck(): Boolean = withContext(Dispatchers.IO) {
-//        try {
-//            val request = Request.Builder()
-//                .url("$baseUrl/echo")
-//                .get()
-//                .build()
-//            val response = client.executeAsync(request)
-//            response.isNotBlank()
-//        } catch (e: Exception) {
-//            false
-//        }
-//    }
 
     suspend fun updateSettings(settingsPayload: JSONObject): Boolean = withContext(Dispatchers.IO) {
         try {

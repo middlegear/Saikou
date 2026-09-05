@@ -72,8 +72,10 @@ class TorrServerService : Service() {
             Log.d(TAG, "Starting server...")
             val result = manager.startServer()
             if (result.isSuccess) {
+                val port = result.getOrNull()
+                if (port != null) apiClient.updatePort(port)
                 isServerReady = true
-                Log.d(TAG, "Server started successfully")
+                Log.d(TAG, "Server started successfully on port $port")
                 applySettingsToServer(currentSettings, clearCache = false)
                 settingsApplied = true
             } else {
@@ -225,6 +227,7 @@ class TorrServerService : Service() {
                     startInactivityTimer()
                     return null
                 }
+                result.getOrNull()?.let { apiClient.updatePort(it) }
                 isServerReady = true
                 applySettingsToServer(currentSettings, clearCache = false)
                 settingsApplied = true

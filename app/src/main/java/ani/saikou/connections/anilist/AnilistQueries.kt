@@ -690,10 +690,25 @@ query (${"$"}page: Int = 1, ${"$"}id: Int, ${"$"}type: MediaType, ${"$"}isAdult:
         lesser: Long = 0
     ): MutableList<Media>? {
         val now = System.currentTimeMillis() / 1000
-        val cacheWindow = (now / (24 * 60 * 60)) * (24 * 60 * 60)
+        val cutoff = now - 10000
+        val day = 24 * 60 * 60
+        val midnight = (now / day) * day
+        val windowStart = midnight - (12 * 60 * 60)
+        val windowEnd = midnight + (12 * 60 * 60)
 
-        val airingAtGreater = if (greater > 0) greater else cacheWindow
-        val airingAtLesser = if (lesser > 0) lesser else airingAtGreater + (24 * 60 * 60)
+        val hasCustomRange = greater > 0 || lesser > 0
+
+        val airingAtGreater = if (greater > 0) {
+            greater
+        } else {
+            windowStart
+        }
+
+        val airingAtLesser = if (lesser > 0) {
+            lesser
+        } else {
+            windowEnd
+        }
 
         suspend fun execute(page: Int = 1): Page? {
             val query = """{
@@ -749,55 +764,69 @@ Page(page:$page,perPage:50) {
 
         if (smaller) {
             val response = execute()?.airingSchedules ?: return null
-            val idArr = mutableListOf<Int>()
+            val idArr = mutableSetOf<Int>()
             val listOnly = loadData("recently_list_only") ?: false
 
-            return response.mapNotNull { i ->
-                i.media?.let {
-                    if (!idArr.contains(it.id))
-                        if (
-                            (!listOnly &&
-                                    it.countryOfOrigin == "JP" &&
-                                    (if (!Anilist.adult) it.isAdult == false else true)) ||
-                            (listOnly && it.mediaListEntry != null)
-                        ) {
-                            idArr.add(it.id)
-                            Media(it)
-                        } else null
-                    else null
+            return response.mapNotNull { schedule ->
+                val airingAt = schedule.airingAt ?: return@mapNotNull null
+                val media = schedule.media ?: return@mapNotNull null
+
+                if (!hasCustomRange && airingAt > cutoff) {
+                    return@mapNotNull null
+                }
+
+                if (!idArr.add(media.id)) {
+                    return@mapNotNull null
+                }
+
+                val listOnly = loadData("recently_list_only") ?: false
+
+                val allowed =
+                    if (listOnly) {
+                        media.mediaListEntry != null
+                    } else {
+                        media.countryOfOrigin == "JP" &&
+                                (Anilist.adult || media.isAdult == false)
+                    }
+
+                if (allowed) {
+                    Media(media)
+                } else {
+                    null
                 }
             }.toMutableList()
         } else {
-            var i = 1
+            var page = 1
             val list = mutableListOf<Media>()
-            var res: Page? = null
+            var res: Page?
 
-            suspend fun next() {
-                res = execute(i)
-                list.addAll(
-                    res?.airingSchedules?.mapNotNull { j ->
-                        j.media?.let {
-                            if (
-                                it.countryOfOrigin == "JP" &&
-                                (if (!Anilist.adult) it.isAdult == false else true)
-                            ) {
-                                Media(it).apply {
-                                    relation = "${j.episode},${j.airingAt}"
-                                }
-                            } else null
-                        }
-                    } ?: listOf()
-                )
+            do {
+                res = execute(page)
+
+                res?.airingSchedules?.forEach { schedule ->
+                    val airingAt = schedule.airingAt ?: return@forEach
+                    val media = schedule.media ?: return@forEach
+                    if (
+                        (hasCustomRange || airingAt <= cutoff) &&
+                        media.countryOfOrigin == "JP" &&
+                        (Anilist.adult || media.isAdult == false)
+                    ) {
+                        list.add(
+                            Media(media).apply {
+                                relation = "${schedule.episode},$airingAt"
+                            }
+                        )
+                    }
+                }
+
+                page++
+            } while (res?.pageInfo?.hasNextPage == true)
+
+            return if (hasCustomRange) {
+                list.reversed().toMutableList()
+            } else {
+                list.toMutableList()
             }
-
-            next()
-
-            while (res?.pageInfo?.hasNextPage == true) {
-                i++
-                next()
-            }
-
-            return list.reversed().toMutableList()
         }
     }
 
