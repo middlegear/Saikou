@@ -95,7 +95,6 @@ class MpvVideoPlayer(
 
     private val targetBufferSeconds = 5.0
 
-
     private var wasBackgrounded = false
     private var lastGoodPositionMs = 0L
 
@@ -129,9 +128,8 @@ class MpvVideoPlayer(
         mpv.setOptionString("msg-level", "all=v")
         mpv.setOptionString("ytdl", "no")
 
-        mpv.setOptionString("audio-channels", "7.1,5.1,stereo")
+        mpv.setOptionString("audio-channels", "auto-safe")
         mpv.setOptionString("ad-lavc-downmix", "no")
-
 
         mpv.setOptionString("audio-buffer", "0.5")
 
@@ -200,6 +198,9 @@ class MpvVideoPlayer(
         mpv.observeProperty("hwdec-current", MPV.mpvFormat.MPV_FORMAT_STRING)
         mpv.observeProperty("cache-buffering-state", MPV.mpvFormat.MPV_FORMAT_INT64)
         mpv.observeProperty("core-idle", MPV.mpvFormat.MPV_FORMAT_FLAG)
+        mpv.observeProperty("audio-channels", MPV.mpvFormat.MPV_FORMAT_STRING)
+        mpv.observeProperty("audio-params", MPV.mpvFormat.MPV_FORMAT_NODE)
+        mpv.observeProperty("audio-out-params", MPV.mpvFormat.MPV_FORMAT_NODE)
 
         setupObservers()
     }
@@ -215,8 +216,12 @@ class MpvVideoPlayer(
                 handlePropertyChange(property)
             override fun eventProperty(property: String, value: Double) =
                 handlePropertyChange(property)
-            override fun eventProperty(property: String, value: MPVNode) =
+            override fun eventProperty(property: String, value: MPVNode) {
                 handlePropertyChange(property)
+                if (property == "audio-params" || property == "audio-out-params") {
+                    detectAndUpdateAudioChannel()
+                }
+            }
 
             override fun event(eventId: Int, data: MPVNode) {
                 Log.d(TAG, "MPV Event: $eventId")
@@ -263,6 +268,7 @@ class MpvVideoPlayer(
                         pendingMediaState = null
                         updateBufferingProgress()
                         refreshPlayerState()
+                        detectAndUpdateAudioChannel()
                     }
 
                     MPV.mpvEvent.MPV_EVENT_END_FILE -> {
@@ -324,7 +330,10 @@ class MpvVideoPlayer(
 
             "volume" -> _volume.value = mpv.getPropertyInt("volume") ?: 100
             "speed" -> _playbackSpeed.value = (mpv.getPropertyDouble("speed") ?: 1.0).toFloat()
-            "track-list" -> refreshTracks()
+            "track-list" -> {
+                refreshTracks()
+                detectAndUpdateAudioChannel()
+            }
             "vid" -> {
                 val activeId = mpv.getPropertyInt("vid") ?: 0
                 _currentVideoTrack.value =
@@ -335,6 +344,7 @@ class MpvVideoPlayer(
                 val activeId = mpv.getPropertyString("aid")?.toIntOrNull() ?: 0
                 _currentAudioTrack.value =
                     _audioTracks.value.firstOrNull { it.id == activeId } ?: defaultAudioTrack
+                detectAndUpdateAudioChannel()
             }
 
             "sid" -> {
@@ -387,6 +397,75 @@ class MpvVideoPlayer(
             }
 
             "seeking", "eof-reached" -> refreshPlayerState()
+            "audio-channels", "audio-params", "audio-out-params" -> {
+                detectAndUpdateAudioChannel()
+            }
+        }
+    }
+
+    private fun detectAndUpdateAudioChannel() {
+        // Get the actual audio output format (most accurate)
+        val audioOutParams = mpv.getPropertyNode("audio-out-params")
+        val audioOutParamsMap = audioOutParams?.asMap()
+        val outputChannelCount = audioOutParamsMap?.get("channel-count")?.asInt()?.toInt()
+
+        // Also get input params for reference
+        val audioParams = mpv.getPropertyNode("audio-params")
+        val audioParamsMap = audioParams?.asMap()
+        val inputChannelCount = audioParamsMap?.get("channel-count")?.asInt()?.toInt()
+
+        // Get current selected track's channels
+        val selectedTrack = _currentAudioTrack.value
+        val sourceChannels = selectedTrack.channels
+
+        Log.d(TAG, "Audio detection - Source: $sourceChannels, Input: $inputChannelCount, Output: $outputChannelCount")
+
+        // Use actual output first (most accurate representation of what's playing)
+        if (outputChannelCount != null && outputChannelCount > 0) {
+            val actualChannel = when (outputChannelCount) {
+                1 -> AudioChannels.Mono
+                2 -> AudioChannels.Stereo
+                in 3..6 -> AudioChannels.Surround51
+                else -> AudioChannels.Auto
+            }
+
+            // Always update to reflect actual output
+            if (_audioChannel.value != actualChannel) {
+                Log.d(TAG, "Audio channel updated to actual output: $actualChannel ($outputChannelCount channels)")
+                _audioChannel.value = actualChannel
+            }
+            return
+        }
+
+        // Fallback to input params if output not available yet
+        if (inputChannelCount != null && inputChannelCount > 0) {
+            val inputChannel = when (inputChannelCount) {
+                1 -> AudioChannels.Mono
+                2 -> AudioChannels.Stereo
+                in 3..6 -> AudioChannels.Surround51
+                else -> AudioChannels.Auto
+            }
+
+            if (_audioChannel.value != inputChannel) {
+                Log.d(TAG, "Audio channel detected from input: $inputChannel ($inputChannelCount channels)")
+                _audioChannel.value = inputChannel
+            }
+            return
+        }
+
+        // Final fallback to source track channels
+        if (sourceChannels != null && sourceChannels > 0) {
+            val sourceChannel = when (sourceChannels) {
+                1 -> AudioChannels.Mono
+                2 -> AudioChannels.Stereo
+                in 3..6 -> AudioChannels.Surround51
+                else -> AudioChannels.Auto
+            }
+
+            if (_audioChannel.value == AudioChannels.Auto) {
+                Log.d(TAG, "Audio channel detected from source: $sourceChannel ($sourceChannels channels)")
+                _audioChannel.value = sourceChannel
+            }
         }
     }
 
@@ -540,6 +619,7 @@ class MpvVideoPlayer(
         _bufferCacheDuration.value = 0L
         _bufferingProgress.value = 0f
         _mediaLoaded.value = false
+        _audioChannel.value = AudioChannels.Auto
 
         isInitialized = false
         surfaceReady = false
@@ -651,6 +731,7 @@ class MpvVideoPlayer(
         _currentVideoTrack.value = defaultVideoTrack
         _duration.value = 0L
         _currentPosition.value = 0L
+        _audioChannel.value = AudioChannels.Auto
 
         mpv.setPropertyString("http-header-fields", "")
 
@@ -727,14 +808,29 @@ class MpvVideoPlayer(
 
     fun setAudioChannel(channel: AudioChannels) {
         if (!isInitialized || isShutdown.get()) return
-        if (channel.property == "af") {
-            mpv.setPropertyString("af", channel.value)
-            mpv.setPropertyString("audio-channels", "auto-safe")
-        } else {
-            mpv.setPropertyString("af", "")
-            mpv.setPropertyString(channel.property, channel.value)
+
+        when (channel) {
+            AudioChannels.Auto -> {
+                mpv.setPropertyString("audio-channels", "auto-safe")
+                mpv.setPropertyString("af", "")
+            }
+            AudioChannels.Mono -> {
+                mpv.setPropertyString("af", "")
+                mpv.setPropertyString("audio-channels", "mono")
+            }
+            AudioChannels.Stereo -> {
+                mpv.setPropertyString("af", "")
+                mpv.setPropertyString("audio-channels", "stereo")
+            }
+            AudioChannels.Surround51 -> {
+                mpv.setPropertyString("af", "")
+                mpv.setPropertyString("audio-channels", "5.1,stereo")
+            }
         }
+
         _audioChannel.value = channel
+        Log.d(TAG, "Audio channel requested: $channel")
+
     }
 
     fun setVideoScaleMode(mode: VideoScaleMode) {

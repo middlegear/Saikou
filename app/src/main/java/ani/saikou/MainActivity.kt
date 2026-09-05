@@ -59,6 +59,8 @@ class MainActivity : AppCompatActivity() {
     private var load = false
     private var uiSettings = UserInterfaceSettings()
 
+    private var lastAppliedStartTab: Int? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -111,10 +113,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        uiSettings = loadData("ui_settings") ?: uiSettings
+        selectedOption = uiSettings.defaultStartUpTab
+        lastAppliedStartTab = uiSettings.defaultStartUpTab
+
         binding.root.doOnAttach {
             initActivity(this)
-            uiSettings = loadData("ui_settings") ?: uiSettings
-            selectedOption = uiSettings.defaultStartUpTab
             binding.navbarContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
                 bottomMargin = navBarHeight
             }
@@ -151,9 +155,7 @@ class MainActivity : AppCompatActivity() {
                 }
             })
 
-            val initialTab = if (Anilist.token.isNullOrEmpty()) 1 else selectedOption
-            navigateToTab(initialTab)
-
+            navigateToTab(selectedOption)
 
             lifecycleScope.launch {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -245,6 +247,19 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!::binding.isInitialized) return
+
+        val freshSettings = loadData<UserInterfaceSettings>("ui_settings") ?: return
+        uiSettings = freshSettings
+
+        if (freshSettings.defaultStartUpTab != lastAppliedStartTab) {
+            lastAppliedStartTab = freshSettings.defaultStartUpTab
+            navigateToTab(freshSettings.defaultStartUpTab)
         }
     }
 

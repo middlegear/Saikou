@@ -260,7 +260,7 @@ fun PlayerControlsLayout(
 
         if (viewModel.settings.autoSkipOPED && isSkippableType) {
             val currentMs = viewModel.currentPosition.value
-            val targetMs = stamp.endTimeMs ?: durationMs  /// durationMs is the entire file duration
+            val targetMs = stamp.endTimeMs ?: durationMs
 
             manualSkipOffsetMs = targetMs - currentMs
             viewModel.seekTo(targetMs)
@@ -435,7 +435,7 @@ fun PlayerControlsLayout(
 
 
         AnimatedVisibility(
-            visible = !is2xActive,
+            visible = !is2xActive && !isControlsLocked,
             enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
             exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
             modifier = Modifier
@@ -605,9 +605,9 @@ fun PlayerControlsLayout(
             SubtitlesTracksSheet(
                 title = "Select Subtitle",
                 trackList = subtitleTracks,
-                currentTrack = currentSubtitleTrack,
-                onTrackSelected = { track ->
-                    viewModel.selectSubtitleTrack(track.id)
+                currentTrackId = currentSubtitleTrack.id,
+                onTrackSelected = { trackId ->
+                    viewModel.selectSubtitleTrack(trackId ?: -1)
                     showSubtitleTracksSheet = false
                 },
                 onDismissRequest = { showSubtitleTracksSheet = false }

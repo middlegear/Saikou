@@ -4,22 +4,25 @@ import androidx.compose.runtime.Composable
 import ani.saikou.media.anime.mpv.SubtitleTrack
 
 @Composable
-
 fun SubtitlesTracksSheet(
     title: String = "Select Subtitle",
     trackList: List<SubtitleTrack>,
-    currentTrack: SubtitleTrack,
-    onTrackSelected: (SubtitleTrack) -> Unit,
+    currentTrackId: Int?,
+    onTrackSelected: (Int?) -> Unit,
     onDismissRequest: () -> Unit
 ) {
+    val items: List<SubtitleTrack?> = listOf(null) + trackList
+    val currentTrackObj = trackList.find { it.id == currentTrackId }
     GenericTracksSheet(
         title = title,
-        trackList = trackList,
-        currentTrack = currentTrack,
+        trackList = items,
+        currentTrack = currentTrackObj,
         trackToText = { track ->
-            track.name.ifEmpty { "Unknown Subtitle" }
+            track?.name?.ifEmpty { track.language ?: "Unknown Subtitle" } ?: "None"
         },
-        onTrackSelected = onTrackSelected,
+        onTrackSelected = { selectedTrack ->
+            onTrackSelected(selectedTrack?.id)
+        },
         onDismissRequest = onDismissRequest
     )
 }

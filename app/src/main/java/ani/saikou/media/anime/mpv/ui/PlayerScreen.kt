@@ -156,19 +156,26 @@ fun PlayerScreen(
         // 2. UI Controls Layer – shows once ready or if custom loading screen is disabled
         if (!isDialogShowing) {
             AnimatedVisibility(
-                visible = isPlayerReady || !showCustomLoadingScreen,
+                visible = isPlayerReady || !showCustomLoadingScreen || !hasArtwork,
                 enter = fadeIn(animationSpec = tween(250)),
                 exit = fadeOut(animationSpec = tween(250))
             ) {
-                AnimatedContent(
-                    targetState = isControlsLocked,
-                    label = "ControlLockTransition",
-                    transitionSpec = {
-                        fadeIn(animationSpec = tween(durationMillis = 350))
-                            .togetherWith(fadeOut(animationSpec = tween(durationMillis = 350)))
-                    }
-                ) { targetLockedState ->
-                    if (targetLockedState) {
+                Box(modifier = Modifier.fillMaxSize()) {
+
+                    PlayerControlsLayout(
+                        viewModel = viewModel,
+                        episodeUi = episodeUiState,
+                        isControlsLocked = isControlsLocked,
+                        onLockChanged = { isControlsLocked = it },
+                        actions = actions,
+                        activity = activity
+                    )
+
+                    AnimatedVisibility(
+                        visible = isControlsLocked,
+                        enter = fadeIn(animationSpec = tween(durationMillis = 350)),
+                        exit = fadeOut(animationSpec = tween(durationMillis = 350))
+                    ) {
                         var isUnlockButtonVisible by remember { mutableStateOf(true) }
 
                         LaunchedEffect(isUnlockButtonVisible) {
@@ -214,15 +221,6 @@ fun PlayerScreen(
                                 }
                             }
                         }
-                    } else {
-                        PlayerControlsLayout(
-                            viewModel = viewModel,
-                            episodeUi = episodeUiState,
-                            isControlsLocked = isControlsLocked,
-                            onLockChanged = { isControlsLocked = it },
-                            actions = actions,
-                            activity = activity
-                        )
                     }
                 }
             }

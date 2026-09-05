@@ -17,16 +17,9 @@ enum class PlaybackState {
 
 enum class AudioChannels(val title: String, val property: String, val value: String) {
     Auto("Auto", "audio-channels", "auto-safe"),
-    AutoSafe("Auto Safe", "audio-channels", "auto"),
     Mono("Mono", "audio-channels", "mono"),
     Stereo("Stereo", "audio-channels", "stereo"),
-    ReverseStereo("Reverse Stereo", "af", "pan=[stereo|c0=c1|c1=c0]"),
-
-
     Surround51("5.1 Surround", "audio-channels", "5.1,stereo"),
-
-    //might have to remove surround 7.1
-    Surround71("7.1 Surround", "audio-channels", "7.1,5.1,stereo"),
 }
 
 enum class VideoScaleMode {
@@ -112,9 +105,13 @@ object TrackParser {
 
             when (type) {
                 "audio" -> {
-                    val channels = map["audio-channels"]?.asInt()?.toInt()
-                        ?: map["demux-channel-count"]?.asInt()?.toInt()
+                    // Better channel detection
+                    val channels = map["demux-channel-count"]?.asInt()?.toInt()
+                        ?: map["audio-channels"]?.asInt()?.toInt()
                         ?: map["channels"]?.asInt()?.toInt()
+
+
+                    val channelLayout = map["channel-layout"]?.asString()
 
                     val sampleRate = map["demux-samplerate"]?.asInt()?.toInt()
                     val bitrate = map["demux-bitrate"]?.asInt()?.toLong()
@@ -129,12 +126,17 @@ object TrackParser {
                         else lang?.uppercase() ?: "Unknown"
                     }
 
-                    val channelStr = when (channels) {
-                        1 -> "Mono"
-                        2 -> "Stereo"
-                        6 -> "5.1"
-                        8 -> "7.1"
-                        else -> if (channels != null) "${channels}ch" else null
+
+                    val channelStr = when {
+                        channelLayout?.contains("5.1", ignoreCase = true) == true -> "5.1 Surround"
+                        channelLayout?.contains("7.1", ignoreCase = true) == true -> "7.1 Surround"
+                        channelLayout?.contains("stereo", ignoreCase = true) == true -> "Stereo"
+                        channelLayout?.contains("mono", ignoreCase = true) == true -> "Mono"
+                        channels == 1 -> "Mono"
+                        channels == 2 -> "Stereo"
+                        channels == 6 -> "5.1 Surround"
+                        channels == 8 -> "7.1 Surround"
+                        else -> if (channels != null) "${channels}ch" else "Unknown"
                     }
 
                     val codecStr = buildString {
@@ -151,7 +153,6 @@ object TrackParser {
                         if (kbps > 0) "${kbps}kbps" else null
                     }
 
-
                     val details = listOfNotNull(codecStr, channelStr, sampleRateStr, bitrateStr)
                         .joinToString(" · ")
                     val name = "$langName ($details)"
@@ -167,7 +168,7 @@ object TrackParser {
                             isSelected = isSelected
                         )
                     )
-                    Log.d("TrackParser", "Parsed AudioTrack → id=$id name=$name")
+                    Log.d("TrackParser", "Parsed AudioTrack → id=$id name=$name channels=$channels layout=$channelLayout")
                 }
 
                 "sub" -> {
@@ -177,7 +178,6 @@ object TrackParser {
                     val title = map["title"]?.asString()
 
                     val langName = langCodeToName(lang)
-
 
                     val codecStr = when (codec?.lowercase()) {
                         "webvtt" -> "WebVTT"
@@ -249,9 +249,7 @@ object TrackParser {
 
                     val fpsStr = fps?.let {
                         val rounded = Math.round(it * 10) / 10.0
-                        if (rounded == rounded.toLong()
-                                .toDouble()
-                        ) "${rounded.toLong()}fps" else "${rounded}fps"
+                        if (rounded == rounded.toLong().toDouble()) "${rounded.toLong()}fps" else "${rounded}fps"
                     }
 
                     val bitrateStr = bitrate?.let {
@@ -281,7 +279,7 @@ object TrackParser {
         return Triple(audio, subtitle, video)
     }
 
-    private fun langCodeToName(lang: String?): String? = when (lang?.lowercase()) {
+    fun langCodeToName(lang: String?): String? = when (lang?.lowercase()) {
         "ja", "jpn" -> "Japanese"
         "en", "eng" -> "English"
         "zh", "zho", "chi" -> "Chinese"
