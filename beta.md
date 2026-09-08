@@ -1,4 +1,4 @@
-## Version 1.2.5-beta (29/08/2026)
+## Version 1.2.5-beta (09/09/2026)
 
 ### Enhancements
 * **Torrentio:**  Improve source availability.
