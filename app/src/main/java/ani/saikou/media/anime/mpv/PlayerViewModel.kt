@@ -1022,95 +1022,63 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun loadSkipTimes(
-        media: Media, episode: Episode, durationMs: Long
-    ) {
+    fun loadSkipTimes(media: Media, episode: Episode, durationMs: Long) {
         viewModelScope.launch(Dispatchers.IO) {
 
             val episodeNumber = episode.number.trim().toIntOrNull()
             val isMovie = media.format == "MOVIE"
 
-            var result: List<PlayerRepository.SkipInterval>? = media.idMAL?.let { malId ->
+            var result: List<PlayerRepository.SkipInterval>? = null
 
-                episodeNumber?.let { epNum ->
-
-                    Log.d(
-                        "SkipTimes",
-                        "Fetching from AniSkip: malId=$malId, episode=$epNum, durationSec=${durationMs / 1000}"
-                    )
-
-                    repository.fetchAniSkipTimes(
-                        malId, epNum, durationMs / 1000
-                    ).also { res ->
-
-                        Log.d(
-                            "SkipTimes", "AniSkip result: $res"
-                        )
-                    }
-                }
-            }
-
-            if (result.isNullOrEmpty() && settings.useAlternativeTimestampProvider) {
-
+            if (settings.useAlternativeTimestampProvider) {
                 val tmdbId = media.idTMDB?.toIntOrNull()
 
-                val absoluteEp = episode.absoluteEpisodeNumber
-
-                result = if (tmdbId != null && (isMovie || absoluteEp != null)) {
-
-                    val seasonParam = if (isMovie) {
-                        null
-                    } else {
-                        episode.seasonNumber
-                    }
-
-                    val episodeParam = if (isMovie) {
-                        null
-                    } else {
-                        absoluteEp
-                    }
+                if (tmdbId != null) {
+                    val seasonParam = if (isMovie) null else episode.seasonNumber
+                    val episodeParam = if (isMovie) null else episode.seasonEpisodeNumber
 
                     Log.d(
                         "SkipTimes",
-                        "Fetching from TheIntroDB (fallback): tmdbId=$tmdbId, isMovie=$isMovie, season=$seasonParam, episode=$episodeParam, durationMs=$durationMs"
+                        "Fetching from TheIntroDB (alternative): tmdbId=$tmdbId, isMovie=$isMovie, season=$seasonParam, episode=$episodeParam, durationMs=$durationMs"
                     )
 
-                    TheMovieDatabase.fetchSkipTimes(
+                    result = TheMovieDatabase.fetchSkipTimes(
                         tmdbId = tmdbId,
                         season = seasonParam,
                         episode = episodeParam,
                         durationMs = durationMs
                     ).also {
-
-                        Log.d(
-                            "SkipTimes", "TheIntroDB fallback result: $it"
-                        )
+                        Log.d("SkipTimes", "TheIntroDB result: $it")
                     }
+                }
+            }
 
-                } else {
-                    null
+            if (result.isNullOrEmpty()) {
+                val malId = media.idMAL
+
+                if (malId != null && episodeNumber != null) {
+                    Log.d(
+                        "SkipTimes",
+                        "Fetching from AniSkip (fallback): malId=$malId, episode=$episodeNumber, durationSec=${durationMs / 1000}"
+                    )
+
+                    result = repository.fetchAniSkipTimes(
+                        malId, episodeNumber, durationMs / 1000
+                    ).also { res ->
+                        Log.d("SkipTimes", "AniSkip fallback result: $res")
+                    }
                 }
             }
 
             if (!result.isNullOrEmpty()) {
-
-                Log.d(
-                    "SkipTimes", "Final skip stamps applied: $result"
-                )
-
+                Log.d("SkipTimes", "Final skip stamps applied: $result")
                 _skipStamps.value = result
-
             } else {
-
-                Log.d(
-                    "SkipTimes", "No skip times found from any source, resetting isTimeStampsLoaded"
-                )
-
+                Log.d("SkipTimes", "No skip times found from any source, resetting isTimeStampsLoaded")
                 isTimeStampsLoaded = false
             }
         }
     }
-
     fun startTorrentStatsMonitoring() {
         stopTorrentStatsMonitoring()
         val service = torrServerService ?: return
@@ -1327,6 +1295,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         discordRPC.close()
         torrServerService?.releaseStream()
         stopTorrentStatsMonitoring()
+        player?.release()
         _playbackState.value = PlaybackState.ENDED
         _isPlaying.value = false
         _currentPosition.value = 0L

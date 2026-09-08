@@ -2,6 +2,7 @@ package ani.saikou.connections.anilist
 
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.util.Log
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.net.toUri
 import ani.saikou.Mapper
@@ -11,17 +12,19 @@ import ani.saikou.connections.anilist.room.AnilistCache
 import ani.saikou.currContext
 import ani.saikou.logError
 import ani.saikou.openLinkInBrowser
-import ani.saikou.tryWith
-import ani.saikou.tryWithSuspend
+import ani.saikou.snackString
 import java.io.File
 import java.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration.Companion.milliseconds
 
 object Anilist {
     val query: AnilistQueries = AnilistQueries()
@@ -41,9 +44,10 @@ object Anilist {
 
     var lastErrorMessage: String? = null
 
-    // Mutex to ensure token loading thread safety
     private val tokenMutex = Mutex()
     private var isTokenChecked = false
+
+
 
     val sortBy = listOf(
         "SCORE_DESC", "POPULARITY_DESC", "TRENDING_DESC",
@@ -100,7 +104,6 @@ object Anilist {
             openLinkInBrowser("https://anilist.co/api/v2/oauth/authorize?client_id=$clientID&response_type=token")
         }
     }
-
 
     suspend fun ensureToken(context: Context? = currContext()): String? {
         if (isTokenChecked && token != null) return token
@@ -169,19 +172,20 @@ object Anilist {
                     ?: "AniList is temporarily unavailable. Check their Discord for status."
             }
 
-            401 -> ctx?.getString(R.string.anilist_unauthorized)
-                ?: "Session expired or invalid. Please log in again."
-
-            404 -> ctx?.getString(R.string.anilist_not_found)
-                ?: "Requested resource was not found on AniList."
-
-            in 500..599 -> ctx?.getString(R.string.anilist_down)
-                ?: "Seems like Anilist is down, maybe try using a VPN or wait for it to come back."
+            400 -> "400 Bad Request"
+            401 -> "401 Unauthorized"
+            404 -> "404 Not Found"
+            405 -> "405 Method Not Allowed"
+            408 -> "408 Request Timeout"
+            409 -> "409 Conflict"
+            500 -> "500 Internal Server Error"
+            502 -> "502 Bad Gateway"
+            503 -> "503 Service Unavailable"
+            504 -> "504 Gateway Timeout"
 
             else -> {
                 fallbackMessage?.takeIf { it.isNotBlank() }
-                    ?: ctx?.getString(R.string.error_getting_data)
-                    ?: "Error getting Data from Anilist."
+                    ?: if (status != null) "HTTP Error $status" else "Unknown Error"
             }
         }
     }
@@ -199,7 +203,7 @@ object Anilist {
         val errs = parsed?.errors.orEmpty()
         if (errs.isEmpty()) {
             lastErrorMessage = currContext()?.getString(R.string.error_getting_data)
-                ?: "Error getting Data from Anilist."
+                ?: "Error getting Data from AniList."
             return true
         }
 
@@ -230,7 +234,7 @@ object Anilist {
         useToken: Boolean = true,
         show: Boolean = false,
         cache: Int? = null
-    ): T? {
+    ): T? = withContext(Dispatchers.IO) {
         lastErrorMessage = null
 
         ensureToken()
@@ -239,11 +243,16 @@ object Anilist {
 
         if (cache != null && cache > 0) {
             AnilistCache.get(key)?.let { rawJson ->
-                tryWith(post = false) { Mapper.parse<T>(rawJson) }?.let { return it }
+                val parsedCache = try {
+                    Mapper.parse<T>(rawJson)
+                } catch (e: Throwable) {
+                    null
+                }
+                if (parsedCache != null) return@withContext parsedCache
             }
         }
 
-        return tryWithSuspend(post = true, snackbar = true) {
+        try {
             val data = mapOf(
                 "query" to query,
                 "variables" to variables
@@ -253,21 +262,20 @@ object Anilist {
                 "Accept" to "application/json"
             )
 
-
             if (token != null || force) {
                 if (token != null && useToken) {
                     headers["Authorization"] = "Bearer $token"
                 }
 
+
                 val json = client.post(
                     "https://graphql.anilist.co/",
                     headers,
                     data = data,
-                    cacheTime = 0
                 )
 
                 val statusCode = json.code
-
+                Log.d("Code", statusCode.toString())
                 if (!json.text.startsWith("{")) {
                     lastErrorMessage = snackForStatus(statusCode, null)
                     throw Exception(lastErrorMessage)
@@ -292,6 +300,8 @@ object Anilist {
             } else {
                 null
             }
+        } catch (e: Throwable) {
+            null
         }
     }
 }

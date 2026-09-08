@@ -54,7 +54,8 @@ object AnilistCache {
             val now = System.currentTimeMillis()
             if (now > entry.expiresAt) {
                 val staleForMs = now - entry.expiresAt
-                Log.d(TAG, "EXPIRED key=$key staleFor=${staleForMs}ms")
+                Log.d(TAG, "EXPIRED key=$key staleFor=${staleForMs}ms — deleting")
+                dao.deleteExpired(now)
                 null
             } else {
                 val freshForMs = entry.expiresAt - now
@@ -96,14 +97,4 @@ object AnilistCache {
         }
     }
 
-    suspend fun purgeExpired() {
-        if (!initialized) {
-            Log.d(TAG, "purgeExpired() skipped — not initialized")
-            return
-        }
-        withContext(Dispatchers.IO) {
-            dao.deleteExpired()
-            Log.d(TAG, "purged expired entries")
-        }
-    }
 }

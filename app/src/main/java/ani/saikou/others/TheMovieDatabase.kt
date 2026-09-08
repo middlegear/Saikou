@@ -25,14 +25,13 @@ import kotlinx.serialization.Serializable
 
 object TheMovieDatabase {
 
-
     private val prefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private suspend fun fetchMetadata(media: Media): TmdbMetaResponse? {
+        val anilistId = media.id
         return tryWithSuspend {
-            val anilistId = media.id
-            val response =
-                client.get("https://api.kenjitsu.workers.dev/api/meta/anilist/$anilistId?platform=tmdb", timeout = 15L)
+            val url = "https://api.kenjitsu.workers.dev/api/meta/anilist/$anilistId?platform=tmdb"
+            val response = client.get(url, timeout = 15L)
             response.parsed<TmdbMetaResponse>()
         }
     }
@@ -63,19 +62,21 @@ object TheMovieDatabase {
         val episodes = data.parsedEpisodes ?: return null
 
         return episodes.mapNotNull { ep ->
-            val num = ep.episodeNumber?.toString() ?: return@mapNotNull null
-            num to Episode(
-                number = num,
+            val key = ep.absoluteEpisodeNumber?.toString()
+                ?: return@mapNotNull null
+
+            key to Episode(
+                number = key,
                 title = ep.title,
                 desc = ep.summary,
                 seasonNumber = ep.seasonNumber,
-                absoluteEpisodeNumber = ep.absoluteEpisodeNumber,
+                seasonEpisodeNumber = ep.episodeNumber,
                 thumb = FileUrl[ep.images?.medium ?: ep.images?.original ?: ep.images?.large],
             )
         }.toMap()
     }
 
-    private  fun preloadArtwork(logoUrl: String?, backdropUrl: String?, posterUrl: String?) {
+    private fun preloadArtwork(logoUrl: String?, backdropUrl: String?, posterUrl: String?) {
         val context = currContext() ?: return
         val appContext = context.applicationContext
 

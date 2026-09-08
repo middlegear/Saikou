@@ -3,7 +3,6 @@ package ani.saikou.media.anime.mpv.ui
 import android.content.Context
 import android.content.ContextWrapper
 import android.util.Log
-import android.view.SurfaceHolder
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedContent
@@ -95,35 +94,10 @@ fun PlayerScreen(
 
         val playerView = attachedPlayer
         if (playerView != null) {
-            DisposableEffect(playerView, activity) {
-                val callback = object : SurfaceHolder.Callback {
-                    override fun surfaceCreated(holder: SurfaceHolder) {
-                        activity?.let { act ->
-                            if (playerView.surfaceReady && playerView.isInitialized) {
-                                viewModel.onSurfaceReady(act, mediaDetailsModel)
-                            }
-                        } ?: Log.w(TAG, "SKIPPED onSurfaceReady — activity is null")
-                    }
-
-                    override fun surfaceChanged(
-                        holder: SurfaceHolder,
-                        format: Int,
-                        width: Int,
-                        height: Int
-                    ) {
-                    }
-
-                    override fun surfaceDestroyed(holder: SurfaceHolder) {}
-                }
-
-                playerView.holder.addCallback(callback)
-
+            LaunchedEffect(playerView, playerView.surfaceReady, playerView.isInitialized) {
                 if (playerView.surfaceReady && playerView.isInitialized && activity != null) {
+                    Log.d(TAG, "Player ready, calling onSurfaceReady")
                     viewModel.onSurfaceReady(activity, mediaDetailsModel)
-                }
-
-                onDispose {
-                    playerView.holder.removeCallback(callback)
                 }
             }
 
@@ -137,7 +111,7 @@ fun PlayerScreen(
             )
         }
 
-        // 1. Artwork Backdrop Overlay Layer – hides automatically when ready
+        // 1. Artwork Backdrop Overlay Layer
         AnimatedVisibility(
             visible = showArtworkLoadingScreen,
             enter = fadeIn(animationSpec = tween(200)),
@@ -153,7 +127,7 @@ fun PlayerScreen(
             )
         }
 
-        // 2. UI Controls Layer – shows once ready or if custom loading screen is disabled
+        // 2. UI Controls Layer
         if (!isDialogShowing) {
             AnimatedVisibility(
                 visible = isPlayerReady || !showCustomLoadingScreen || !hasArtwork,

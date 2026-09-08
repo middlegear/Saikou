@@ -44,6 +44,7 @@ class Torrentio : AnimeApiParser() {
             }
         } ?: emptyList()
     }
+
     override suspend fun loadEpisodes(
         animeLink: String, extra: Map<String, String>?
     ): List<Episode> {
@@ -60,7 +61,7 @@ class Torrentio : AnimeApiParser() {
             episodes.data.map { ep ->
                 Episode(
                     number = ep.episodeNumber.toString(),
-                    link = "kitsu:${ep.kitsuId}:${ep.episodeNumber}",
+                    link = "${ep.kitsuId}|${ep.imdbId ?: ""}|${ep.episodeNumber}",
                     title = ep.title,
                     thumbnail = ep.thumbnail?.let { FileUrl(it) },
                     description = ep.summary
@@ -78,76 +79,97 @@ class Torrentio : AnimeApiParser() {
                 return@tryWithSuspend emptyList()
             }
 
-            val embedUrl =
-                "https://torrentio.strem.fun/providers=horriblesubs,nyaasi,tokyotosho,anidex,nekobt,yts,eztv|sort=seeders/stream/series/${episodeLink}.json" // sort by seeds for now adding BD later
+            val parts = episodeLink.split("|")
+            val kitsuId = parts.getOrNull(0)?.takeIf { it.isNotBlank() }
+            val imdbId = parts.getOrNull(1)?.takeIf { it.isNotBlank() }
+            val episodeNumber = parts.getOrNull(2)
 
-            Log.d("Torrentio", "========== REQUEST ==========")
-            Log.d("Torrentio", "Episode link: $episodeLink")
-            Log.d("Torrentio", "Final URL: $embedUrl")
+            if (kitsuId == null && imdbId == null) {
+                Log.d("Torrentio", "loadVideoServers: no kitsu or imdb id available")
+                return@tryWithSuspend emptyList()
+            }
 
-            try {
-                val response = client.get(embedUrl)
+            val kitsuStreamId = kitsuId?.let { "kitsu:$it:$episodeNumber" }
+            val imdbStreamId = imdbId
 
-                Log.d("Torrentio", "HTTP status: ${response.code}")
+            var streamId = kitsuStreamId
+            var torrentioResponse = streamId?.let { fetchTorrentioStreams(it) }
 
-                val torrentioResponse = response.parsed<TorrentioResponse>()
+            if (torrentioResponse == null || torrentioResponse.streams.isEmpty()) {
+                Log.d(
+                    "Torrentio",
+                    "kitsu id returned no streams, falling back to imdb id"
+                )
+                streamId = imdbStreamId
+                torrentioResponse = streamId?.let { fetchTorrentioStreams(it) }
+            }
 
+            if (torrentioResponse == null || torrentioResponse.streams.isEmpty()) {
+                Log.d("Torrentio", "Torrentio returned 0 streams for both kitsu and imdb ids")
+                return@tryWithSuspend emptyList()
+            }
+
+            val embedUrl = buildEmbedUrl(streamId!!)
+
+            val groupedByProvider = torrentioResponse.streams.groupBy { stream ->
+                getProviderName(stream)
+            }
+
+            Log.d(
+                "Torrentio",
+                "Providers found: ${groupedByProvider.keys}"
+            )
+
+            groupedByProvider.mapNotNull { (provider, streams) ->
+                val displayName =
+                    providerDisplayNames[provider]
+                        ?: provider.replaceFirstChar { it.uppercase() }
 
                 Log.d(
                     "Torrentio",
-                    "Parsed streams: ${torrentioResponse.streams.size}"
+                    "Provider=$provider, displayName=$displayName, streams=${streams.size}"
                 )
 
-                if (torrentioResponse.streams.isEmpty()) {
-                    Log.d("Torrentio", "Torrentio returned 0 streams")
-                    return@tryWithSuspend emptyList()
-                }
-
-                val groupedByProvider = torrentioResponse.streams.groupBy { stream ->
-                    getProviderName(stream)
-                }
-
-                Log.d(
-                    "Torrentio",
-                    "Providers found: ${groupedByProvider.keys}"
+                val providerData = TorrentProviderData(
+                    provider = provider,
+                    displayName = displayName,
+                    streams = streams
                 )
 
-                groupedByProvider.mapNotNull { (provider, streams) ->
-                    val displayName =
-                        providerDisplayNames[provider]
-                            ?: provider.replaceFirstChar { it.uppercase() }
+                val jsonData = Json.encodeToString(providerData)
 
-                    Log.d(
-                        "Torrentio",
-                        "Provider=$provider, displayName=$displayName, streams=${streams.size}"
+                VideoServer(
+                    name = displayName,
+                    embed = FileUrl(embedUrl),
+                    extraData = mapOf(
+                        "providerData" to jsonData
                     )
-
-                    val providerData = TorrentProviderData(
-                        provider = provider,
-                        displayName = displayName,
-                        streams = streams
-                    )
-
-                    val jsonData = Json.encodeToString(providerData)
-
-                    VideoServer(
-                        name = displayName,
-                        embed = FileUrl(embedUrl),
-                        extraData = mapOf(
-                            "providerData" to jsonData
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e(
-                    "Torrentio",
-                    "Exception while requesting Torrentio",
-                    e
                 )
-
-                emptyList()
             }
         } ?: emptyList()
+    }
+
+    fun buildEmbedUrl(streamId: String): String =
+        "https://torrentio.strem.fun/providers=horriblesubs,nyaasi,tokyotosho,anidex,nekobt,yts,eztv|sort=seeders/stream/series/${streamId}.json"
+
+    suspend fun fetchTorrentioStreams(streamId: String): TorrentioResponse? {
+        val embedUrl = buildEmbedUrl(streamId)
+
+        Log.d("Torrentio", "========== REQUEST ==========")
+        Log.d("Torrentio", "Stream id: $streamId")
+        Log.d("Torrentio", "Final URL: $embedUrl")
+
+        return try {
+            val response = client.get(embedUrl, timeout = 15L)
+            Log.d("Torrentio", "HTTP status: ${response.code}")
+
+            val parsed = response.parsed<TorrentioResponse>()
+            Log.d("Torrentio", "Parsed streams: ${parsed.streams.size}")
+            parsed
+        } catch (e: Exception) {
+            Log.e("Torrentio", "Exception while requesting Torrentio for $streamId", e)
+            null
+        }
     }
 
     override suspend fun getVideoExtractor(server: VideoServer): VideoExtractor {
@@ -212,10 +234,11 @@ class Torrentio : AnimeApiParser() {
 
     @Serializable
     private data class EpisodeItem(
-        val title: String?=null,
+        val title: String? = null,
         val kitsuId: String,
         val thumbnail: String? = null,
         val episodeNumber: Int,
+        val imdbId: String? = null,
         val summary: String? = null
     )
 }

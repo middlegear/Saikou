@@ -1,8 +1,10 @@
 package ani.saikou.parsers.anime
 
+import ani.saikou.BuildConfig
 import ani.saikou.FileUrl
 import ani.saikou.client
 import ani.saikou.parsers.AnimeApiParser
+import ani.saikou.parsers.AnimeParser
 import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.parsers.VideoExtractor
@@ -15,11 +17,12 @@ import java.net.URLEncoder
 import kotlin.collections.mapOf
 
 @OptIn(InternalSerializationApi::class)
-class AnimeHeaven : AnimeApiParser() {
+class AnimeHeaven : AnimeParser() {
 
     override val name = "AnimeHeaven"
     override val saveName = "AnimeHeaven"
-    override val providerName = "animeheaven"
+    override val hostUrl: String = BuildConfig.SERVER_URL
+    val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
     override val isDubAvailableSeparately = false
 
     override suspend fun search(query: String): List<ShowResponse> {

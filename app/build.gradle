@@ -2,17 +2,18 @@ plugins {
     id 'com.android.application'
     id 'com.google.gms.google-services'
     id 'com.google.firebase.crashlytics'
-    id 'kotlin-kapt'
-    id 'kotlinx-serialization'
     id 'org.jetbrains.kotlin.android'
-    id "com.google.devtools.ksp"
+    id 'org.jetbrains.kotlin.plugin.serialization'
+    id 'org.jetbrains.kotlin.plugin.compose'
+    id 'com.google.devtools.ksp'
 }
 
 def gitCommitHash = providers.exec {
     commandLine("git", "rev-parse", "--verify", "--short", "HEAD")
-}.standardOutput.asText.get().trim()
+}.standardOutput.asText.getOrElse("").trim()
 
 android {
+    namespace 'ani.saikou'
     compileSdk 36
 
     defaultConfig {
@@ -21,8 +22,6 @@ android {
         targetSdk 34
         versionCode((System.currentTimeMillis() / 60000).toInteger())
         versionName "1.2.5"
-        signingConfig signingConfigs.debug
-
 
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a'
@@ -31,17 +30,17 @@ android {
 
     sourceSets {
         main {
-
             jniLibs.srcDirs = ['src/main/jniLibs']
         }
     }
 
-
-    packagingOptions {
+    packaging {
         jniLibs {
             useLegacyPackaging = true
         }
-        pickFirsts += ['**/*.so']
+        resources {
+            pickFirsts += ['**/*.so']
+        }
     }
 
     buildTypes {
@@ -50,9 +49,11 @@ android {
             debuggable true
             versionNameSuffix "." + gitCommitHash
             buildConfigField "String", "SUPER_CLIPPING", "\"${project.findProperty('MUST_BE_THE_WATER') ?: ""}\""
-            buildConfigField "String", "MY_CUSTOM_API_KEY", "\"${project.findProperty('API_KEY')}\""
+            buildConfigField "String", "MY_CUSTOM_API_KEY", "\"${project.findProperty('API_KEY') ?: ""}\""
             buildConfigField "String", "SERVER_URL", "\"${project.findProperty('HOST_URL') ?: ""}\""
             buildConfigField "long", "BUILD_TIME", "${System.currentTimeMillis()}L"
+
+            signingConfig signingConfigs.debug
         }
         release {
             debuggable false
@@ -62,14 +63,9 @@ android {
 
     buildFeatures {
         viewBinding true
-        buildConfig = true
-        compose = true
+        buildConfig true
+        compose true
     }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.15"
-    }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -78,48 +74,47 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    namespace 'ani.saikou'
 }
-
 
 dependencies {
     // Core
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'androidx.browser:browser:1.8.0'
+    implementation 'androidx.appcompat:appcompat:1.8.0'
+    implementation 'androidx.browser:browser:1.10.0'
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.fragment:fragment-ktx:1.8.2'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     implementation 'androidx.multidex:multidex:2.0.1'
-    implementation "androidx.work:work-runtime-ktx:2.9.1"
+    implementation 'androidx.work:work-runtime-ktx:2.9.1'
 
 
-    implementation platform("org.jetbrains.kotlin:kotlin-bom:1.9.25")
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    // Kotlin 2.3.0 BOM
+    implementation platform("org.jetbrains.kotlin:kotlin-bom:2.3.0")
     implementation "org.jetbrains.kotlin:kotlin-reflect"
 
     implementation 'com.github.Blatzar:NiceHttp:0.4.11'
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
 
-
     implementation 'com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0'
 
     // Room
-    ext.roomVersion = "2.6.1"
-    implementation("androidx.room:room-runtime:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")
-    ksp("androidx.room:room-compiler:$roomVersion")
+    def roomVersion = "2.7.0"
+    implementation "androidx.room:room-runtime:$roomVersion"
+    implementation "androidx.room:room-ktx:$roomVersion"
+    ksp "androidx.room:room-compiler:$roomVersion"
 
     // Glide
     implementation 'com.github.bumptech.glide:glide:4.16.0'
-    kapt 'com.github.bumptech.glide:compiler:4.16.0'
+    ksp 'com.github.bumptech.glide:ksp:4.16.0'
     implementation 'com.github.bumptech.glide:okhttp3-integration:4.16.0'
     implementation 'jp.wasabeef:glide-transformations:4.3.0'
     implementation "com.github.bumptech.glide:compose:1.0.0-beta08"
 
-    // ExoPlayer / Media3
-    ext.exo_version = '1.5.1'
-    implementation "androidx.media3:media3-session:$exo_version"
+    // Media3
+    def exoVersion = '1.5.1'
+    implementation "androidx.media3:media3-session:$exoVersion"
 
     // UI
     implementation 'com.google.android.material:material:1.12.0'
@@ -130,13 +125,14 @@ dependencies {
     implementation 'com.alexvasilkov:gesture-views:2.8.3'
     implementation 'com.github.VipulOG:ebook-reader:0.1.6'
 
-    // Lifecycle ViewModel
+    // Lifecycle
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7"
 
     // MPV Lib
-    implementation "io.github.abdallahmehiz:mpv-android-lib:0.1.12"
+    implementation "io.github.secozzi:mpv-android-lib:0.1.14"
+    implementation files("libs/aniyomi-ffmpeg-kit-1.18.aar")
 
-    // Compose
+    // Compose BOM
     def composeBom = platform('androidx.compose:compose-bom:2024.04.01')
     implementation composeBom
     androidTestImplementation composeBom
@@ -153,14 +149,11 @@ dependencies {
     implementation "androidx.compose.animation:animation-graphics"
     implementation 'androidx.compose.ui:ui-tooling-preview'
     debugImplementation 'androidx.compose.ui:ui-tooling'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
     implementation "com.github.abdallahmehiz:seeker:2.0.1"
 
-    // Kotlin collections
+    // Kotlin Collections & Markdown
     implementation "org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.8"
-
-// Compose Markdown Renderer
     implementation 'com.mikepenz:multiplatform-markdown-renderer-m3:0.27.0'
-
 }

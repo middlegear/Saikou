@@ -1,10 +1,10 @@
-
 package ani.saikou.parsers.anime
 
 
+import ani.saikou.BuildConfig
 import ani.saikou.FileUrl
 import ani.saikou.client
-import ani.saikou.parsers.AnimeApiParser
+import ani.saikou.parsers.AnimeParser
 import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.parsers.VideoExtractor
@@ -16,11 +16,12 @@ import kotlinx.serialization.Serializable
 import java.net.URLEncoder
 
 @OptIn(InternalSerializationApi::class)
-class Anikoto : AnimeApiParser() {
+class Anikoto : AnimeParser() {
 
     override val name = "anikoto"
     override val saveName = "anikoto"
-    override val providerName = "anikoto"
+    override val hostUrl: String = BuildConfig.SERVER_URL
+    val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
     override val isDubAvailableSeparately = false
 
 
@@ -80,13 +81,22 @@ class Anikoto : AnimeApiParser() {
             ).parsed<EpisodeServersResponse>()
 
             val allServers = mutableListOf<VideoServer>()
+            val allowedServers = setOf("vidplay-1", "hd-1","hd-2")
 
             fun addServers(version: String, list: List<ServerItem>) {
-                list.filter { it.serverName.equals("vidstream-2", ignoreCase = true) }
+                list.filter { item ->
+                    allowedServers.any {
+                        it.equals(
+                            item.serverName,
+                            ignoreCase = true
+                        )
+                    }
+                }
                     .forEach { item ->
                         val serverName = "${version.uppercase()} - ${item.serverName}"
                         val embedUrl =
                             "$hostUrl/api/anikoto/sources/$episodeLink?version=$version&server=${item.serverName}"
+
                         allServers += VideoServer(
                             name = serverName,
                             embed = FileUrl(embedUrl),
@@ -144,7 +154,7 @@ class Anikoto : AnimeApiParser() {
         val serverName: String,
         val serverId: String,
         val mediaId: String,
-        val eid:String
+        val eid: String
     )
 
     @Serializable

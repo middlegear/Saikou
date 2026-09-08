@@ -16,21 +16,21 @@ import ani.saikou.updater.AppUpdater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-suspend fun getUserId(context: Context, block: () -> Unit) {
-    val anilist = if (Anilist.userid == null && Anilist.token != null) {
-        if (Anilist.query.getUserData()) {
-            tryWithSuspend {
-                if (MAL.token != null && !MAL.query.getUserData())
-                    snackString(context.getString(R.string.error_loading_mal_user_data))
-            }
-            true
-        } else {
-            snackString(context.getString(R.string.error_loading_anilist_user_data))
-            false
-        }
-    } else true
+suspend fun getUserId(context: Context): Boolean {
+    if (Anilist.userid != null || Anilist.token == null) {
+        return true
+    }
 
-    if (anilist) block.invoke()
+    val success = Anilist.query.getUserData()
+    if (success) {
+        tryWithSuspend {
+            if (MAL.token != null && !MAL.query.getUserData())
+                snackString(context.getString(R.string.error_loading_mal_user_data))
+        }
+    } else {
+        snackString(context.getString(R.string.error_loading_anilist_user_data))
+    }
+    return success
 }
 
 class AnilistHomeViewModel : ViewModel() {
@@ -129,7 +129,7 @@ class AnilistAnimeViewModel : ViewModel() {
                 onList = if (onList) null else false,
                 sort = sort,
                 genres = genres,
-                cache=  AnilistCache.SIX_HOURS_MINUTES
+                cache = AnilistCache.SIX_HOURS_MINUTES
             )
         )
     }
@@ -147,7 +147,7 @@ class AnilistAnimeViewModel : ViewModel() {
                 r.format,
                 r.isAdult,
                 r.onList,
-                cache=  AnilistCache.SIX_HOURS_MINUTES
+                cache = AnilistCache.SIX_HOURS_MINUTES
             )
         )
     }
@@ -170,7 +170,7 @@ class AnilistMangaViewModel : ViewModel() {
                 perPage = 10,
                 sort = Anilist.sortBy[2],
                 hd = true,
-                cache=  AnilistCache.SIX_HOURS_MINUTES
+                cache = AnilistCache.SIX_HOURS_MINUTES
             )?.results
         )
     }
@@ -184,7 +184,7 @@ class AnilistMangaViewModel : ViewModel() {
                 perPage = 10,
                 sort = Anilist.sortBy[0],
                 format = "MANGA",
-                cache=  AnilistCache.SIX_HOURS_MINUTES
+                cache = AnilistCache.SIX_HOURS_MINUTES
             )?.results
         )
     }
@@ -205,7 +205,7 @@ class AnilistMangaViewModel : ViewModel() {
                 onList = if (onList) null else false,
                 sort = sort,
                 genres = genres,
-                cache=  AnilistCache.SIX_HOURS_MINUTES
+                cache = AnilistCache.SIX_HOURS_MINUTES
             )
         )
     }
@@ -242,48 +242,62 @@ class AnilistSearch : ViewModel() {
 
     fun getSearch(): LiveData<SearchResults?> = result
 
+
+
     suspend fun loadSearch(r: SearchResults) = withContext(Dispatchers.IO) {
         val enforcedFormat = if (r.type == "MANGA") "MANGA" else r.format
-        result.postValue(
-            Anilist.query.search(
-                r.type,
-                r.page,
-                r.perPage,
-                r.search,
-                r.sort,
-                r.genres,
-                r.tags,
-                enforcedFormat,
-                r.isAdult,
-                r.onList,
-                r.excludedGenres,
-                r.excludedTags,
-                r.seasonYear,
-                r.season
+        try {
+            val res = Anilist.query.search(
+                type = r.type,
+                page = r.page,
+                perPage = r.perPage,
+                search = r.search,
+                sort = r.sort,
+                genres = r.genres,
+                tags = r.tags,
+                format = enforcedFormat,
+                isAdult = r.isAdult,
+                onList = r.onList,
+                excludedGenres = r.excludedGenres,
+                excludedTags = r.excludedTags,
+                seasonYear = r.seasonYear,
+                season = r.season
             )
-        )
+            result.postValue(res)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            result.postValue(null)
+        }
     }
 
     suspend fun loadNextPage(r: SearchResults) = withContext(Dispatchers.IO) {
         val enforcedFormat = if (r.type == "MANGA") "MANGA" else r.format
-        result.postValue(
-            Anilist.query.search(
-                r.type,
-                r.page + 1,
-                r.perPage,
-                r.search,
-                r.sort,
-                r.genres,
-                r.tags,
-                enforcedFormat,
-                r.isAdult,
-                r.onList,
-                r.excludedGenres,
-                r.excludedTags,
-                r.seasonYear,
-                r.season
+        try {
+            val nextPage = r.page + 1
+            val res = Anilist.query.search(
+                type = r.type,
+                page = nextPage,
+                perPage = r.perPage,
+                search = r.search,
+                sort = r.sort,
+                genres = r.genres,
+                tags = r.tags,
+                format = enforcedFormat,
+                isAdult = r.isAdult,
+                onList = r.onList,
+                excludedGenres = r.excludedGenres,
+                excludedTags = r.excludedTags,
+                seasonYear = r.seasonYear,
+                season = r.season
             )
-        )
+
+            if (res != null) {
+                res.page = nextPage
+            }
+            result.postValue(res)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
 

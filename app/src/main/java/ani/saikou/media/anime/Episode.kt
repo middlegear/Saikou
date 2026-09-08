@@ -21,7 +21,7 @@ data class Episode(
     var maxLength: Long? = null,
     // Data needed by introDB for skiptimes
     var seasonNumber: Int? = null,
-    var absoluteEpisodeNumber:Int? = null,
+    var seasonEpisodeNumber:Int? = null,
     val extra: Map<String, String>? = null,
 ) : Serializable
 

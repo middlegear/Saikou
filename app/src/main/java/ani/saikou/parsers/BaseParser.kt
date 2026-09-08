@@ -85,7 +85,7 @@ abstract class BaseParser {
         }
 
         if (response != null) {
-            setUserText("Found : ${response.name}")
+            setUserText("Selected : ${response.name}")
             saveShowResponse(mediaObj.id, response)
         } else {
             setUserText("No results found")

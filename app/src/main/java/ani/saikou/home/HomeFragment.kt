@@ -40,15 +40,121 @@ import ani.saikou.settings.UserInterfaceSettings
 import ani.saikou.snackString
 import ani.saikou.statusBarHeight
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration.Companion.milliseconds
 
 class HomeFragment : Fragment() {
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
+
+    val model: AnilistHomeViewModel by activityViewModels()
+
+    private var currentHomeLayoutShow: List<Boolean>? = null
+
+    private companion object {
+        const val IDX_ANIME_CONTINUE = 0
+        const val IDX_ANIME_FAV = 1
+        const val IDX_ANIME_PLANNED = 2
+        const val IDX_MANGA_CONTINUE = 3
+        const val IDX_MANGA_FAV = 4
+        const val IDX_MANGA_PLANNED = 5
+        const val IDX_RECOMMENDED = 6
+
+        val PRIORITY_INDICES = setOf(IDX_ANIME_CONTINUE, IDX_MANGA_CONTINUE)
+
+
+    }
+
+    private data class SectionConfig(
+        val index: Int,
+        val mode: LiveData<ArrayList<Media>>,
+        val container: View,
+        val recyclerView: RecyclerView,
+        val progress: View,
+        val empty: View,
+        val title: View,
+        val fetch: suspend () -> Unit
+    )
+
+    private fun getSectionsList(): List<SectionConfig> {
+        return listOf(
+            SectionConfig(
+                IDX_ANIME_CONTINUE,
+                model.getAnimeContinue(),
+                binding.homeContinueWatchingContainer,
+                binding.homeWatchingRecyclerView,
+                binding.homeWatchingProgressBar,
+                binding.homeWatchingEmpty,
+                binding.homeContinueWatch,
+                fetch = { model.setAnimeContinue() }
+            ),
+            SectionConfig(
+                IDX_ANIME_FAV,
+                model.getAnimeFav(),
+                binding.homeFavAnimeContainer,
+                binding.homeFavAnimeRecyclerView,
+                binding.homeFavAnimeProgressBar,
+                binding.homeFavAnimeEmpty,
+                binding.homeFavAnime,
+                fetch = { model.setAnimeFav() }
+            ),
+            SectionConfig(
+                IDX_ANIME_PLANNED,
+                model.getAnimePlanned(),
+                binding.homePlannedAnimeContainer,
+                binding.homePlannedAnimeRecyclerView,
+                binding.homePlannedAnimeProgressBar,
+                binding.homePlannedAnimeEmpty,
+                binding.homePlannedAnime,
+                fetch = { model.setAnimePlanned() }
+            ),
+            SectionConfig(
+                IDX_MANGA_CONTINUE,
+                model.getMangaContinue(),
+                binding.homeContinueReadingContainer,
+                binding.homeReadingRecyclerView,
+                binding.homeReadingProgressBar,
+                binding.homeReadingEmpty,
+                binding.homeContinueRead,
+                fetch = { model.setMangaContinue() }
+            ),
+            SectionConfig(
+                IDX_MANGA_FAV,
+                model.getMangaFav(),
+                binding.homeFavMangaContainer,
+                binding.homeFavMangaRecyclerView,
+                binding.homeFavMangaProgressBar,
+                binding.homeFavMangaEmpty,
+                binding.homeFavManga,
+                fetch = { model.setMangaFav() }
+            ),
+            SectionConfig(
+                IDX_MANGA_PLANNED,
+                model.getMangaPlanned(),
+                binding.homePlannedMangaContainer,
+                binding.homePlannedMangaRecyclerView,
+                binding.homePlannedMangaProgressBar,
+                binding.homePlannedMangaEmpty,
+                binding.homePlannedManga,
+                fetch = { model.setMangaPlanned() }
+            ),
+            SectionConfig(
+                IDX_RECOMMENDED,
+                model.getRecommendation(),
+                binding.homeRecommendedContainer,
+                binding.homeRecommendedRecyclerView,
+                binding.homeRecommendedProgressBar,
+                binding.homeRecommendedEmpty,
+                binding.homeRecommended,
+                fetch = { model.setRecommendation() }
+            )
+        )
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -64,13 +170,13 @@ class HomeFragment : Fragment() {
         _binding = null
     }
 
-    val model: AnilistHomeViewModel by activityViewModels()
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         val scope = lifecycleScope
         var uiSettings = loadData<UserInterfaceSettings>("ui_settings") ?: UserInterfaceSettings()
+        currentHomeLayoutShow = uiSettings.homeLayoutShow.toList()
 
-        fun load() {
+        fun loadHeaderUI() {
             if (activity != null && _binding != null) {
                 lifecycleScope.launch(Dispatchers.Main) {
                     binding.homeUserName.text = Anilist.username
@@ -141,17 +247,14 @@ class HomeFragment : Fragment() {
         var height = statusBarHeight
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val displayCutout = activity?.window?.decorView?.rootWindowInsets?.displayCutout
-            if (displayCutout != null) {
-                if (displayCutout.boundingRects.size > 0) {
-                    height =
-                        max(
-                            statusBarHeight,
-                            min(
-                                displayCutout.boundingRects[0].width(),
-                                displayCutout.boundingRects[0].height()
-                            )
-                        )
-                }
+            if (displayCutout != null && displayCutout.boundingRects.isNotEmpty()) {
+                height = max(
+                    statusBarHeight,
+                    min(
+                        displayCutout.boundingRects[0].width(),
+                        displayCutout.boundingRects[0].height()
+                    )
+                )
             }
         }
         binding.homeRefresh.setSlingshotDistance(height + 128)
@@ -163,7 +266,7 @@ class HomeFragment : Fragment() {
         binding.homeUserDataProgressBar.visibility = View.VISIBLE
         binding.homeUserDataContainer.visibility = View.GONE
         if (model.loaded) {
-            load()
+            loadHeaderUI()
         }
 
         model.getListImages().observe(viewLifecycleOwner) {
@@ -173,119 +276,27 @@ class HomeFragment : Fragment() {
             }
         }
 
-        fun initRecyclerView(
-            mode: LiveData<ArrayList<Media>>,
-            container: View,
-            recyclerView: RecyclerView,
-            progress: View,
-            empty: View,
-            title: View
-        ) {
-            container.visibility = View.VISIBLE
-            progress.visibility = View.VISIBLE
-            recyclerView.visibility = View.GONE
-            empty.visibility = View.GONE
-            title.visibility = View.INVISIBLE
+        val sections = getSectionsList()
 
-            mode.observe(viewLifecycleOwner) {
-                recyclerView.visibility = View.GONE
-                empty.visibility = View.GONE
-                if (it != null) {
-                    if (it.isNotEmpty()) {
-                        recyclerView.adapter = MediaAdaptor(0, it, requireActivity())
-                        recyclerView.layoutManager = LinearLayoutManager(
-                            requireContext(),
-                            LinearLayoutManager.HORIZONTAL,
-                            false
-                        )
-                        recyclerView.visibility = View.VISIBLE
-                        recyclerView.layoutAnimation =
-                            LayoutAnimationController(setSlideIn(uiSettings), 0.25f)
-
-                    } else {
-                        empty.visibility = View.VISIBLE
-                    }
-                    title.visibility = View.VISIBLE
-                    title.startAnimation(setSlideUp(uiSettings))
-                    progress.visibility = View.GONE
-                }
-            }
+        applyInitialLayoutStructure(sections, uiSettings)
+        sections.forEach { s ->
+            initRecyclerViewObserver(
+                s.mode, s.container, s.recyclerView, s.progress, s.empty, s.title, uiSettings
+            )
         }
 
-        initRecyclerView(
-            model.getAnimeContinue(),
-            binding.homeContinueWatchingContainer,
-            binding.homeWatchingRecyclerView,
-            binding.homeWatchingProgressBar,
-            binding.homeWatchingEmpty,
-            binding.homeContinueWatch
-        )
         binding.homeWatchingBrowseButton.setOnClickListener {
             (activity as? MainActivity)?.navigateToTab(0)
         }
-
-        initRecyclerView(
-            model.getAnimeFav(),
-            binding.homeFavAnimeContainer,
-            binding.homeFavAnimeRecyclerView,
-            binding.homeFavAnimeProgressBar,
-            binding.homeFavAnimeEmpty,
-            binding.homeFavAnime
-        )
-
-        initRecyclerView(
-            model.getAnimePlanned(),
-            binding.homePlannedAnimeContainer,
-            binding.homePlannedAnimeRecyclerView,
-            binding.homePlannedAnimeProgressBar,
-            binding.homePlannedAnimeEmpty,
-            binding.homePlannedAnime
-        )
-        binding.homePlannedAnimeBrowseButton.setOnClickListener {
-            (activity as? MainActivity)?.navigateToTab(0)
-        }
-
-        initRecyclerView(
-            model.getMangaContinue(),
-            binding.homeContinueReadingContainer,
-            binding.homeReadingRecyclerView,
-            binding.homeReadingProgressBar,
-            binding.homeReadingEmpty,
-            binding.homeContinueRead
-        )
         binding.homeReadingBrowseButton.setOnClickListener {
             (activity as? MainActivity)?.navigateToTab(2)
         }
-
-        initRecyclerView(
-            model.getMangaFav(),
-            binding.homeFavMangaContainer,
-            binding.homeFavMangaRecyclerView,
-            binding.homeFavMangaProgressBar,
-            binding.homeFavMangaEmpty,
-            binding.homeFavManga
-        )
-
-        initRecyclerView(
-            model.getMangaPlanned(),
-            binding.homePlannedMangaContainer,
-            binding.homePlannedMangaRecyclerView,
-            binding.homePlannedMangaProgressBar,
-            binding.homePlannedMangaEmpty,
-            binding.homePlannedManga
-        )
+        binding.homePlannedAnimeBrowseButton.setOnClickListener {
+            (activity as? MainActivity)?.navigateToTab(0)
+        }
         binding.homePlannedMangaBrowseButton.setOnClickListener {
             (activity as? MainActivity)?.navigateToTab(2)
         }
-
-        initRecyclerView(
-            model.getRecommendation(),
-            binding.homeRecommendedContainer,
-            binding.homeRecommendedRecyclerView,
-            binding.homeRecommendedProgressBar,
-            binding.homeRecommendedEmpty,
-            binding.homeRecommended
-        )
 
         binding.homeUserAvatarContainer.startAnimation(setSlideUp(uiSettings))
 
@@ -298,51 +309,38 @@ class HomeFragment : Fragment() {
             }
         }
 
-        val array = arrayOf(
-            Runnable { runBlocking { model.setAnimeContinue() } },
-            Runnable { runBlocking { model.setAnimeFav() } },
-            Runnable { runBlocking { model.setAnimePlanned() } },
-            Runnable { runBlocking { model.setMangaContinue() } },
-            Runnable { runBlocking { model.setMangaFav() } },
-            Runnable { runBlocking { model.setMangaPlanned() } },
-            Runnable { runBlocking { model.setRecommendation() } }
-        )
-
-        val containers = arrayOf(
-            binding.homeContinueWatchingContainer,
-            binding.homeFavAnimeContainer,
-            binding.homePlannedAnimeContainer,
-            binding.homeContinueReadingContainer,
-            binding.homeFavMangaContainer,
-            binding.homePlannedMangaContainer,
-            binding.homeRecommendedContainer
-        )
-
         val live = Refresh.activity.getOrPut(1) { MutableLiveData(false) }
         live.observe(viewLifecycleOwner) { isRefreshing ->
             if (isRefreshing) {
                 scope.launch {
                     uiSettings = loadData<UserInterfaceSettings>("ui_settings") ?: UserInterfaceSettings()
+                    currentHomeLayoutShow = uiSettings.homeLayoutShow.toList()
+
+                    applyInitialLayoutStructure(sections, uiSettings)
+
                     try {
                         withContext(Dispatchers.IO) {
-                            getUserId(requireContext()) {
-                                load()
+                            if (getUserId(requireContext())) {
+                                withContext(Dispatchers.Main) { loadHeaderUI() }
                             }
                             model.loaded = true
                             model.setListImages()
-                            var empty = true
-                            (array.indices).forEach { i ->
-                                if (uiSettings.homeLayoutShow[i]) {
-                                    withContext(Dispatchers.Main) {
-                                        containers[i].visibility = View.VISIBLE
-                                    }
-                                    array[i].run()
-                                    empty = false
-                                } else withContext(Dispatchers.Main) {
-                                    containers[i].visibility = View.GONE
-                                }
+
+                            val enabled = sections.filter { uiSettings.homeLayoutShow.getOrElse(it.index) { false } }
+                            val isEmpty = enabled.isEmpty()
+
+                            val priority = enabled.filter { it.index in PRIORITY_INDICES }
+                            val secondary = enabled.filterNot { it.index in PRIORITY_INDICES }
+
+                            val priorityJobs = priority.map { launch { it.fetch() } }
+                            priorityJobs.joinAll()
+
+                            val secondaryJobs = secondary.map { launch { it.fetch() } }
+                            secondaryJobs.joinAll()
+
+                            withContext(Dispatchers.Main) {
+                                model.empty.postValue(isEmpty)
                             }
-                            model.empty.postValue(empty)
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -360,8 +358,108 @@ class HomeFragment : Fragment() {
         }
     }
 
+    private fun applyInitialLayoutStructure(
+        sections: List<SectionConfig>,
+        uiSettings: UserInterfaceSettings
+    ) {
+        sections.forEach { s ->
+            val isEnabled = uiSettings.homeLayoutShow.getOrElse(s.index) { false }
+            if (isEnabled) {
+                s.container.visibility = View.VISIBLE
+                if (s.mode.value == null) {
+
+                    s.progress.visibility = View.VISIBLE
+                    s.recyclerView.visibility = View.GONE
+                    s.empty.visibility = View.GONE
+                    s.title.visibility = View.INVISIBLE
+                }
+            } else {
+                s.container.visibility = View.GONE
+            }
+        }
+    }
+
+
+    private fun initRecyclerViewObserver(
+        mode: LiveData<ArrayList<Media>>,
+        container: View,
+        recyclerView: RecyclerView,
+        progress: View,
+        empty: View,
+        title: View,
+        uiSettings: UserInterfaceSettings
+    ) {
+
+        mode.observe(viewLifecycleOwner) { items ->
+            if (items != null) {
+                lifecycleScope.launch {
+
+                    withContext(Dispatchers.Main) {
+                        if (items.isNotEmpty()) {
+                            recyclerView.adapter = MediaAdaptor(0, items, requireActivity())
+                            recyclerView.layoutManager = LinearLayoutManager(
+                                requireContext(),
+                                LinearLayoutManager.HORIZONTAL,
+                                false
+                            )
+                            recyclerView.visibility = View.VISIBLE
+                            empty.visibility = View.GONE
+                            recyclerView.layoutAnimation =
+                                LayoutAnimationController(setSlideIn(uiSettings), 0.25f)
+                        } else {
+                            recyclerView.visibility = View.GONE
+                            empty.visibility = View.VISIBLE
+                        }
+                        title.visibility = View.VISIBLE
+                        title.startAnimation(setSlideUp(uiSettings))
+                        progress.visibility = View.GONE
+                    }
+                }
+            }
+        }
+    }
+
     override fun onResume() {
-        if (!model.loaded) Refresh.activity[1]!!.postValue(true)
         super.onResume()
+        if (!model.loaded) {
+            Refresh.activity[1]!!.postValue(true)
+        } else {
+            val updatedSettings = loadData<UserInterfaceSettings>("ui_settings") ?: UserInterfaceSettings()
+
+            val layoutChanged = currentHomeLayoutShow?.let { previous ->
+                updatedSettings.homeLayoutShow.zip(previous).any { (newVal, oldVal) -> newVal != oldVal }
+            } ?: false
+
+            if (layoutChanged) {
+                val previousLayout = currentHomeLayoutShow
+                currentHomeLayoutShow = updatedSettings.homeLayoutShow.toList()
+
+                handleLayoutChangeAndFetch(updatedSettings, previousLayout)
+            } else {
+                applyInitialLayoutStructure(getSectionsList(), updatedSettings)
+            }
+        }
+    }
+
+    private fun handleLayoutChangeAndFetch(
+        uiSettings: UserInterfaceSettings,
+        previousLayout: List<Boolean>?
+    ) {
+        val sections = getSectionsList()
+
+        applyInitialLayoutStructure(sections, uiSettings)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val fetchJobs = sections.mapNotNull { s ->
+                val isNowEnabled = uiSettings.homeLayoutShow.getOrElse(s.index) { false }
+                val wasEnabled = previousLayout?.getOrElse(s.index) { false } ?: false
+
+                if (isNowEnabled && (!wasEnabled || s.mode.value == null)) {
+                    launch { s.fetch() }
+                } else null
+            }
+
+            fetchJobs.joinAll()
+        }
     }
 }

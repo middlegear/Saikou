@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
@@ -154,11 +155,12 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         }
-
         setContent {
             SaikouTheme{
                 val uiState by playerModel.uiState.collectAsState()
-
+                LaunchedEffect(Unit) {
+                    hideSystemUi()
+                }
                 PlayerScreen(
                     viewModel = playerModel,
                     mediaDetailsModel = mediaDetailsModel,
@@ -183,7 +185,7 @@ class PlayerActivity : AppCompatActivity() {
                 )
             }
         }
-        hideSystemUi()
+
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

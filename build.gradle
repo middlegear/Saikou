@@ -1,10 +1,7 @@
 buildscript {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url 'https://jitpack.io' }
+    ext {
+        kotlin_version = '2.3.0'
     }
-    ext.kotlin_version = '1.9.25'
     dependencies {
         classpath 'com.android.tools.build:gradle:8.11.1'
         classpath 'com.google.gms:google-services:4.4.2'
@@ -15,9 +12,10 @@ buildscript {
 }
 
 plugins {
-    id 'com.google.devtools.ksp' version '1.9.25-1.0.20' apply false
+    id 'com.google.devtools.ksp' version '2.3.0' apply false
+    id 'org.jetbrains.kotlin.plugin.compose' version '2.3.0' apply false
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
 }

@@ -66,9 +66,6 @@ class MegaPlay(override val server: VideoServer) : VideoExtractor() {
 
             val baseHeaders = mapOf(
                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0",
-                "Accept" to "*/*",
-                "Accept-Language" to "en-US,en;q=0.5",
-                "Accept-Encoding" to "gzip, deflate, br, zstd",
                 "Origin" to origin,
                 "Referer" to videoReferer,
             )

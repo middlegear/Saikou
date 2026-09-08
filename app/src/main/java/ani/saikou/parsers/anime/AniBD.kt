@@ -2,9 +2,11 @@
 package ani.saikou.parsers.anime
 
 
+import ani.saikou.BuildConfig
 import ani.saikou.FileUrl
 import ani.saikou.client
 import ani.saikou.parsers.AnimeApiParser
+import ani.saikou.parsers.AnimeParser
 import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.parsers.VideoExtractor
@@ -16,11 +18,12 @@ import kotlinx.serialization.Serializable
 import java.net.URLEncoder
 
 @OptIn(InternalSerializationApi::class)
-class AniBD : AnimeApiParser() {
+class AniBD : AnimeParser() {
 
     override val name = "AniBD"
     override val saveName = "AniBD"
-    override val providerName = "anibd"
+    override val hostUrl: String = BuildConfig.SERVER_URL
+    val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
     override val isDubAvailableSeparately = false
 
 

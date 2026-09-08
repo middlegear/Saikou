@@ -34,6 +34,8 @@ import ani.saikou.settings.UserInterfaceSettings
 import ani.saikou.snackString
 import ani.saikou.statusBarHeight
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -54,7 +56,8 @@ class MangaFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        super.onDestroyView();_binding = null
+        super.onDestroyView()
+        _binding = null
     }
 
     @SuppressLint("NotifyDataSetChanged")
@@ -136,24 +139,29 @@ class MangaFragment : Fragment() {
                         }
                     }
                 }
-                if (layout.findFirstVisibleItemPosition() > 1 && !visible) {
+
+                val firstVisible = layout.findFirstVisibleItemPosition()
+                if (firstVisible > 1 && !visible) {
                     binding.mangaPageScrollTop.visibility = View.VISIBLE
                     visible = true
                     animate()
                 }
 
                 if (!v.canScrollVertically(-1)) {
-                    visible = false
-                    animate()
-                    scope.launch {
-                        delay(300)
-                        binding.mangaPageScrollTop.visibility = View.GONE
+                    if (visible) {
+                        visible = false
+                        animate()
+                        scope.launch {
+                            delay(300)
+                            if (!visible) binding.mangaPageScrollTop.visibility = View.GONE
+                        }
                     }
                 }
 
                 super.onScrolled(v, dx, dy)
             }
         })
+
         mangaPageAdapter.ready.observe(viewLifecycleOwner) { i ->
             if (i == true) {
                 model.getTopRatedManga().observe(viewLifecycleOwner) {
@@ -178,7 +186,6 @@ class MangaFragment : Fragment() {
                     }
                 }
                 binding.mangaPageScrollTop.translationY = -(navBarHeight + bottomBar.height + bottomBar.marginBottom).toFloat()
-
             }
         }
 
@@ -218,25 +225,34 @@ class MangaFragment : Fragment() {
             }
         }
 
-        fun load() = scope.launch(Dispatchers.Main) {
-            mangaPageAdapter.updateAvatar()
-        }
-
         val live = Refresh.activity.getOrPut(this.hashCode()) { MutableLiveData(false) }
-        live.observe(viewLifecycleOwner) {
-            if (it) {
+        live.observe(viewLifecycleOwner) { isRefreshing ->
+            if (isRefreshing) {
                 scope.launch {
-                    withContext(Dispatchers.IO) {
-                        getUserId(requireContext()) {
-                            load()
+                    try {
+                        withContext(Dispatchers.IO) {
+                            if (getUserId(requireContext())) {
+                                withContext(Dispatchers.Main) {
+                                    mangaPageAdapter.updateAvatar()
+                                }
+                            }
+                            model.loaded = true
+
+                            listOf(
+                                async { model.loadTrending() },
+                                async { model.loadTopRatedManga() },
+                                async { model.loadPopular("MANGA", sort = Anilist.sortBy[1]) }
+                            ).awaitAll()
                         }
-                        model.loaded = true
-                        model.loadTrending()
-                        model.loadTopRatedManga()
-                        model.loadPopular("MANGA", sort = Anilist.sortBy[1])
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        withContext(Dispatchers.Main) {
+                            snackString("Failed to load Manga data.")
+                        }
+                    } finally {
+                        live.postValue(false)
+                        _binding?.mangaRefresh?.isRefreshing = false
                     }
-                    live.postValue(false)
-                    _binding?.mangaRefresh?.isRefreshing = false
                 }
             }
         }
@@ -246,5 +262,4 @@ class MangaFragment : Fragment() {
         if (!model.loaded) Refresh.activity[this.hashCode()]!!.postValue(true)
         super.onResume()
     }
-
 }

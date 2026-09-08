@@ -1,10 +1,8 @@
 package ani.saikou.media
 
 import android.app.Activity
-import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -16,9 +14,7 @@ import ani.saikou.media.anime.SelectorDialogFragment
 import ani.saikou.loadData
 import ani.saikou.logger
 import ani.saikou.media.manga.MangaChapter
-import ani.saikou.others.AniSkip
 import ani.saikou.others.Jikan
-import ani.saikou.others.Kitsu
 import ani.saikou.parsers.Book
 import ani.saikou.parsers.MangaImage
 import ani.saikou.parsers.MangaReadSources
@@ -32,7 +28,7 @@ import ani.saikou.tryWithSuspend
 import ani.saikou.currContext
 import ani.saikou.R
 import ani.saikou.others.TheMovieDatabase
-import com.bumptech.glide.Glide
+import ani.saikou.FileUrl
 import com.bumptech.glide.load.resource.bitmap.BitmapTransformation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -65,9 +61,30 @@ class MediaDetailsViewModel : ViewModel() {
     fun loadMedia(m: Media) {
         if (!loading) {
             loading = true
-            media.postValue(Anilist.query.mediaDetails(m))
+            viewModelScope.launch(Dispatchers.IO) {
+                val mediaDetails = Anilist.query.mediaDetails(m)
+                media.postValue(mediaDetails)
+                launch {
+                    try {
+                        loadTmdbEpisodes(mediaDetails)
+                    } catch (e: Exception) {
+                        logger("Failed to load TMDB episodes: ${e.message}", true)
+                    }
+                }
+
+                launch {
+                    try {
+                        if (mediaDetails.anime != null) {
+                            loadFillerEpisodes(mediaDetails)
+                        }
+                    } catch (e: Exception) {
+                        logger("Failed to load filler episodes: ${e.message}", true)
+                    }
+                }
+
+                loading = false
+            }
         }
-        loading = false
     }
 
     fun setMedia(m: Media) {
@@ -76,32 +93,74 @@ class MediaDetailsViewModel : ViewModel() {
 
     val responses = MutableLiveData<List<ShowResponse>?>(null)
 
-
-    //Anime
-//    private val kitsuEpisodes: MutableLiveData<Map<String, Episode>> = MutableLiveData<Map<String, Episode>>(null)
-//    fun getKitsuEpisodes(): LiveData<Map<String, Episode>> = kitsuEpisodes
-//    suspend fun loadKitsuEpisodes(s: Media) {
-//        tryWithSuspend {
-//            if (kitsuEpisodes.value == null) kitsuEpisodes.postValue(Kitsu.getKitsuEpisodesDetails(s))
-//        }
-//    }
+    private var tmdbEpisodesMediaId: Int? = null
     private val tmdbEpisodes: MutableLiveData<Map<String, Episode>> = MutableLiveData<Map<String, Episode>>(null)
     fun getTmdbEpisodes(): LiveData<Map<String, Episode>> = tmdbEpisodes
+
     suspend fun loadTmdbEpisodes(s: Media) {
         tryWithSuspend {
-            if (tmdbEpisodes.value == null) tmdbEpisodes.postValue(TheMovieDatabase.getTmdbEpisodesDetails(s))
+            val needsLoad = tmdbEpisodesMediaId != s.id || tmdbEpisodes.value.isNullOrEmpty()
+
+            if (needsLoad) {
+                val result = TheMovieDatabase.getTmdbEpisodesDetails(s)
+                if (!result.isNullOrEmpty()) {
+                    tmdbEpisodesMediaId = s.id
+                    tmdbEpisodes.postValue(result)
+                    if (epsLoaded.isNotEmpty()) {
+                        epsLoaded.values.forEach { applyMetadataToEpisodes(it, s) }
+                        episodes.postValue(epsLoaded)
+                    }
+                }
+            }
         }
     }
 
+    private var fillerEpisodesMediaId: Int? = null
     private val fillerEpisodes: MutableLiveData<Map<String, Episode>> = MutableLiveData<Map<String, Episode>>(null)
     fun getFillerEpisodes(): LiveData<Map<String, Episode>> = fillerEpisodes
+
     suspend fun loadFillerEpisodes(s: Media) {
         tryWithSuspend {
-            if (fillerEpisodes.value == null) fillerEpisodes.postValue(
-                Jikan.getEpisodes(
-                    s.idMAL ?: return@tryWithSuspend
-                )
-            )
+            val malId = s.idMAL ?: return@tryWithSuspend
+            val needsLoad = fillerEpisodesMediaId != malId || fillerEpisodes.value == null
+
+            if (needsLoad) {
+                val result = Jikan.getEpisodes(malId)
+                if (!result.isNullOrEmpty()) {
+                    fillerEpisodesMediaId = malId
+                    fillerEpisodes.postValue(result)
+                    if (epsLoaded.isNotEmpty()) {
+                        epsLoaded.values.forEach { applyMetadataToEpisodes(it, s) }
+                        episodes.postValue(epsLoaded)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun applyMetadataToEpisodes(
+        episodes: MutableMap<String, Episode>,
+        media: Media
+    ) {
+        val tmdb = tmdbEpisodes.value
+        val filler = fillerEpisodes.value
+
+        episodes.forEach { (num, ep) ->
+            filler?.get(num)?.let { f ->
+                ep.title = ep.title ?: f.title
+                ep.filler = f.filler
+            }
+            tmdb?.get(num)?.let { t ->
+                if (!t.title.isNullOrBlank()) ep.title = t.title
+                if (!t.desc.isNullOrBlank())  ep.desc  = t.desc
+                if (t.thumb != null) {
+                    ep.thumb = t.thumb
+                } else if (ep.thumb == null) {
+                    ep.thumb = FileUrl[media.cover]
+                }
+                ep.seasonNumber = t.seasonNumber ?: ep.seasonNumber
+                ep.seasonEpisodeNumber = t.seasonEpisodeNumber
+            }
         }
     }
 
@@ -110,21 +169,25 @@ class MediaDetailsViewModel : ViewModel() {
     private val episodes = MutableLiveData<MutableMap<Int, MutableMap<String, Episode>>>(null)
     private val epsLoaded = mutableMapOf<Int, MutableMap<String, Episode>>()
     fun getEpisodes(): LiveData<MutableMap<Int, MutableMap<String, Episode>>> = episodes
+
     suspend fun loadEpisodes(media: Media, i: Int) {
         if (!epsLoaded.containsKey(i)) {
             epsLoaded[i] = watchSources?.loadEpisodesFromMedia(i, media) ?: return
         }
+        applyMetadataToEpisodes(epsLoaded[i]!!, media)
         episodes.postValue(epsLoaded)
     }
 
     suspend fun forceLoadEpisode(media: Media, i: Int) {
         epsLoaded[i] = watchSources?.loadEpisodesFromMedia(i, media) ?: return
+        applyMetadataToEpisodes(epsLoaded[i]!!, media)
         episodes.postValue(epsLoaded)
     }
 
     suspend fun overrideEpisodes(i: Int, source: ShowResponse, id: Int) {
         watchSources?.saveResponse(i, id, source)
         epsLoaded[i] = watchSources?.loadEpisodes(i, source.link, source.extra) ?: return
+        media.value?.let { applyMetadataToEpisodes(epsLoaded[i]!!, it) }
         episodes.postValue(epsLoaded)
     }
 
@@ -150,7 +213,6 @@ class MediaDetailsViewModel : ViewModel() {
             }
         }
 
-
         if (post) {
             episode.postValue(ep)
             MainScope().launch(Dispatchers.Main) {
@@ -159,21 +221,8 @@ class MediaDetailsViewModel : ViewModel() {
         }
     }
 
-    val timeStamps = MutableLiveData<List<AniSkip.Stamp>?>()
-    private val timeStampsMap: MutableMap<Int, List<AniSkip.Stamp>?> = mutableMapOf()
-    suspend fun loadTimeStamps(malId: Int?, episodeNum: Int?, duration: Long, ) {
-        malId ?: return
-        episodeNum ?: return
-        if (timeStampsMap.containsKey(episodeNum))
-            return timeStamps.postValue(timeStampsMap[episodeNum])
-        val result = AniSkip.getResult(malId, episodeNum, duration, )
-        timeStampsMap[episodeNum] = result
-        timeStamps.postValue(result)
-    }
-
     suspend fun loadEpisodeSingleVideo(ep: Episode, selected: Selected, post: Boolean = true): Boolean {
         if (ep.extractors.isNullOrEmpty()) {
-
             val server = selected.server ?: return false
             val link = ep.link ?: return false
 
@@ -202,7 +251,6 @@ class MediaDetailsViewModel : ViewModel() {
 
     val epChanged = MutableLiveData(true)
     fun onEpisodeClick(media: Media, i: String, manager: FragmentManager, launch: Boolean = true, prevEp: String? = null) {
-
         Handler(Looper.getMainLooper()).post {
             if (manager.findFragmentByTag("dialog") == null && !manager.isDestroyed) {
                 if (media.anime?.episodes?.get(i) != null) {
@@ -217,7 +265,6 @@ class MediaDetailsViewModel : ViewModel() {
             }
         }
     }
-
 
     //Manga
     var mangaReadSources: MangaReadSources? = null

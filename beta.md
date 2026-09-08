@@ -1,13 +1,13 @@
 ## Version 1.2.5-beta (29/08/2026)
 
 ### Enhancements
-* **Caching:** Cache queries for performance and reduce chances of rate limits.
-* **Player:**  Add missing player settings to change behavior.
+* **Torrentio:**  Improve source availability.
+
 ### Changes
 * **Settings:** Rework settings UI.
-
+* **MPV:** Update deps to fix macroblocking.
 
 ### Fixes
-* **Player:**  Stop demuxer network activity on background and soft-recover on resume
-* **MPV:** Show actual audio channel.
+* **Anime:** Fix sources.
+* Missing metadata 
 * A bunch of other fixes.

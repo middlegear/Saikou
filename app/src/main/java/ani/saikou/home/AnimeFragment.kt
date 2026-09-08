@@ -37,12 +37,13 @@ import ani.saikou.settings.UserInterfaceSettings
 import ani.saikou.snackString
 import ani.saikou.statusBarHeight
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
-
 
 class AnimeFragment : Fragment() {
     private var _binding: FragmentAnimeBinding? = null
@@ -62,7 +63,8 @@ class AnimeFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        super.onDestroyView();_binding = null
+        super.onDestroyView()
+        _binding = null
     }
 
     @SuppressLint("NotifyDataSetChanged")
@@ -183,24 +185,29 @@ class AnimeFragment : Fragment() {
                         }
                     }
                 }
-                if (layout.findFirstVisibleItemPosition() > 1 && !visible) {
+
+                val firstVisible = layout.findFirstVisibleItemPosition()
+                if (firstVisible > 1 && !visible) {
                     binding.animePageScrollTop.visibility = View.VISIBLE
                     visible = true
                     animate()
                 }
 
                 if (!v.canScrollVertically(-1)) {
-                    visible = false
-                    animate()
-                    scope.launch {
-                        delay(300)
-                        binding.animePageScrollTop.visibility = View.GONE
+                    if (visible) {
+                        visible = false
+                        animate()
+                        scope.launch {
+                            delay(300)
+                            if (!visible) binding.animePageScrollTop.visibility = View.GONE
+                        }
                     }
                 }
 
                 super.onScrolled(v, dx, dy)
             }
         })
+
         animePageAdapter.ready.observe(viewLifecycleOwner) { i ->
             if (i) {
                 model.getUpdated().observe(viewLifecycleOwner) {
@@ -228,11 +235,6 @@ class AnimeFragment : Fragment() {
             }
         }
 
-
-        fun load() = scope.launch(Dispatchers.Main) {
-            animePageAdapter.updateAvatar()
-        }
-
         animePageAdapter.onSeasonClick = { i ->
             scope.launch(Dispatchers.IO) {
                 model.loadTrending(i)
@@ -254,20 +256,33 @@ class AnimeFragment : Fragment() {
         }
 
         val live = Refresh.activity.getOrPut(this.hashCode()) { MutableLiveData(false) }
-        live.observe(viewLifecycleOwner) {
-            if (it) {
+        live.observe(viewLifecycleOwner) { isRefreshing ->
+            if (isRefreshing) {
                 scope.launch {
-                    withContext(Dispatchers.IO) {
-                        getUserId(requireContext()) {
-                            load()
+                    try {
+                        withContext(Dispatchers.IO) {
+                            if (getUserId(requireContext())) {
+                                withContext(Dispatchers.Main) {
+                                    animePageAdapter.updateAvatar()
+                                }
+                            }
+                            model.loaded = true
+
+                            listOf(
+                                async { model.loadTrending(1) },
+                                async { model.loadUpdated() },
+                                async { model.loadPopular("ANIME", sort = Anilist.sortBy[1]) }
+                            ).awaitAll()
                         }
-                        model.loaded = true
-                        model.loadTrending(1)
-                        model.loadUpdated()
-                        model.loadPopular("ANIME", sort = Anilist.sortBy[1])
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        withContext(Dispatchers.Main) {
+                            snackString("Failed to load Anime data.")
+                        }
+                    } finally {
+                        live.postValue(false)
+                        _binding?.animeRefresh?.isRefreshing = false
                     }
-                    live.postValue(false)
-                    _binding?.animeRefresh?.isRefreshing = false
                 }
             }
         }

@@ -22,7 +22,9 @@ import ani.saikou.saveData
 import ani.saikou.snackString
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import java.util.TimeZone
 import kotlin.system.measureTimeMillis
 
 class AnilistQueries {
@@ -66,6 +68,7 @@ class AnilistQueries {
 
         val query =
             """{Media(id:${media.id}){id mediaListEntry{id status score(format:POINT_100) progress private notes repeat customLists updatedAt startedAt{year month day}completedAt{year month day}}isFavourite siteUrl idMal nextAiringEpisode{episode airingAt}source countryOfOrigin format duration season seasonYear startDate{year month day}endDate{year month day}genres studios(isMain:true){nodes{id name siteUrl}}description trailer { site id } synonyms tags { name rank isMediaSpoiler } characters(sort:[ROLE,FAVOURITES_DESC],perPage:25,page:1){edges{role node{id image{medium}name{userPreferred}}}}relations{edges{relationType(version:2)node{id idMal mediaListEntry{progress private score(format:POINT_100) status} episodes chapters nextAiringEpisode{episode} popularity meanScore isAdult isFavourite format title{english romaji userPreferred}type status(version:2)bannerImage coverImage{large}}}}staffPreview: staff(perPage: 8, sort: [RELEVANCE, ID]) {edges{role node{id name{userPreferred}}}}recommendations(sort:RATING_DESC){nodes{mediaRecommendation{id idMal mediaListEntry{progress private score(format:POINT_100) status} episodes chapters nextAiringEpisode{episode}meanScore isAdult isFavourite format title{english romaji userPreferred}type status(version:2)bannerImage coverImage{large}}}}externalLinks{url site}}}"""
+
         runBlocking {
             val anilist = async {
                 var response = executeQuery<Query.Media>(
@@ -240,9 +243,9 @@ class AnilistQueries {
                         media.shareLink = fetchedMedia.siteUrl
                     }
 
-                    if (response.data?.media != null) parse()
-                    else {
-                        snackString(currContext()?.getString(R.string.adult_stuff))
+                    if (response.data?.media != null) {
+                        parse()
+                    } else {
                         response = executeQuery(
                             query,
                             force = true,
@@ -250,21 +253,11 @@ class AnilistQueries {
                             cache = AnilistCache.SIX_HOURS_MINUTES
                         )
                         if (response?.data?.media != null) parse()
-                        else snackString(currContext()?.getString(R.string.what_did_you_open))
                     }
-                } else {
+                }
+            }
 
-                    if (Anilist.lastErrorMessage == null) {
-                        snackString(currContext()?.getString(R.string.error_getting_data))
-                    }
-                }
-            }
-            val mal = async {
-                if (media.idMAL != null) {
-                    MalScraper.loadMedia(media)
-                }
-            }
-            awaitAll(anilist, mal)
+            anilist.await()
         }
         return media
     }
@@ -273,20 +266,27 @@ class AnilistQueries {
         val returnArray = arrayListOf<Media>()
         val map = mutableMapOf<Int, Media>()
         val statuses = if (!planned) arrayOf("CURRENT", "REPEATING") else arrayOf("PLANNING")
-        suspend fun repeat(status: String) {
+
+        suspend fun fetch(status: String): List<Media> {
             val response =
                 executeQuery<Query.MediaListCollection>(""" { MediaListCollection(userId: ${Anilist.userid}, type: $type, status: $status , sort: UPDATED_TIME ) { lists { entries { progress private score(format:POINT_100) status media { id idMal type isAdult status chapters episodes nextAiringEpisode {episode} meanScore isFavourite format bannerImage coverImage{large} title { english romaji userPreferred } } } } } } """)
 
+            val list = mutableListOf<Media>()
             response?.data?.mediaListCollection?.lists?.forEach { li ->
                 li.entries?.reversed()?.forEach {
                     val m = Media(it)
                     m.cameFromContinue = true
-                    map[m.id] = m
+                    list.add(m)
                 }
             }
+            return list
         }
 
-        statuses.forEach { repeat(it) }
+        val results = coroutineScope {
+            statuses.map { async { fetch(it) } }.awaitAll()
+        }
+        results.flatten().forEach { map[it.id] = it }
+
         val set = loadData<MutableSet<Int>>("continue_$type")
         if (set != null) {
             set.reversed().forEach {
@@ -325,25 +325,27 @@ class AnilistQueries {
     }
 
     suspend fun recommendations(): ArrayList<Media> {
-        val response =
-            executeQuery<Query.Page>(
-                """ { Page(page: 1, perPage:30) { pageInfo { total currentPage hasNextPage } recommendations(sort: RATING_DESC, onList: true) { rating userRating mediaRecommendation { id idMal isAdult mediaListEntry { progress private score(format:POINT_100) status } chapters isFavourite format episodes nextAiringEpisode {episode} popularity meanScore isFavourite format title {english romaji userPreferred } type status(version: 2) bannerImage coverImage { large } } } } } """,
-                cache = AnilistCache.SIX_HOURS_MINUTES
-            )
         val map = mutableMapOf<Int, Media>()
-        response?.data?.page?.apply {
-            recommendations?.onEach {
-                val json = it.mediaRecommendation
-                if (json != null) {
-                    val m = Media(json)
-                    m.relation = json.type?.toString()
-                    map[m.id] = m
+
+        suspend fun fetchRecommendations() {
+            val response =
+                executeQuery<Query.Page>(
+                    """ { Page(page: 1, perPage:30) { pageInfo { total currentPage hasNextPage } recommendations(sort: RATING_DESC, onList: true) { rating userRating mediaRecommendation { id idMal isAdult mediaListEntry { progress private score(format:POINT_100) status } chapters isFavourite format episodes nextAiringEpisode {episode} popularity meanScore isFavourite format title {english romaji userPreferred } type status(version: 2) bannerImage coverImage { large } } } } } """,
+                    cache = AnilistCache.SIX_HOURS_MINUTES
+                )
+            response?.data?.page?.apply {
+                recommendations?.onEach {
+                    val json = it.mediaRecommendation
+                    if (json != null) {
+                        val m = Media(json)
+                        m.relation = json.type?.toString()
+                        map[m.id] = m
+                    }
                 }
             }
         }
 
-        val types = arrayOf("ANIME", "MANGA")
-        suspend fun repeat(type: String) {
+        suspend fun fetchPlanned(type: String) {
             val res =
                 executeQuery<Query.MediaListCollection>(
                     """ { MediaListCollection(userId: ${Anilist.userid}, type: $type, status: PLANNING , sort: MEDIA_POPULARITY_DESC ) { lists { entries { media { id mediaListEntry { progress private score(format:POINT_100) status } idMal type isAdult popularity status(version: 2) chapters episodes nextAiringEpisode {episode} meanScore isFavourite format bannerImage coverImage{large} title { english romaji userPreferred } } } } } } """,
@@ -359,7 +361,14 @@ class AnilistQueries {
                 }
             }
         }
-        types.forEach { repeat(it) }
+
+        coroutineScope {
+            val jobs = mutableListOf<kotlinx.coroutines.Deferred<Unit>>()
+            jobs += async { fetchRecommendations() }
+            jobs += async { fetchPlanned("ANIME") }
+            jobs += async { fetchPlanned("MANGA") }
+            jobs.awaitAll()
+        }
 
         val list = ArrayList(map.values.toList())
         list.sortByDescending { it.meanScore }
@@ -388,13 +397,11 @@ class AnilistQueries {
         } else return image.url
     }
 
-    suspend fun getBannerImages(): ArrayList<String?> {
-        val default = arrayListOf<String?>(null, null)
-        default[0] = bannerImage("ANIME")
-        default[1] = bannerImage("MANGA")
-        return default
+    suspend fun getBannerImages(): ArrayList<String?> = coroutineScope {
+        val anime = async { bannerImage("ANIME") }
+        val manga = async { bannerImage("MANGA") }
+        arrayListOf(anime.await(), manga.await())
     }
-
 
     suspend fun getMediaLists(
         anime: Boolean,
@@ -455,35 +462,40 @@ class AnilistQueries {
         var genres: ArrayList<String>? = loadData("genres_list", activity)
         var tags: Map<Boolean, List<String>>? = loadData("tags_map", activity)
 
-        if (genres == null) {
-            executeQuery<Query.GenreCollection>(
-                """{GenreCollection}""",
-                force = true,
-                useToken = false
-            )?.data?.genreCollection?.apply {
-                genres = arrayListOf()
-                forEach {
-                    genres?.add(it)
-                }
-                saveData("genres_list", genres!!)
-            }
-        }
-        if (tags == null) {
-            executeQuery<Query.MediaTagCollection>(
-                """{ MediaTagCollection { name isAdult } }""",
-                force = true
-            )?.data?.mediaTagCollection?.apply {
-                val adult = mutableListOf<String>()
-                val good = mutableListOf<String>()
-                forEach { node ->
-                    if (node.isAdult == true) adult.add(node.name)
-                    else good.add(node.name)
-                }
-                tags = mapOf(
-                    true to adult,
-                    false to good
-                )
-                saveData("tags_map", tags)
+        if (genres == null || tags == null) {
+            coroutineScope {
+                val genresJob = if (genres == null) async {
+                    executeQuery<Query.GenreCollection>(
+                        """{GenreCollection}""",
+                        force = true,
+                        useToken = false
+                    )?.data?.genreCollection?.let { list ->
+                        val fetched = arrayListOf<String>()
+                        list.forEach { fetched.add(it) }
+                        saveData("genres_list", fetched)
+                        genres = fetched
+                    }
+                } else null
+
+                val tagsJob = if (tags == null) async {
+                    executeQuery<Query.MediaTagCollection>(
+                        """{ MediaTagCollection { name isAdult } }""",
+                        force = true
+                    )?.data?.mediaTagCollection?.let { list ->
+                        val adult = mutableListOf<String>()
+                        val good = mutableListOf<String>()
+                        list.forEach { node ->
+                            if (node.isAdult == true) adult.add(node.name)
+                            else good.add(node.name)
+                        }
+                        val fetched = mapOf(true to adult, false to good)
+                        saveData("tags_map", fetched)
+                        tags = fetched
+                    }
+                } else null
+
+                genresJob?.await()
+                tagsJob?.await()
             }
         }
         return if (genres != null && tags != null) {
@@ -687,29 +699,8 @@ query (${"$"}page: Int = 1, ${"$"}id: Int, ${"$"}type: MediaType, ${"$"}isAdult:
     suspend fun recentlyUpdated(
         smaller: Boolean = true,
         greater: Long = 0,
-        lesser: Long = 0
+        lesser: Long = System.currentTimeMillis() / 1000 - 10000
     ): MutableList<Media>? {
-        val now = System.currentTimeMillis() / 1000
-        val cutoff = now - 10000
-        val day = 24 * 60 * 60
-        val midnight = (now / day) * day
-        val windowStart = midnight - (12 * 60 * 60)
-        val windowEnd = midnight + (12 * 60 * 60)
-
-        val hasCustomRange = greater > 0 || lesser > 0
-
-        val airingAtGreater = if (greater > 0) {
-            greater
-        } else {
-            windowStart
-        }
-
-        val airingAtLesser = if (lesser > 0) {
-            lesser
-        } else {
-            windowEnd
-        }
-
         suspend fun execute(page: Int = 1): Page? {
             val query = """{
 Page(page:$page,perPage:50) {
@@ -718,8 +709,8 @@ Page(page:$page,perPage:50) {
         total
     }
     airingSchedules(
-        airingAt_greater: $airingAtGreater
-        airingAt_lesser: $airingAtLesser
+        airingAt_greater: $greater
+        airingAt_lesser: $lesser
         sort:TIME_DESC
     ) {
         episode
@@ -754,79 +745,42 @@ Page(page:$page,perPage:50) {
     }
 }
         }""".replace("\n", " ").replace("""  """, "")
-
-            return executeQuery<Query.Page>(
-                query,
-                force = true,
-                cache = AnilistCache.SIX_HOURS_MINUTES
-            )?.data?.page
+            return executeQuery<Query.Page>(query, force = true)?.data?.page
         }
-
         if (smaller) {
             val response = execute()?.airingSchedules ?: return null
-            val idArr = mutableSetOf<Int>()
+            val idArr = mutableListOf<Int>()
             val listOnly = loadData("recently_list_only") ?: false
-
-            return response.mapNotNull { schedule ->
-                val airingAt = schedule.airingAt ?: return@mapNotNull null
-                val media = schedule.media ?: return@mapNotNull null
-
-                if (!hasCustomRange && airingAt > cutoff) {
-                    return@mapNotNull null
-                }
-
-                if (!idArr.add(media.id)) {
-                    return@mapNotNull null
-                }
-
-                val listOnly = loadData("recently_list_only") ?: false
-
-                val allowed =
-                    if (listOnly) {
-                        media.mediaListEntry != null
-                    } else {
-                        media.countryOfOrigin == "JP" &&
-                                (Anilist.adult || media.isAdult == false)
-                    }
-
-                if (allowed) {
-                    Media(media)
-                } else {
-                    null
+            return response.mapNotNull { i ->
+                i.media?.let {
+                    if (!idArr.contains(it.id))
+                        if (!listOnly && (it.countryOfOrigin == "JP" && (if (!Anilist.adult) it.isAdult == false else true)) || (listOnly && it.mediaListEntry != null)) {
+                            idArr.add(it.id)
+                            Media(it)
+                        } else null
+                    else null
                 }
             }.toMutableList()
         } else {
-            var page = 1
+            var i = 1
             val list = mutableListOf<Media>()
-            var res: Page?
-
-            do {
-                res = execute(page)
-
-                res?.airingSchedules?.forEach { schedule ->
-                    val airingAt = schedule.airingAt ?: return@forEach
-                    val media = schedule.media ?: return@forEach
-                    if (
-                        (hasCustomRange || airingAt <= cutoff) &&
-                        media.countryOfOrigin == "JP" &&
-                        (Anilist.adult || media.isAdult == false)
-                    ) {
-                        list.add(
-                            Media(media).apply {
-                                relation = "${schedule.episode},$airingAt"
-                            }
-                        )
+            var res: Page? = null
+            suspend fun next() {
+                res = execute(i)
+                list.addAll(res?.airingSchedules?.mapNotNull { j ->
+                    j.media?.let {
+                        if (it.countryOfOrigin == "JP" && (if (!Anilist.adult) it.isAdult == false else true)) {
+                            Media(it).apply { relation = "${j.episode},${j.airingAt}" }
+                        } else null
                     }
-                }
-
-                page++
-            } while (res?.pageInfo?.hasNextPage == true)
-
-            return if (hasCustomRange) {
-                list.reversed().toMutableList()
-            } else {
-                list.toMutableList()
+                } ?: listOf())
             }
+            next()
+            while (res?.pageInfo?.hasNextPage == true) {
+                next()
+                i++
+            }
+            return list.reversed().toMutableList()
         }
     }
 
@@ -978,7 +932,6 @@ Page(page:$page,perPage:50) {
         studio.yearMedia = yearMedia
         return studio
     }
-
 
     suspend fun getAuthorDetails(author: Author): Author {
         fun query(page: Int = 0) = """ {
