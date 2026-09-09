@@ -7,7 +7,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,17 +14,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,7 +58,6 @@ fun AppUpdateContent(
     onStartDownload: (url: String, version: String) -> Unit,
     onCancelDownload: () -> Unit,
     onInstall: (File) -> Unit,
-    onDontShowAgain: (version: String, isChecked: Boolean) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -80,7 +74,6 @@ fun AppUpdateContent(
         handleDismiss()
     }
 
-    var dontAskChecked by remember { mutableStateOf(false) }
     var lastDownloadingState by remember { mutableStateOf<UpdateState.Downloading?>(null) }
 
     val scope = rememberCoroutineScope()
@@ -109,7 +102,7 @@ fun AppUpdateContent(
         modifier = modifier.fillMaxSize()
     ) {
 
-        // --- BACK BUTTON ---
+        // --- BACK BUTTON---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -148,7 +141,6 @@ fun AppUpdateContent(
                     .weight(1f)
                     .padding(start = 32.dp, top = 16.dp, bottom = 16.dp, end = 16.dp)
             )
-
 
             Box(
                 modifier = Modifier
@@ -213,11 +205,11 @@ fun AppUpdateContent(
                                 CheckingForUpdatesSection(onCancelCheck = handleDismiss)
                             }
                         }
-
                         is UpdateState.Available -> {
-
                             Column(
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 20.dp, vertical = 16.dp)
                             ) {
                                 Text(
                                     text = "New Update Available",
@@ -226,8 +218,8 @@ fun AppUpdateContent(
                                     color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                Spacer(modifier = Modifier.height(16.dp))
 
+                                Spacer(modifier = Modifier.height(16.dp))
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -242,15 +234,9 @@ fun AppUpdateContent(
 
                                 Spacer(modifier = Modifier.height(16.dp))
 
-
                                 UpdateActionButtons(
                                     isDownloading = false,
                                     isReadyToInstall = false,
-                                    dontShowAgain = dontAskChecked,
-                                    onDontShowAgainChange = {
-                                        dontAskChecked = it
-                                        onDontShowAgain(currentState.version, it)
-                                    },
                                     onPrimaryAction = {
                                         onStartDownload(currentState.downloadUrl, currentState.version)
                                     },
@@ -316,93 +302,88 @@ private fun AppUpdatePreview_Idle() {
                 onStartDownload = { _, _ -> },
                 onCancelDownload = {},
                 onInstall = {},
-                onDontShowAgain = { _, _ -> },
                 onDismiss = {}
             )
         }
     }
 }
 
-//@Preview(name = "2. Checking State", showBackground = true)
-//@Composable
-//private fun AppUpdatePreview_Checking() {
-//    SaikouTheme {
-//        Surface {
-//            AppUpdateContent(
-//                state = UpdateState.Checking,
-//                onCheckForUpdates = {},
-//                onStartDownload = { _, _ -> },
-//                onCancelDownload = {},
-//                onInstall = {},
-//                onDontShowAgain = { _, _ -> },
-//                onDismiss = {}
-//            )
-//        }
-//    }
-//}
-//
-//@Preview(name = "3. Available Update", showBackground = true)
-//@Composable
-//private fun AppUpdatePreview_Available() {
-//    SaikouTheme {
-//        Surface {
-//            AppUpdateContent(
-//                state = UpdateState.Available(
-//                    version = "1.2.5-beta",
-//                    changelog = """
-//                        ### Fixes
-//                        * **Anizone:** Fixed search errors, missing sources, and incomplete episode counts.
-//                        * **Player:** Resolved video frame dropping during high bitrate playback.
-//                    """.trimIndent(),
-//                    downloadUrl = "https://github.com/supboys/releases"
-//                ),
-//                onCheckForUpdates = {},
-//                onStartDownload = { _, _ -> },
-//                onCancelDownload = {},
-//                onInstall = {},
-//                onDontShowAgain = { _, _ -> },
-//                onDismiss = {}
-//            )
-//        }
-//    }
-//}
-//
-//@Preview(name = "4. Downloading State", showBackground = true)
-//@Composable
-//private fun AppUpdatePreview_Downloading() {
-//    SaikouTheme {
-//        Surface {
-//            AppUpdateContent(
-//                state = UpdateState.Downloading(
-//                    downloadedBytes = 15_400_000L,
-//                    totalBytes = 32_000_000L,
-//                    progressPercentage = 48
-//                ),
-//                onCheckForUpdates = {},
-//                onStartDownload = { _, _ -> },
-//                onCancelDownload = {},
-//                onInstall = {},
-//                onDontShowAgain = { _, _ -> },
-//                onDismiss = {}
-//            )
-//        }
-//    }
-//}
+@Preview(name = "2. Checking State", showBackground = true)
+@Composable
+private fun AppUpdatePreview_Checking() {
+    SaikouTheme {
+        Surface {
+            AppUpdateContent(
+                state = UpdateState.Checking,
+                onCheckForUpdates = {},
+                onStartDownload = { _, _ -> },
+                onCancelDownload = {},
+                onInstall = {},
+                onDismiss = {}
+            )
+        }
+    }
+}
 
-//@Preview(name = "5. Error State", showBackground = true)
-//@Composable
-//private fun AppUpdatePreview_Error() {
-//    SaikouTheme {
-//        Surface {
-//            AppUpdateContent(
-//                state = UpdateState.Error("Unable to connect to GitHub API (HTTP 429 Rate Limit Exceeded)."),
-//                onCheckForUpdates = {},
-//                onStartDownload = { _, _ -> },
-//                onCancelDownload = {},
-//                onInstall = {},
-//                onDontShowAgain = { _, _ -> },
-//                onDismiss = {}
-//            )
-//        }
-//    }
-//}
+@Preview(name = "3. Available Update", showBackground = true)
+@Composable
+private fun AppUpdatePreview_Available() {
+    SaikouTheme {
+        Surface {
+            AppUpdateContent(
+                state = UpdateState.Available(
+                    version = "1.2.5-beta",
+                    changelog = """
+                        ### Fixes
+                        * **Anizone:** Fixed search errors, missing sources, and incomplete episode counts.
+                        * **Player:** Resolved video frame dropping during high bitrate playback.
+                    """.trimIndent(),
+                    downloadUrl = "https://github.com/supboys/releases"
+                ),
+                onCheckForUpdates = {},
+                onStartDownload = { _, _ -> },
+                onCancelDownload = {},
+                onInstall = {},
+                onDismiss = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "4. Downloading State", showBackground = true)
+@Composable
+private fun AppUpdatePreview_Downloading() {
+    SaikouTheme {
+        Surface {
+            AppUpdateContent(
+                state = UpdateState.Downloading(
+                    downloadedBytes = 15_400_000L,
+                    totalBytes = 32_000_000L,
+                    progressPercentage = 48
+                ),
+                onCheckForUpdates = {},
+                onStartDownload = { _, _ -> },
+                onCancelDownload = {},
+                onInstall = {},
+                onDismiss = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "5. Error State", showBackground = true)
+@Composable
+private fun AppUpdatePreview_Error() {
+    SaikouTheme {
+        Surface {
+            AppUpdateContent(
+                state = UpdateState.Error("Unable to connect to GitHub API (HTTP 429 Rate Limit Exceeded)."),
+                onCheckForUpdates = {},
+                onStartDownload = { _, _ -> },
+                onCancelDownload = {},
+                onInstall = {},
+                onDismiss = {}
+            )
+        }
+    }
+}

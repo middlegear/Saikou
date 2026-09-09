@@ -78,9 +78,6 @@ class UpdateActivity : AppCompatActivity() {
                                 onInstall = { apkFile ->
                                     handleApkInstallation(apkFile)
                                 },
-                                onDontShowAgain = { version, isChecked ->
-                                    saveData("dont_ask_for_update_$version", isChecked)
-                                },
                                 onDismiss = {
                                     AppUpdater.dismissCurrentUpdate()
                                     finish()
