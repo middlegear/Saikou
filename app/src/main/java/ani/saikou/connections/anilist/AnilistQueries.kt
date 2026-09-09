@@ -75,7 +75,6 @@ class AnilistQueries {
                     query,
                     force = true,
                     show = true,
-                    cache = AnilistCache.SIX_HOURS_MINUTES
                 )
                 if (response != null) {
                     fun parse() {
