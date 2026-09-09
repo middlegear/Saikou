@@ -783,7 +783,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         torrServerService?.releaseStream()
         stopTorrentStatsMonitoring()
 
-        player?.stop()
 
         _playbackState.value = PlaybackState.BUFFERING
 

@@ -2,6 +2,7 @@ package ani.saikou.media.anime.mpv
 
 import android.content.Context
 import android.os.Build
+import android.os.Looper
 import android.util.AttributeSet
 import android.util.Log
 import android.view.SurfaceHolder
@@ -94,6 +95,7 @@ class MpvVideoPlayer(
 
     private var wasBackgrounded = false
     private var lastGoodPositionMs = 0L
+    private val refreshTracksRunnable = Runnable { refreshTracks() }
 
     private val player: MPV?
         get() = mpv
@@ -191,6 +193,7 @@ class MpvVideoPlayer(
 
             val fontsDir = copyFontsForMpv()
             mpv.setOptionString("sub-fonts-dir", fontsDir)
+            mpv.setOptionString("sub-font-provider", "none")
             mpv.setOptionString("sub-font", "Poppins")
             mpv.setOptionString("sub-visibility", "yes")
             mpv.setOptionString("sub-ass-override", "force")
@@ -354,7 +357,8 @@ class MpvVideoPlayer(
             "volume" -> _volume.value = mpv.getPropertyInt("volume") ?: 100
             "speed" -> _playbackSpeed.value = (mpv.getPropertyDouble("speed") ?: 1.0).toFloat()
             "track-list" -> {
-                refreshTracks()
+                removeCallbacks(refreshTracksRunnable)
+                postDelayed(refreshTracksRunnable, 120L)
                 detectAndUpdateAudioChannel()
             }
             "vid" -> {
@@ -558,6 +562,7 @@ class MpvVideoPlayer(
 
         Log.d(TAG, "release() called")
 
+        removeCallbacks(refreshTracksRunnable)
         releaseInternal()
 
         isFileLoaded = false
@@ -655,9 +660,10 @@ class MpvVideoPlayer(
             Log.d(TAG, "Deferring media load - init:$isInitialized shutdown:${isShutdown.get()} surface:$surfaceReady")
 
             if (isShutdown.get() && surfaceReady && currentSurfaceHolder != null) {
-                init(currentSurfaceHolder!!)
-                if (isInitialized && !isShutdown.get()) {
-                    loadMediaInternal(mediaState)
+                if (Looper.myLooper() == Looper.getMainLooper()) {
+                    surfaceCreated(currentSurfaceHolder!!)
+                } else {
+                    post { surfaceCreated(currentSurfaceHolder!!) }
                 }
             }
             return
