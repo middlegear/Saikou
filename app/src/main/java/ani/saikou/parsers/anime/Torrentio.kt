@@ -61,7 +61,7 @@ class Torrentio : AnimeApiParser() {
             episodes.data.map { ep ->
                 Episode(
                     number = ep.episodeNumber.toString(),
-                    link = "${ep.kitsuId}|${ep.imdbId ?: ""}|${ep.episodeNumber}",
+                    link = "${ep.kitsuId}|${ep.imdbId ?: ""}|${ep.episodeNumber}|${ep.type ?: ""}",
                     title = ep.title,
                     thumbnail = ep.thumbnail?.let { FileUrl(it) },
                     description = ep.summary
@@ -69,7 +69,6 @@ class Torrentio : AnimeApiParser() {
             }
         } ?: emptyList()
     }
-
     override suspend fun loadVideoServers(
         episodeLink: String, extra: Map<String, String>?
     ): List<VideoServer> {
@@ -83,17 +82,20 @@ class Torrentio : AnimeApiParser() {
             val kitsuId = parts.getOrNull(0)?.takeIf { it.isNotBlank() }
             val imdbId = parts.getOrNull(1)?.takeIf { it.isNotBlank() }
             val episodeNumber = parts.getOrNull(2)
+            val type = parts.getOrNull(3)?.takeIf { it.isNotBlank() } ?: "series"
 
             if (kitsuId == null && imdbId == null) {
                 Log.d("Torrentio", "loadVideoServers: no kitsu or imdb id available")
                 return@tryWithSuspend emptyList()
             }
 
-            val kitsuStreamId = kitsuId?.let { "kitsu:$it:$episodeNumber" }
+            val kitsuStreamId = kitsuId?.let {
+                if (type == "movie") "kitsu:$it" else "kitsu:$it:$episodeNumber"
+            }
             val imdbStreamId = imdbId
 
             var streamId = kitsuStreamId
-            var torrentioResponse = streamId?.let { fetchTorrentioStreams(it) }
+            var torrentioResponse = streamId?.let { fetchTorrentioStreams(type, it) }
 
             if (torrentioResponse == null || torrentioResponse.streams.isEmpty()) {
                 Log.d(
@@ -101,7 +103,7 @@ class Torrentio : AnimeApiParser() {
                     "kitsu id returned no streams, falling back to imdb id"
                 )
                 streamId = imdbStreamId
-                torrentioResponse = streamId?.let { fetchTorrentioStreams(it) }
+                torrentioResponse = streamId?.let { fetchTorrentioStreams(type, it) }
             }
 
             if (torrentioResponse == null || torrentioResponse.streams.isEmpty()) {
@@ -109,7 +111,7 @@ class Torrentio : AnimeApiParser() {
                 return@tryWithSuspend emptyList()
             }
 
-            val embedUrl = buildEmbedUrl(streamId!!)
+            val embedUrl = buildEmbedUrl(type, streamId!!)
 
             val groupedByProvider = torrentioResponse.streams.groupBy { stream ->
                 getProviderName(stream)
@@ -149,13 +151,12 @@ class Torrentio : AnimeApiParser() {
         } ?: emptyList()
     }
 
-    fun buildEmbedUrl(streamId: String): String =
-        "https://torrentio.strem.fun/providers=horriblesubs,nyaasi,tokyotosho,anidex,nekobt,yts,eztv|sort=seeders/stream/series/${streamId}.json"
+    fun buildEmbedUrl(type: String, streamId: String): String =
+        "https://torrentio.strem.fun/providers=eztv,rarbg,1337x,ext,thepiratebay,kickasstorrents,torrentgalaxy,magnetdl,horriblesubs,nyaasi,tokyotosho,anidex,nekobt,yts|sort=seeders/stream/$type/${streamId}.json"
 
-    suspend fun fetchTorrentioStreams(streamId: String): TorrentioResponse? {
-        val embedUrl = buildEmbedUrl(streamId)
+    suspend fun fetchTorrentioStreams(type: String, streamId: String): TorrentioResponse? {
+        val embedUrl = buildEmbedUrl(type, streamId)
 
-        Log.d("Torrentio", "========== REQUEST ==========")
         Log.d("Torrentio", "Stream id: $streamId")
         Log.d("Torrentio", "Final URL: $embedUrl")
 
@@ -177,13 +178,20 @@ class Torrentio : AnimeApiParser() {
     }
 
     private val providerDisplayNames = mapOf(
+        "eztv" to "EZTV",
+        "rarbg" to "RARBG",
+        "1337x" to "1337x",
+        "ext" to "ExtraTorrent",
+        "thepiratebay" to "The Pirate Bay",
+        "kickasstorrents" to "KickassTorrents",
+        "torrentgalaxy" to "TorrentGalaxy",
+        "magnetdl" to "MagnetDL",
         "horriblesubs" to "HorribleSubs",
         "nyaasi" to "Nyaa.si",
         "tokyotosho" to "Tokyo Toshokan",
         "anidex" to "AniDex",
         "nekobt" to "NekoBT",
-        "yts" to "YTS",
-        "eztv" to "EZTV"
+        "yts" to "YTS"
     )
 
     private fun getProviderName(stream: TorrentInfo): String {
@@ -239,6 +247,7 @@ class Torrentio : AnimeApiParser() {
         val thumbnail: String? = null,
         val episodeNumber: Int,
         val imdbId: String? = null,
-        val summary: String? = null
+        val summary: String? = null,
+        val type:String? =null
     )
 }

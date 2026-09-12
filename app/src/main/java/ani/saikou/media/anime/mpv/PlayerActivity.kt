@@ -60,9 +60,7 @@ class PlayerActivity : AppCompatActivity() {
 
         val showProgressDialog = loadData<Boolean>("${media.id}_progressDialog") ?: true
 
-        if (showProgressDialog && Anilist.userid != null &&
-            if (media.isAdult) playerModel.settings.updateForH else true
-        ) {
+        if (showProgressDialog && Anilist.userid != null && if (media.isAdult) playerModel.settings.updateForH else true) {
             playerModel.setDialogShowing(true)
 
             AlertDialog.Builder(this, R.style.DialogTheme)
@@ -83,7 +81,9 @@ class PlayerActivity : AppCompatActivity() {
                     setNegativeButton(getString(R.string.no)) { dialog, _ ->
                         saveData("${media.id}_progressDialog", false)
                         saveData("${media.id}_save_progress", false)
+
                         toast(getString(R.string.reset_auto_update))
+
                         dialog.dismiss()
                         playerModel.setDialogShowing(false)
                         playerModel.setInitialEpisode(mediaDetailsModel)
@@ -98,15 +98,11 @@ class PlayerActivity : AppCompatActivity() {
             if (episode != null && playerModel.isPlayerAttached) {
                 playerModel.loadResolvedEpisode(episode, this@PlayerActivity, mediaDetailsModel)
             } else if (episode != null) {
-                Log.d(
-                    TAG,
-                    "Episode observed via LiveData: ${episode.number} — player not attached yet, deferring to onSurfaceReady."
-                )
+                Log.d(TAG, "Episode observed via LiveData: ${episode.number} — " + "player not attached yet, deferring to onSurfaceReady.")
             }
         }
 
         var autoNextFired = false
-        var wasNearEnd = false
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -116,47 +112,51 @@ class PlayerActivity : AppCompatActivity() {
                     playerModel.currentPosition,
                     playerModel.uiState
                 ) { state, duration, position, uiState ->
-                    TrackEpisode(state, duration, position, uiState.hasNextEpisode)
-                }.collect { (state, duration, currentPosition, hasNextEpisode) ->
-                    val remainingTime = if (duration > 0L) duration - currentPosition else -1L
+                    TrackEpisode(
+                        state = state,
+                        duration = duration,
+                        currentPosition = position,
+                        hasNextEpisode = uiState.hasNextEpisode
+                    )
+                }.collect { track ->
+                    val state = track.state
+                    val duration = track.duration
+                    val currentPosition = track.currentPosition
+                    val hasNextEpisode = track.hasNextEpisode
 
-
-                    if (state == PlaybackState.PLAYING && duration > 0L) {
-                        if (remainingTime in 0L..3000L) {
-                            wasNearEnd = true
+                    val remainingTime = if (duration > 0L) {
+                            duration - currentPosition
+                        } else {
+                            -1L
                         }
-                    }
 
-
-                    if (state == PlaybackState.PLAYING || state == PlaybackState.BUFFERING) {
-                        if (remainingTime > 5000L || currentPosition < 2000L) {
-                            if (autoNextFired || wasNearEnd) {
-                                Log.d(TAG, "auto-next: resetting gate (pos=$currentPosition)")
-                            }
-                            autoNextFired = false
-                            wasNearEnd = false
-                        }
-                    }
-
-
-                    val isAtTrackEnd = (wasNearEnd && (state == PlaybackState.ENDED || state == PlaybackState.IDLE)) ||
-                            (state == PlaybackState.PLAYING && remainingTime in 0L..300L)
+                    val isAtTrackEnd =
+                        state == PlaybackState.ENDED || (duration > 0L && state == PlaybackState.PLAYING && remainingTime <= 1000L)
 
                     if (isAtTrackEnd && !autoNextFired) {
                         autoNextFired = true
-                        wasNearEnd = false
-                        Log.d(TAG, "auto-next: triggered!")
+
+                        Log.d(TAG, "auto-next: triggered! (state=$state, pos=$currentPosition, dur=$duration, remaining=$remainingTime)")
+
                         if (playerModel.settings.autoPlay && hasNextEpisode) {
-                            playerModel.handleNextEpisodeClick(this@PlayerActivity, mediaDetailsModel)
+                            val accepted = playerModel.handleNextEpisodeClick(this@PlayerActivity, mediaDetailsModel)
+                            if (!accepted) {
+                                Log.d(TAG, "auto-next: load rejected, re-arming")
+                                autoNextFired = false
+                            }
                         } else {
                             playerModel.pause()
                         }
+                    }
+                    if (autoNextFired && state == PlaybackState.PLAYING && currentPosition > 2000L) {
+                        autoNextFired = false
+                        Log.d(TAG, "auto-next: new episode established, resetting gate (pos=$currentPosition)")
                     }
                 }
             }
         }
         setContent {
-            SaikouTheme{
+            SaikouTheme {
                 val uiState by playerModel.uiState.collectAsState()
                 LaunchedEffect(Unit) {
                     hideSystemUi()
@@ -185,8 +185,8 @@ class PlayerActivity : AppCompatActivity() {
                 )
             }
         }
-
     }
+
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val action = event.action

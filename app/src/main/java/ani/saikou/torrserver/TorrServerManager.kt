@@ -1,6 +1,7 @@
 package ani.saikou.torrserver
 
 import android.content.Context
+import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
 import android.util.Log
@@ -26,16 +27,19 @@ import java.net.Socket
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
-class TorrServerManager(
-    private val context: Context,
-    private val preferredPort: Int = 8090,
-    private val maxPortFallbackAttempts: Int = 5
-) {
+
+class TorrServerManager(private val context: Context) {
     companion object {
         private const val TAG = "TorrServer"
         private const val READY_LOG_MARKER = "Start http server at"
         private const val PREFS_NAME = "torrserver_manager"
         private const val KEY_LAST_PID = "last_pid"
+
+        const val PORT = 47935
+
+        private const val START_TIMEOUT_MS = 5000L
+        private const val ORPHAN_KILL_SETTLE_MS = 200L
+        private const val PORT_CHECK_TIMEOUT_MS = 150
     }
 
     private var process: Process? = null
@@ -52,34 +56,50 @@ class TorrServerManager(
     private val _state = MutableStateFlow<ServerState>(ServerState.Stopped)
     val state: StateFlow<ServerState> = _state.asStateFlow()
 
-    @Volatile
-    var boundPort: Int = preferredPort
-        private set
-
     val cacheDir: File by lazy {
         File(context.cacheDir, "torrserver_cache").apply {
             if (!exists()) mkdirs()
         }
     }
 
+
     suspend fun startServer(): Result<Int> = mutex.withLock {
         withContext(Dispatchers.IO) {
             val savedPid = prefs.getLong(KEY_LAST_PID, -1L)
-            Log.d(TAG, "startServer requested (saved orphan pid on record: $savedPid)")
+            Log.d(TAG, "startServer requested on fixed port $PORT (saved pid on record: $savedPid)")
 
-            if (isHttpResponding(boundPort)) {
-                Log.d(TAG, "Server already active on port $boundPort")
+            if (isHttpResponding(PORT)) {
+                Log.d(TAG, "Server already active on port $PORT")
                 _state.value = ServerState.Running
-                return@withContext Result.success(boundPort)
+                return@withContext Result.success(PORT)
             }
 
-            if (process != null || isPortBound(preferredPort)) {
+            if (process != null) {
                 internalStopServer()
-                killOrphanedProcessIfAny()
             }
 
-            val portToUse = resolvePort()
-            boundPort = portToUse
+            if (isPortBound(PORT)) {
+                Log.d(TAG, "Port $PORT is occupied; attempting to clear our own orphaned process")
+                val killResult = killOrphanedProcessIfAny()
+
+                if (killResult == OrphanKillResult.NOT_OURS) {
+                    val err = "Port $PORT is in use by another app. Close any other " +
+                            "torrent-streaming app and try again."
+                    Log.e(TAG, err)
+                    _state.value = ServerState.Error(err)
+                    return@withContext Result.failure(IOException(err))
+                }
+
+                Thread.sleep(ORPHAN_KILL_SETTLE_MS)
+
+                if (isPortBound(PORT)) {
+                    val err = "Port $PORT is still in use after cleanup. It may be held by " +
+                            "another app; close it and try again."
+                    Log.e(TAG, err)
+                    _state.value = ServerState.Error(err)
+                    return@withContext Result.failure(IOException(err))
+                }
+            }
 
             _state.value = ServerState.Starting
 
@@ -88,7 +108,7 @@ class TorrServerManager(
 
                 val command = listOf(
                     binaryFile.absolutePath,
-                    "--port", portToUse.toString(),
+                    "--port", PORT.toString(),
                     "--path", cacheDir.absolutePath
                 )
 
@@ -127,9 +147,9 @@ class TorrServerManager(
                 }
 
                 scope.launch {
-                    val endTime = System.currentTimeMillis() + 5000
+                    val endTime = System.currentTimeMillis() + START_TIMEOUT_MS
                     while (System.currentTimeMillis() < endTime && proc.isAlive && !isReadyDeferred.isCompleted) {
-                        if (isHttpResponding(portToUse)) {
+                        if (isHttpResponding(PORT)) {
                             if (!isReadyDeferred.isCompleted) {
                                 isReadyDeferred.complete(true)
                             }
@@ -139,14 +159,14 @@ class TorrServerManager(
                     }
                 }
 
-                val serverReady = withTimeoutOrNull(5000.milliseconds) {
+                val serverReady = withTimeoutOrNull(START_TIMEOUT_MS.milliseconds) {
                     isReadyDeferred.await()
                 } ?: false
 
                 if (serverReady && proc.isAlive) {
                     _state.value = ServerState.Running
-                    Log.d(TAG, "Server started successfully on port $portToUse")
-                    Result.success(portToUse)
+                    Log.d(TAG, "Server started successfully on port $PORT")
+                    Result.success(PORT)
                 } else {
                     internalStopServer()
                     val err = "Server failed to start or died prematurely."
@@ -167,28 +187,7 @@ class TorrServerManager(
         withContext(Dispatchers.IO) {
             internalStopServer()
             clearSavedPid()
-            boundPort = preferredPort
         }
-    }
-
-    private fun resolvePort(): Int {
-        if (!isPortBound(preferredPort)) return preferredPort
-
-        Log.d(TAG, "Preferred port $preferredPort still occupied after cleanup; searching for a free port")
-        for (offset in 1..maxPortFallbackAttempts) {
-            val candidate = preferredPort + offset
-            if (!isPortBound(candidate)) {
-                Log.d(TAG, "Falling back to port $candidate")
-                return candidate
-            }
-        }
-
-        Log.e(
-            TAG,
-            "No free port found in range $preferredPort..${preferredPort + maxPortFallbackAttempts}; " +
-                    "attempting $preferredPort anyway, launch may fail"
-        )
-        return preferredPort
     }
 
     private fun internalStopServer() {
@@ -206,31 +205,51 @@ class TorrServerManager(
         Log.d(TAG, "Process destroyed completely")
     }
 
-    private fun killOrphanedProcessIfAny() {
+    private enum class OrphanKillResult {
+        CLEARED,
+        NOT_OURS
+    }
+
+    private fun killOrphanedProcessIfAny(): OrphanKillResult {
         val pid = prefs.getLong(KEY_LAST_PID, -1L)
         if (pid <= 0) {
             Log.d(TAG, "No saved orphan pid to check")
-            return
+            return OrphanKillResult.CLEARED
         }
-        try {
+
+        return try {
             Os.kill(pid.toInt(), OsConstants.SIGKILL)
             Log.d(TAG, "Killed orphaned process pid=$pid")
+            OrphanKillResult.CLEARED
+        } catch (e: ErrnoException) {
+            when (e.errno) {
+                OsConstants.ESRCH -> {
+                    Log.d(TAG, "No orphan at pid=$pid (already dead)")
+                    OrphanKillResult.CLEARED
+                }
+                OsConstants.EPERM -> {
+                    Log.w(TAG, "pid=$pid belongs to another app/UID — not ours to kill")
+                    OrphanKillResult.NOT_OURS
+                }
+                else -> {
+                    Log.w(TAG, "Unexpected errno killing pid=$pid: ${e.errno}")
+                    OrphanKillResult.NOT_OURS
+                }
+            }
         } catch (e: Exception) {
-            Log.d(TAG, "No orphan to kill at pid=$pid (already dead or ESRCH): ${e.message}")
+            Log.w(TAG, "Unexpected error killing pid=$pid: ${e.message}")
+            OrphanKillResult.NOT_OURS
         } finally {
             clearSavedPid()
         }
-        Thread.sleep(200)
     }
 
     private fun getProcessId(process: Process): Long? {
         return try {
-            // Check API level 26+ native method first via reflection or direct call if compiled with high target
             val method = process.javaClass.getMethod("pid")
             (method.invoke(process) as? Number)?.toLong()
         } catch (e: Exception) {
             try {
-                // Fallback for older internal implementations where field was named 'pid'
                 val field = process.javaClass.getDeclaredField("pid").apply { isAccessible = true }
                 (field.get(process) as? Number)?.toLong()
             } catch (ex: Exception) {
@@ -283,7 +302,7 @@ class TorrServerManager(
     private fun isPortBound(port: Int): Boolean {
         return try {
             Socket().use { socket ->
-                socket.connect(InetSocketAddress("127.0.0.1", port), 100)
+                socket.connect(InetSocketAddress("127.0.0.1", port), PORT_CHECK_TIMEOUT_MS)
                 true
             }
         } catch (_: Exception) {

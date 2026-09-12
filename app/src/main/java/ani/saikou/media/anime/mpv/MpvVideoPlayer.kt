@@ -2,6 +2,7 @@ package ani.saikou.media.anime.mpv
 
 import android.content.Context
 import android.os.Build
+import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
 import android.util.Log
@@ -22,6 +23,8 @@ class MpvVideoPlayer(
 ) : BaseMPVView(context, attrs) {
 
     private val TAG = "mpv"
+
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -77,11 +80,31 @@ class MpvVideoPlayer(
     private val _bufferCacheDuration = MutableStateFlow(0L)
     val bufferCacheDuration: StateFlow<Long> = _bufferCacheDuration.asStateFlow()
 
-    var isInitialized = false
-        private set
 
-    var surfaceReady = false
-        private set
+    private val _playerReady = MutableStateFlow(false)
+    val playerReady: StateFlow<Boolean> = _playerReady.asStateFlow()
+
+    val isReady: Boolean
+        get() = _playerReady.value
+
+    private fun updatePlayerReady() {
+        _playerReady.value = isInitialized && surfaceReady
+    }
+
+    var isInitialized: Boolean = false
+        private set(value) {
+            field = value
+            updatePlayerReady()
+        }
+
+    var surfaceReady: Boolean = false
+        private set(value) {
+            field = value
+            updatePlayerReady()
+        }
+
+    val isShutdownInFlight: Boolean
+        get() = isShutdown.get()
 
     private var isFileLoaded = false
     private var initialBufferingDone = false
@@ -149,8 +172,7 @@ class MpvVideoPlayer(
             mpv.setOptionString("icc-cache-dir", cacheDirPath)
 
             mpv.setOptionString("profile", "fast")
-            mpv.setOptionString("demuxer-lavf-o", "force_mpegts=1")
-            mpv.setOptionString("msg-level", "all=v")
+            mpv.setOptionString("msg-level", "all=no")
             mpv.setOptionString("ytdl", "no")
 
             mpv.setOptionString("audio-channels", "auto-safe")
@@ -248,87 +270,111 @@ class MpvVideoPlayer(
             }
 
             override fun event(eventId: Int, data: MPVNode) {
-                if (player == null || isShutdown.get()) return
-
                 Log.d(TAG, "MPV Event: $eventId")
                 when (eventId) {
                     MPV.mpvEvent.MPV_EVENT_FILE_LOADED -> {
-                        Log.d(TAG, "EVENT_FILE_LOADED")
-                        isShutdown.set(false)
-                        isFileLoaded = true
-                        initialBufferingDone = false
-                        _bufferingProgress.value = 0f
-
-                        _mediaLoaded.value = true
-                        _playbackState.value = PlaybackState.BUFFERING
-
-                        val currentPlayer = player ?: return
-
-                        pendingMediaState?.audioTracks?.forEach { audio ->
-                            if (audio.headers.isNotEmpty()) {
-                                val headerStr = audio.headers.entries.joinToString("\r\n") { "${it.key}: ${it.value}" } + "\r\n"
-                                currentPlayer.setPropertyString("http-header-fields", headerStr)
-                            }
-                            val cmd = mutableListOf("audio-add", audio.url, "auto")
-                            if (!audio.label.isNullOrBlank()) cmd.add(audio.label)
-                            if (!audio.language.isNullOrBlank()) cmd.add(audio.language)
-                            currentPlayer.command(*cmd.toTypedArray())
-                        }
-
-                        pendingMediaState?.subtitles?.forEach { sub ->
-                            if (sub.headers.isNotEmpty()) {
-                                val headerStr = sub.headers.entries.joinToString("\r\n") { "${it.key}: ${it.value}" } + "\r\n"
-                                currentPlayer.setPropertyString("http-header-fields", headerStr)
-                            }
-                            val cmd = mutableListOf("sub-add", sub.url, "auto")
-                            if (!sub.label.isNullOrBlank()) cmd.add(sub.label)
-                            if (!sub.language.isNullOrBlank()) cmd.add(sub.language)
-                            currentPlayer.command(*cmd.toTypedArray())
-                        }
-                        refreshTracks()
-                        forceUpdateDurationAndPosition()
-                        if ((pendingMediaState?.startPositionMs ?: 0) > 0) {
-                            seekTo(pendingMediaState!!.startPositionMs)
-                        }
-
-                        pendingMediaState = null
-                        updateBufferingProgress()
-                        refreshPlayerState()
-                        detectAndUpdateAudioChannel()
-                    }
-
-                    MPV.mpvEvent.MPV_EVENT_END_FILE -> {
-                        Log.d(TAG, "EVENT_END_FILE")
-                        if (pendingMediaState != null || !isFileLoaded) {
-                            Log.d(TAG, "Ignoring END_FILE because new media load is pending")
-                            return
-                        }
-                        if (wasBackgrounded) {
-                            Log.d(TAG, "Ignoring END_FILE while recovering from background")
-                            return
-                        }
-                        if (_duration.value > 0L) {
-                            _playbackState.value = PlaybackState.ENDED
-                            _isPlaying.value = false
-                        }
+                        handleFileLoaded()
                         return
                     }
-
+                    MPV.mpvEvent.MPV_EVENT_END_FILE -> {
+                        handleEndFile()
+                        return
+                    }
                     MPV.mpvEvent.MPV_EVENT_SHUTDOWN -> {
-                        Log.d(TAG, "EVENT_SHUTDOWN")
-                        _playbackState.value = PlaybackState.IDLE
-                        _isPlaying.value = false
-                        isFileLoaded = false
-                        initialBufferingDone = false
-                        _bufferingProgress.value = 0f
-                        _mediaLoaded.value = false
-                        isShutdown.set(true)
+                        handleShutdown()
                         return
                     }
                 }
                 refreshPlayerState()
             }
         })
+    }
+
+    private fun handleFileLoaded() {
+        Log.d(TAG, "EVENT_FILE_LOADED")
+        isShutdown.set(false)
+        isFileLoaded = true
+        initialBufferingDone = false
+        _bufferingProgress.value = 0f
+
+        _mediaLoaded.value = true
+        _playbackState.value = PlaybackState.BUFFERING
+
+        val currentPlayer = player ?: return
+
+        pendingMediaState?.audioTracks?.forEach { audio ->
+            if (audio.headers.isNotEmpty()) {
+                val headerStr = audio.headers.entries.joinToString("\r\n") { "${it.key}: ${it.value}" } + "\r\n"
+                currentPlayer.setPropertyString("http-header-fields", headerStr)
+            }
+            val cmd = mutableListOf("audio-add", audio.url, "auto")
+            if (!audio.label.isNullOrBlank()) cmd.add(audio.label)
+            if (!audio.language.isNullOrBlank()) cmd.add(audio.language)
+            currentPlayer.command(*cmd.toTypedArray())
+        }
+
+        pendingMediaState?.subtitles?.forEach { sub ->
+            if (sub.headers.isNotEmpty()) {
+                val headerStr = sub.headers.entries.joinToString("\r\n") { "${it.key}: ${it.value}" } + "\r\n"
+                currentPlayer.setPropertyString("http-header-fields", headerStr)
+            }
+            val cmd = mutableListOf("sub-add", sub.url, "auto")
+            if (!sub.label.isNullOrBlank()) cmd.add(sub.label)
+            if (!sub.language.isNullOrBlank()) cmd.add(sub.language)
+            currentPlayer.command(*cmd.toTypedArray())
+        }
+        refreshTracks()
+        forceUpdateDurationAndPosition()
+        if ((pendingMediaState?.startPositionMs ?: 0) > 0) {
+            seekTo(pendingMediaState!!.startPositionMs)
+        }
+
+        pendingMediaState = null
+        updateBufferingProgress()
+        refreshPlayerState()
+        detectAndUpdateAudioChannel()
+    }
+
+    private fun handleEndFile() {
+        Log.d(TAG, "EVENT_END_FILE")
+        if (pendingMediaState != null || !isFileLoaded) {
+            Log.d(TAG, "Ignoring END_FILE because new media load is pending")
+            return
+        }
+        if (wasBackgrounded) {
+            Log.d(TAG, "Ignoring END_FILE while recovering from background")
+            return
+        }
+        if (_duration.value > 0L) {
+            _playbackState.value = PlaybackState.ENDED
+            _isPlaying.value = false
+        }
+    }
+
+    private fun handleShutdown() {
+        Log.d(TAG, "EVENT_SHUTDOWN")
+        _playbackState.value = PlaybackState.IDLE
+        _isPlaying.value = false
+        isFileLoaded = false
+        initialBufferingDone = false
+        _bufferingProgress.value = 0f
+        _mediaLoaded.value = false
+        isShutdown.set(true)
+
+        val holder = currentSurfaceHolder
+        if (pendingMediaState == null || holder == null) {
+            Log.d(TAG, "Shutdown complete; nothing pending")
+            return
+        }
+
+        Log.d(TAG, "Shutdown complete; scheduling rebuild on main thread")
+        mainHandler.post {
+            if (holder.surface?.isValid != true || !surfaceReady) {
+                Log.d(TAG, "handleShutdown[main]: surface not ready, deferring to surfaceCreated")
+                return@post
+            }
+            surfaceCreated(holder)
+        }
     }
 
     private fun forceUpdateDurationAndPosition() {
@@ -551,7 +597,6 @@ class MpvVideoPlayer(
         }
     }
 
-
     private fun releaseInternal() {
         mpv?.close()
         mpv = null
@@ -605,51 +650,37 @@ class MpvVideoPlayer(
     }
 
     fun stop() {
+        Log.d(TAG, "stop() called")
+
         if (!isInitialized || isShutdown.get()) {
-            _playbackState.value = PlaybackState.IDLE
-            _isPlaying.value = false
             isFileLoaded = false
-            initialBufferingDone = false
-            _bufferingProgress.value = 0f
-            pendingMediaState = null
-            currentMediaState = null
-            wasBackgrounded = false
-            lastGoodPositionMs = 0L
-            _mediaLoaded.value = false
-            _currentPosition.value = 0L
-            _duration.value = 0L
             return
         }
 
-        player?.command("stop")
+        removeCallbacks(refreshTracksRunnable)
 
-        _playbackState.value = PlaybackState.IDLE
-        _isPlaying.value = false
         isFileLoaded = false
         initialBufferingDone = false
-        _bufferingProgress.value = 0f
-        _mediaLoaded.value = false
-        _currentPosition.value = 0L
-        _duration.value = 0L
-
-        _audioTracks.value = emptyList()
-        _subtitleTracks.value = emptyList()
-        _videoTracks.value = emptyList()
-
-        currentMediaState = null
-        pendingMediaState = null
         wasBackgrounded = false
         lastGoodPositionMs = 0L
+
+        _mediaLoaded.value = false
+        _bufferingProgress.value = 0f
+        _playbackState.value = PlaybackState.IDLE
+
+        player?.command("stop")
     }
+
 
     fun loadMedia(
         videoUrl: String,
         headers: Map<String, String> = emptyMap(),
         startPositionMs: Long = 0L,
         audioTracks: List<ExternalAudio> = emptyList(),
-        subtitles: List<ExternalSubtitle> = emptyList()
-    ) {
-        val mediaState = PendingMediaState(videoUrl, headers, startPositionMs, audioTracks, subtitles)
+        subtitles: List<ExternalSubtitle> = emptyList(),
+        perFileOptions: String? = null
+    ): Boolean {
+        val mediaState = PendingMediaState(videoUrl, headers, startPositionMs, audioTracks, subtitles, perFileOptions)
 
         currentMediaState = mediaState
         pendingMediaState = mediaState
@@ -660,23 +691,29 @@ class MpvVideoPlayer(
             Log.d(TAG, "Deferring media load - init:$isInitialized shutdown:${isShutdown.get()} surface:$surfaceReady")
 
             if (isShutdown.get() && surfaceReady && currentSurfaceHolder != null) {
-                if (Looper.myLooper() == Looper.getMainLooper()) {
-                    surfaceCreated(currentSurfaceHolder!!)
+                val holder = currentSurfaceHolder!!
+                return if (Looper.myLooper() == Looper.getMainLooper()) {
+                    reinitAndHandleReady(holder)
                 } else {
-                    post { surfaceCreated(currentSurfaceHolder!!) }
+                    post { surfaceCreated(holder) }
+                    false
                 }
             }
-            return
+            return false
         }
 
-        loadMediaInternal(mediaState)
+        return loadMediaInternal(mediaState)
     }
 
-    private fun loadMediaInternal(mediaState: PendingMediaState) {
-        val mpv = player ?: return
+    private fun loadMediaInternal(mediaState: PendingMediaState): Boolean {
+        val mpv = player ?: return false
+
+        if (isShutdown.get()) {
+            Log.d(TAG, "loadMediaInternal: shutdown already in flight, skipping loadfile for ${mediaState.videoUrl}")
+            return false
+        }
 
         _mediaLoaded.value = false
-
         isFileLoaded = false
         initialBufferingDone = false
         _bufferingProgress.value = 0f
@@ -701,7 +738,18 @@ class MpvVideoPlayer(
             mpv.setPropertyString("http-header-fields", headerStr)
         }
 
-        mpv.command("loadfile", mediaState.videoUrl, "replace")
+        if (isShutdown.get()) {
+            Log.d(TAG, "loadMediaInternal: shutdown landed mid-setup, skipping loadfile for ${mediaState.videoUrl}")
+            return false
+        }
+
+        val options = mediaState.perFileOptions
+        if (options.isNullOrBlank()) {
+            mpv.command("loadfile", mediaState.videoUrl, "replace")
+        } else {
+            mpv.command("loadfile", mediaState.videoUrl, "replace", "-1", options)
+        }
+        return true
     }
 
     fun selectAudioTrack(trackId: Int) {
@@ -862,18 +910,21 @@ class MpvVideoPlayer(
     override fun surfaceCreated(holder: SurfaceHolder) {
         Log.d(TAG, "surfaceCreated() called")
         currentSurfaceHolder = holder
+        reinitAndHandleReady(holder)
+    }
 
+
+    private fun reinitAndHandleReady(holder: SurfaceHolder): Boolean {
         if (!isInitialized || isShutdown.get()) {
             init(holder)
         }
 
         super.surfaceCreated(holder)
-
         surfaceReady = true
 
-        val mpv = player ?: return
+        val mpv = player ?: return false
 
-        when {
+        return when {
             isFileLoaded -> {
                 Log.d(TAG, "surfaceCreated: file already loaded — reattaching video output only")
                 attachVideoOutput()
@@ -887,21 +938,21 @@ class MpvVideoPlayer(
                     Log.d(TAG, "surfaceCreated: soft-recover after background → seek to ${target}ms")
                     mpv.command("seek", (target / 1000.0).toString(), "absolute", "exact")
                 }
+                false
             }
 
             pendingMediaState != null -> {
                 Log.d(TAG, "surfaceCreated: loading pending media: ${pendingMediaState!!.videoUrl}")
-                if (isShutdown.get()) {
-                    init(holder)
-                    super.surfaceCreated(holder)
-                }
                 if (isInitialized && !isShutdown.get()) {
                     loadMediaInternal(pendingMediaState!!)
+                } else {
+                    false
                 }
             }
 
             else -> {
                 Log.d(TAG, "surfaceCreated: no pending media and no file loaded, nothing to do")
+                false
             }
         }
     }
@@ -922,6 +973,7 @@ class MpvVideoPlayer(
 
         detachVideoOutput()
         surfaceReady = false
+        currentSurfaceHolder = null
         super.surfaceDestroyed(holder)
     }
 

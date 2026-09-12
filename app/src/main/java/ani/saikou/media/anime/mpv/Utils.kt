@@ -316,12 +316,13 @@ object TrackParser {
     }
 }
 
-data class PendingMediaState(
+ data class PendingMediaState(
     val videoUrl: String,
     val headers: Map<String, String>,
     val startPositionMs: Long,
     val audioTracks: List<ExternalAudio>,
-    val subtitles: List<ExternalSubtitle>
+    val subtitles: List<ExternalSubtitle>,
+    val perFileOptions: String? = null
 )
 
 data class PlayerEpisodeUiState(
@@ -347,6 +348,7 @@ data class PlayerScreenActions(
 data class TrackEpisode(
     val state: PlaybackState,
     val duration: Long,
-    val position: Long,
-    val hasNextEpisode: Boolean
+    val currentPosition: Long,
+    val hasNextEpisode: Boolean,
+
 )

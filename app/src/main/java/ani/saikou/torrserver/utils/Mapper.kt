@@ -1,9 +1,5 @@
 package ani.saikou.torrserver.utils
 
-
-
-import android.util.Log
-import ani.saikou.torrserver.TorrServerApiClient
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -41,11 +37,11 @@ fun TorrentSettings.toTorrServerJson(): JSONObject {
 
         put("downloadRateLimit", downloadRateLimitKb)
         put("uploadRateLimit", uploadRateLimitKb)
-        put("connectionsLimit", maxConnections.coerceIn(20, 200))
+        put("connectionsLimit", maxConnections.coerceIn(20, 150))
         put("peersListenPort", 0)
         put("torrentDisconnectTimeout", when (profile) {
-            TorrentProfile.PERFORMANCE -> 15
-            TorrentProfile.BALANCED -> 25
+            TorrentProfile.PERFORMANCE -> 25
+            TorrentProfile.BALANCED -> 30
             TorrentProfile.BATTERY -> 30
         })
 
@@ -72,18 +68,3 @@ fun TorrentSettings.toTorrServerJson(): JSONObject {
         put("torrentsSavePath", "")
     }
 }
-
-/// just a util for testing
-//suspend fun TorrentSettings.applyAndVerify(client: TorrServerApiClient): Boolean {
-//    val jsonPayload = this.toTorrServerJson()
-//    val updated = client.updateSettings(jsonPayload)
-//    if (!updated) return false
-//
-//    val activeSets = client.getSettings() ?: return false
-//    val registeredCache = activeSets.optLong("cacheSize")
-//    val expectedCache = this.bufferSizeMb.toLong() * 1024L * 1024L
-//
-//    val isSuccess = registeredCache == expectedCache
-//    Log.d("TorrServer", "Settings registered check: $isSuccess ($registeredCache vs $expectedCache)")
-//    return isSuccess
-//}

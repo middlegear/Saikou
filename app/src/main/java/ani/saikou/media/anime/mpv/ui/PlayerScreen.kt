@@ -94,8 +94,11 @@ fun PlayerScreen(
 
         val playerView = attachedPlayer
         if (playerView != null) {
-            LaunchedEffect(playerView, playerView.surfaceReady, playerView.isInitialized) {
-                if (playerView.surfaceReady && playerView.isInitialized && activity != null) {
+
+            val ready by playerView.playerReady.collectAsState()
+
+            LaunchedEffect(playerView, ready) {
+                if (ready && activity != null) {
                     Log.d(TAG, "Player ready, calling onSurfaceReady")
                     viewModel.onSurfaceReady(activity, mediaDetailsModel)
                 }

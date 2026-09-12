@@ -58,10 +58,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         get() = _playerRef?.get() ?: strongPlayer
 
     val isPlayerAttached: Boolean
-        get() {
-            val p = player ?: return false
-            return p.isInitialized && p.surfaceReady
-        }
+        get() = player?.isReady ?: false
 
     private val repository = PlayerRepository()
     private val stateJobs = mutableListOf<Job>()
@@ -152,6 +149,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var episodes: Map<String, Episode> = emptyMap()
 
     private var extractor: VideoExtractor? = null
+
+    private val sourceMpvOptions: Map<String, String> = mapOf(
+        "anikoto" to "demuxer-lavf-o=force_mpegts=1,stream-lavf-o=force_mpegts=1"
+    )
     private var video: Video? = null
 
     private var subtitleOverride: Subtitle? = null
@@ -396,8 +397,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         stateJobs += viewModelScope.launch {
-            playerInstance.mediaLoaded.collect {
-                _mediaLoaded.value = it
+            playerInstance.mediaLoaded.collect { loaded ->
+                _mediaLoaded.value = loaded
+                if (loaded) playerInstance.play()
             }
         }
 
@@ -704,16 +706,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun handleNextEpisodeClick(activity: AppCompatActivity, mediaDetailsModel: MediaDetailsViewModel) {
+    fun handleNextEpisodeClick(activity: AppCompatActivity, mediaDetailsModel: MediaDetailsViewModel): Boolean {
         if (currentEpisodeIndex + 1 < episodeArr.size) {
-
             updateAnimeProgress()
-
             openEpisodeSelector(
-                currentEpisodeIndex + 1, activity, mediaDetailsModel
+                currentEpisodeIndex + 1,
+                activity,
+                mediaDetailsModel
             )
+            return true
         } else {
             toast("This is the last Episode!")
+            return false
         }
     }
 
@@ -736,6 +740,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         mediaDetailsModel.onEpisodeClick(currentMedia, episodeNumber, activity.supportFragmentManager, launch = false)
     }
 
+
     fun loadResolvedEpisode(
         ep: Episode,
         activity: AppCompatActivity,
@@ -743,283 +748,266 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         val currentMedia = media ?: return
 
-        val targetIndex = episodeArr.indexOf(ep.number)
-
-        if (targetIndex == -1) {
-            return
-        }
-
-        val preferredServer = mediaDetailsModel.loadSelected(currentMedia).server
-
-        val resolvedExtractor = ep.extractors?.find {
-            it.server.name == ep.selectedExtractor
-        } ?: ep.extractors?.find {
-            it.server.name == preferredServer
-        }
-
-        if (resolvedExtractor == null) {
-            return
-        }
-
-        val resolvedVideo = ep.selectedVideo.let {
-            resolvedExtractor.videos.getOrNull(it)
-        } ?: return
-
-        val newMediaKey =
-            "${ep.number}|${resolvedExtractor.server.name}|" + "${ep.selectedVideo}|${resolvedVideo.file.url}|" + "${ep.selectedSubtitle}"
-
-        if (newMediaKey == loadedMediaKey) {
-            publishUi()
-            return
-        }
-
-        if (newMediaKey == loadingEpisodeKey) {
-            Log.d(
-                "mpv", "[PlayerViewModel] Already loading episode ${ep.number}, ignoring duplicate"
-            )
-            return
-        }
-
-        torrServerService?.releaseStream()
-        stopTorrentStatsMonitoring()
-
-
-        _playbackState.value = PlaybackState.BUFFERING
-
-        _isPlaying.value = false
-        _currentPosition.value = 0L
-        _duration.value = 0L
-        _bufferingProgress.value = 0f
-
-        _audioTracks.value = emptyList()
-        _subtitleTracks.value = emptyList()
-        _videoTracks.value = emptyList()
-        _currentAudioTrack.value = loadingAudioTrack
-        _currentSubtitleTrack.value = defaultSubtitleTrack
-        _currentVideoTrack.value = loadingVideoTrack
-        _skipStamps.value = emptyList()
-        isTimeStampsLoaded = false
-        _mediaLoaded.value = false
 
         if (!loadGuard.compareAndSet(false, true)) {
-            Log.d("mpv", "[PlayerViewModel] Load in progress – queuing episode ${ep.number}")
+            Log.d("mpv", "[PlayerViewModel] Load already in progress - queueing episode ${ep.number}")
             pendingEpisode = ep
-            loadingEpisodeKey = newMediaKey
             return
         }
 
-        loadingEpisodeKey = newMediaKey
+        var coroutineStarted = false
 
-        val isNewTorrent = resolvedVideo.file.url.startsWith(
-            "magnet:", ignoreCase = true
-        )
+        try {
+            val targetIndex = episodeArr.indexOf(ep.number)
+            if (targetIndex == -1) {
+                Log.w("mpv", "[PlayerViewModel] Episode ${ep.number} not found in episodeArr")
+                return
+            }
 
-        currentEpisodeIndex = targetIndex
-        currentEpisode = ep
+            val preferredServer = mediaDetailsModel.loadSelected(currentMedia).server
 
-        currentMedia.anime?.selectedEpisode = ep.number
+            val resolvedExtractor = ep.extractors?.find {
+                it.server.name == ep.selectedExtractor
+            } ?: ep.extractors?.find {
+                it.server.name == preferredServer
+            }
 
-        mediaDetailsModel.setMedia(currentMedia)
+            if (resolvedExtractor == null) {
+                Log.e("mpv", "[PlayerViewModel] No extractor found for episode ${ep.number}")
+                return
+            }
 
-        currentLoadJob?.cancel()
+            val resolvedVideo = resolvedExtractor.videos.getOrNull(ep.selectedVideo)
+            if (resolvedVideo == null) {
+                Log.e("mpv", "[PlayerViewModel] No video found for episode ${ep.number}")
+                return
+            }
 
-        currentLoadJob = viewModelScope.launch(Dispatchers.IO) {
+            val newMediaKey =
+                "${ep.number}|${resolvedExtractor.server.name}|" +
+                        "${ep.selectedVideo}|${resolvedVideo.file.url}|" +
+                        "${ep.selectedSubtitle}"
 
-            try {
+            if (newMediaKey == loadedMediaKey) {
+                Log.d("mpv", "[PlayerViewModel] Episode ${ep.number} is already loaded")
+                publishUi()
+                return
+            }
 
-                extractor?.onVideoStopped(video)
+            if (newMediaKey == loadingEpisodeKey) {
+                Log.d("mpv", "[PlayerViewModel] Episode ${ep.number} is already loading")
+                return
+            }
 
-                extractor = resolvedExtractor
-                video = resolvedVideo
+            if (loadingEpisodeKey != null && loadingEpisodeKey != newMediaKey) {
+                Log.d("mpv", "[PlayerViewModel] Another episode is loading - queueing ${ep.number}")
+                pendingEpisode = ep
+                return
+            }
 
-                resolvedExtractor.onVideoPlayed(resolvedVideo)
+            loadingEpisodeKey = newMediaKey
+            loadedMediaKey = null
 
-                saveContinueState(currentMedia, ep)
+            _playbackState.value = PlaybackState.BUFFERING
+            _isPlaying.value = false
+            _currentPosition.value = 0L
+            _duration.value = 0L
+            _bufferingProgress.value = 0f
 
-                val startPosition = loadData<Long>(
-                    "${currentMedia.id}_${ep.number}", activity
-                ) ?: 0L
+            _audioTracks.value = emptyList()
+            _subtitleTracks.value = emptyList()
+            _videoTracks.value = emptyList()
+            _currentAudioTrack.value = loadingAudioTrack
+            _currentSubtitleTrack.value = defaultSubtitleTrack
+            _currentVideoTrack.value = loadingVideoTrack
+            _skipStamps.value = emptyList()
 
-                val headers = resolvedVideo.file.headers
+            isTimeStampsLoaded = false
+            _mediaLoaded.value = false
 
-                val externalAudio = resolvedExtractor.audioTracks.map {
-                    ExternalAudio(
-                        it.url, language = it.language, headers = headers
-                    )
-                }
+            currentEpisodeIndex = targetIndex
+            currentEpisode = ep
 
-                val externalSubs = resolvedExtractor.subtitles.map { sub ->
+            currentMedia.anime?.selectedEpisode = ep.number
+            mediaDetailsModel.setMedia(currentMedia)
 
-                    ExternalSubtitle(
-                        url = sub.file.url,
-                        headers = sub.headers ?: sub.file.headers ?: emptyMap(),
-                        language = sub.language ?: "und"
-                    )
-                }
+            Log.d("mpv", "[PlayerViewModel] Stopping previous playback before loading episode ${ep.number}")
+            player?.stop()
 
-                val playbackUrl: String
+            val isNewTorrent = resolvedVideo.file.url.startsWith("magnet:", ignoreCase = true)
+            if (isNewTorrent) {
+                torrServerService?.releaseStream()
+                stopTorrentStatsMonitoring()
+            }
 
-                if (isNewTorrent) {
+            coroutineStarted = true
+            currentLoadJob = viewModelScope.launch(Dispatchers.IO) {
+                var stillDeferred = false
 
-                    delay(500)
+                try {
+                    Log.d("mpv", "[PlayerViewModel] Starting load coroutine for episode ${ep.number}, key=$newMediaKey")
 
-                    var service = torrServerService
+                    extractor?.onVideoStopped(video)
+                    extractor = resolvedExtractor
+                    video = resolvedVideo
+                    resolvedExtractor.onVideoPlayed(resolvedVideo)
+                    saveContinueState(currentMedia, ep)
 
-                    var waitAttempts = 0
+                    val startPosition = loadData<Long>("${currentMedia.id}_${ep.number}", activity) ?: 0L
+                    val headers = resolvedVideo.file.headers
 
-                    while (service == null && waitAttempts < 30) {
-                        delay(100)
-
-                        service = torrServerService
-
-                        waitAttempts++
+                    val externalAudio = resolvedExtractor.audioTracks.map {
+                        ExternalAudio(it.url, language = it.language, headers = headers)
+                    }
+                    val externalSubs = resolvedExtractor.subtitles.map { sub ->
+                        ExternalSubtitle(
+                            url = sub.file.url,
+                            headers = sub.headers ?: sub.file.headers,
+                            language = sub.language
+                        )
                     }
 
-                    if (service == null) {
-                        Log.e(
-                            "TorrServer", "TorrServerService not bound after waiting"
-                        )
-                        withContext(Dispatchers.Main) {
-                            snackString(
-                                "Service not available (force stop the app and retry)"
-                            )
+                    val playbackUrl: String
+                    if (isNewTorrent) {
+                        var service = torrServerService
+                        var waitAttempts = 0
+                        while (service == null && waitAttempts < 30) {
+                            delay(100)
+                            service = torrServerService
+                            waitAttempts++
+                        }
+                        if (service == null) {
+                            Log.e("TorrServer", "[PlayerViewModel] TorrServerService not bound")
+                            return@launch
                         }
 
+                        startTorrentStatsMonitoring()
+                        val streamUrl = service.resolveStreamUrl(resolvedVideo.file.url)
+                        if (streamUrl == null) {
+                            Log.e("TorrServer", "[PlayerViewModel] Failed to resolve torrent for episode ${ep.number}")
+                            stopTorrentStatsMonitoring()
+                            withContext(Dispatchers.Main) {
+                                snackString(service.getLastStartError())
+                            }
+                            return@launch
+                        }
+                        playbackUrl = streamUrl
+                    } else {
+                        playbackUrl = resolvedVideo.file.url
+                    }
+
+                    if (loadingEpisodeKey != newMediaKey) {
+                        Log.d("mpv", "[PlayerViewModel] Load became stale before loadMedia: $newMediaKey")
                         return@launch
                     }
 
-                    startTorrentStatsMonitoring()
+                    val perFileOptions = perFileOptionsFor(currentMedia, mediaDetailsModel)
+                    pendingStartPositionMs = startPosition
 
-                    Log.d(
-                        "TorrServer", "Resolving stream for episode ${ep.number}"
+                    Log.d("mpv", "[PlayerViewModel] Calling loadMedia for episode ${ep.number}")
+
+                    val loadSucceeded = loadMedia(
+                        playbackUrl,
+                        headers ?: emptyMap(),
+                        startPosition,
+                        externalAudio,
+                        externalSubs,
+                        perFileOptions
                     )
 
-                    val streamUrl = service.resolveStreamUrl(
-                        resolvedVideo.file.url
-                    )
-
-                    if (streamUrl == null) {
-
-                        Log.e(
-                            "TorrServer",
-                            "Failed to resolve torrent stream for episode ${ep.number}"
-                        )
-                        stopTorrentStatsMonitoring()
-                        withContext(Dispatchers.Main) {
-                            snackString(
-                                "Failed to resolve stream for this episode(Force stop App)"
-                            )
-                        }
-
-                        return@launch
-                    }
-
-                    Log.d(
-                        "TorrServer", "Stream resolved: $streamUrl"
-                    )
-
-                    playbackUrl = streamUrl
-
-                } else {
-                    playbackUrl = resolvedVideo.file.url
-                }
-
-                pendingStartPositionMs = startPosition
-
-                val loadSucceeded = loadMedia(
-                    playbackUrl, headers ?: emptyMap(), startPosition, externalAudio, externalSubs
-                )
-
-                if (loadSucceeded) {
-
-                    loadedMediaKey = newMediaKey
-
-                } else {
-
-                    pendingStartPositionMs = 0L
-
-                    Log.e(
-                        "mpv", "[PlayerViewModel] Failed to load media for episode ${ep.number}"
-                    )
-                }
-
-                withContext(Dispatchers.Main) {
-
-                    publishUi()
+                    Log.d("mpv", "[PlayerViewModel] loadMedia returned $loadSucceeded for episode ${ep.number}")
 
                     if (loadSucceeded) {
-
-                        play()
-
-                        discordRPC.updateEpisode(
-                            buildRPCConfig(), isCurrentlyPlaying = true
+                        loadedMediaKey = newMediaKey
+                        loadingEpisodeKey = null
+                    } else if (player?.isShutdownInFlight == true) {
+                        Log.d(
+                            "mpv",
+                            "[PlayerViewModel] loadMedia for episode ${ep.number} continues via async player reinit"
                         )
+                        loadedMediaKey = newMediaKey
+                        loadingEpisodeKey = null
+                    } else if (!isPlayerAttached) {
 
-                        playbackService?.updateMetadata(
-                            title = currentMedia.userPreferredName ?: currentMedia.nameRomaji
-                            ?: currentMedia.name ?: "Unknown",
-
-                            subtitle = "Episode ${ep.number}",
-
-                            durationMs = _duration.value
-                        )
+                        Log.d("mpv", "[PlayerViewModel] Load deferred for episode ${ep.number}; holding key")
+                        stillDeferred = true
+                    } else {
+                        pendingStartPositionMs = 0L
+                        loadingEpisodeKey = null
+                        Log.e("mpv", "[PlayerViewModel] Failed to load media for episode ${ep.number}")
                     }
-                }
 
-                if (loadSucceeded) {
+                    withContext(Dispatchers.Main) {
+                        publishUi()
 
-                    var waited = 0L
-
-                    while (waited < 5000L) {
-
-                        val state = _playbackState.value
-
-                        if (state == PlaybackState.BUFFERING || state == PlaybackState.PLAYING) {
-                            Log.d(
-                                "mpv", "[PlayerViewModel] MPV State $state after ${waited}ms"
+                        if (loadSucceeded) {
+                            Log.d("mpv", "[PlayerViewModel] Starting playback for episode ${ep.number}")
+                            play()
+                            discordRPC.updateEpisode(buildRPCConfig(), isCurrentlyPlaying = true)
+                            playbackService?.updateMetadata(
+                                title = currentMedia.userPreferredName,
+                                subtitle = "Episode ${ep.number}",
+                                durationMs = _duration.value
                             )
-                            break
+                        }
+                    }
+
+                    if (loadSucceeded) {
+                        var waited = 0L
+                        while (waited < 5000L) {
+                            val state = _playbackState.value
+                            if (state == PlaybackState.BUFFERING || state == PlaybackState.PLAYING) {
+                                Log.d("mpv", "[PlayerViewModel] MPV state $state after ${waited}ms")
+                                break
+                            }
+                            delay(100)
+                            waited += 100
+                        }
+                    }
+
+                } catch (e: Exception) {
+                    Log.e("mpv", "[PlayerViewModel] Error loading episode ${ep.number}", e)
+                    withContext(Dispatchers.Main) {
+                        snackString("Error loading episode: ${e.message}")
+                    }
+                } finally {
+                    currentLoadJob = null
+
+                    if (stillDeferred) {
+                        Log.d("mpv", "[PlayerViewModel] Guard held for deferred load of episode ${ep.number}")
+                    } else {
+                        if (loadingEpisodeKey == newMediaKey) {
+                            loadingEpisodeKey = null
                         }
 
-                        delay(100)
-                        waited += 100
+                        val nextEp = pendingEpisode
+                        pendingEpisode = null
+                        loadGuard.set(false)
+
+                        if (nextEp != null) {
+                            Log.d("mpv", "[PlayerViewModel] Queued episode ${nextEp.number} will be loaded next")
+                            loadResolvedEpisode(nextEp, activity, mediaDetailsModel)
+                        } else {
+                            Log.d("mpv", "[PlayerViewModel] Episode ${ep.number} load complete")
+                        }
                     }
                 }
+            }
 
-            } catch (e: Exception) {
-
-                Log.e("mpv", "Error loading episode", e)
-                withContext(Dispatchers.Main) {
-                    snackString(
-                        "Error loading episode: ${e.message}"
-                    )
-                }
-
-            } finally {
-
+        } finally {
+            if (!coroutineStarted) {
+                val nextEp = pendingEpisode
+                pendingEpisode = null
                 loadGuard.set(false)
 
-                val nextEp = pendingEpisode
-
-                val nextKey = loadingEpisodeKey
-
-                pendingEpisode = null
-                loadingEpisodeKey = null
-
-                if (nextEp != null && nextKey != newMediaKey) {
-
-                    Log.d(
-                        "mpv",
-                        "[PlayerViewModel] Processing queued episode after current load completed"
-                    )
-
-                    loadResolvedEpisode(
-                        nextEp, activity, mediaDetailsModel
-                    )
+                if (nextEp != null) {
+                    Log.d("mpv", "[PlayerViewModel] Queued episode ${nextEp.number} will be loaded next")
+                    loadResolvedEpisode(nextEp, activity, mediaDetailsModel)
                 }
             }
         }
     }
+
 
     fun loadSkipTimes(media: Media, episode: Episode, durationMs: Long) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -1073,11 +1061,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 Log.d("SkipTimes", "Final skip stamps applied: $result")
                 _skipStamps.value = result
             } else {
-                Log.d("SkipTimes", "No skip times found from any source, resetting isTimeStampsLoaded")
+                Log.d(
+                    "SkipTimes",
+                    "No skip times found from any source, resetting isTimeStampsLoaded"
+                )
                 isTimeStampsLoaded = false
             }
         }
     }
+
     fun startTorrentStatsMonitoring() {
         stopTorrentStatsMonitoring()
         val service = torrServerService ?: return
@@ -1193,20 +1185,42 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * Returns the per-file mpv loadfile options for the source the current media
+     * was launched from, or null if that source has no special options.
+     */
+    private fun perFileOptionsFor(
+        media: Media?,
+        mediaDetailsModel: MediaDetailsViewModel
+    ): String? {
+        val index = media?.selected?.source ?: return null
+        val sources = mediaDetailsModel.watchSources ?: return null
+
+        val parser = try {
+            sources[index]
+        } catch (_: Exception) {
+            return null
+        }
+
+        return sourceMpvOptions[parser.saveName]
+    }
+
+
     fun loadMedia(
         videoUrl: String,
         headers: Map<String, String> = emptyMap(),
         startPositionMs: Long = 0L,
         audioTracks: List<ExternalAudio> = emptyList(),
-        subtitles: List<ExternalSubtitle> = emptyList()
+        subtitles: List<ExternalSubtitle> = emptyList(),
+        perFileOptions: String? = null
     ): Boolean {
         val playerInstance = player
         if (playerInstance == null) {
             Log.w("mpv", "[PlayerViewModel] loadMedia failed – player is null")
             return false
         }
-        playerInstance.loadMedia(videoUrl, headers, startPositionMs, audioTracks, subtitles)
-        return true
+
+        return playerInstance.loadMedia(videoUrl, headers, startPositionMs, audioTracks, subtitles, perFileOptions)
     }
 
     fun play() {

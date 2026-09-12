@@ -21,7 +21,6 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class TorrServerApiClient(
-    initialPort: Int = 8090,
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -30,20 +29,11 @@ class TorrServerApiClient(
 ) {
     companion object {
         private const val TAG = "TorrServer"
+
+        const val PORT = TorrServerManager.PORT
     }
 
-    @Volatile
-    private var port: Int = initialPort
-
-    private val baseUrl: String
-        get() = "http://127.0.0.1:$port"
-
-    fun updatePort(newPort: Int) {
-        if (port != newPort) {
-            Log.d(TAG, "Repointing TorrServer API client from port $port to $newPort")
-            port = newPort
-        }
-    }
+    private val baseUrl: String = "http://127.0.0.1:$PORT"
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 

@@ -45,6 +45,9 @@ class TorrServerService : Service() {
     private var isServerReady = false
 
     @Volatile
+    private var lastStartError: String? = null
+
+    @Volatile
     private var settingsApplied = false
     private var currentSettings: TorrentSettings = TorrentSettings()
     private var wakeLock: PowerManager.WakeLock? = null
@@ -72,14 +75,14 @@ class TorrServerService : Service() {
             Log.d(TAG, "Starting server...")
             val result = manager.startServer()
             if (result.isSuccess) {
-                val port = result.getOrNull()
-                if (port != null) apiClient.updatePort(port)
                 isServerReady = true
-                Log.d(TAG, "Server started successfully on port $port")
+                lastStartError = null
+                Log.d(TAG, "Server started successfully on port ${TorrServerManager.PORT}")
                 applySettingsToServer(currentSettings, clearCache = false)
                 settingsApplied = true
             } else {
                 val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                lastStartError = error
                 Log.e(TAG, "Failed to start server: $error")
             }
         }
@@ -213,7 +216,8 @@ class TorrServerService : Service() {
         startupJob?.join()
 
         if (!isServerReady) {
-            Log.e(TAG, "Server failed to start or is not ready")
+            val reason = lastStartError ?: "Server failed to start or is not ready"
+            Log.e(TAG, reason)
             startInactivityTimer()
             return null
         }
@@ -223,11 +227,12 @@ class TorrServerService : Service() {
                 Log.d(TAG, "Server not running, starting...")
                 val result = manager.startServer()
                 if (result.isFailure) {
-                    Log.e(TAG, "Failed to start server")
+                    lastStartError = result.exceptionOrNull()?.message ?: "Failed to start server"
+                    Log.e(TAG, lastStartError ?: "Failed to start server")
                     startInactivityTimer()
                     return null
                 }
-                result.getOrNull()?.let { apiClient.updatePort(it) }
+                lastStartError = null
                 isServerReady = true
                 applySettingsToServer(currentSettings, clearCache = false)
                 settingsApplied = true
@@ -244,6 +249,9 @@ class TorrServerService : Service() {
     }
 
     fun getStats() = controller.getCurrentStats()
+
+
+    fun getLastStartError(): String? = if (isServerReady) null else lastStartError
 
     private suspend fun stopServerAndRelease() {
         try {
