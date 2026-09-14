@@ -41,6 +41,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration.Companion.milliseconds
 
 class MangaFragment : Fragment() {
     private var _binding: FragmentMangaBinding? = null
@@ -140,28 +141,25 @@ class MangaFragment : Fragment() {
                     }
                 }
 
-                val firstVisible = layout.findFirstVisibleItemPosition()
-                if (firstVisible > 1 && !visible) {
+
+                val atTop = !v.canScrollVertically(-1)
+
+                if (!atTop && !visible) {
                     binding.mangaPageScrollTop.visibility = View.VISIBLE
                     visible = true
                     animate()
-                }
-
-                if (!v.canScrollVertically(-1)) {
-                    if (visible) {
-                        visible = false
-                        animate()
-                        scope.launch {
-                            delay(300)
-                            if (!visible) binding.mangaPageScrollTop.visibility = View.GONE
-                        }
+                } else if (atTop && visible) {
+                    visible = false
+                    animate()
+                    scope.launch {
+                        delay(300.milliseconds)
+                        if (!visible) binding.mangaPageScrollTop.visibility = View.GONE
                     }
                 }
 
                 super.onScrolled(v, dx, dy)
             }
         })
-
         mangaPageAdapter.ready.observe(viewLifecycleOwner) { i ->
             if (i == true) {
                 model.getTopRatedManga().observe(viewLifecycleOwner) {

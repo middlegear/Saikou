@@ -55,7 +55,7 @@ class Torrentio : AnimeApiParser() {
 
             val episodes = client.get(
                 kitsuUrl,
-                headers = mapOf("x-api-key" to apiKey)
+                headers = mapOf("x-api-key" to apiKey), timeout = 15L
             ).parsed<EpisodesResponse>()
 
             episodes.data.map { ep ->
@@ -69,6 +69,7 @@ class Torrentio : AnimeApiParser() {
             }
         } ?: emptyList()
     }
+
     override suspend fun loadVideoServers(
         episodeLink: String, extra: Map<String, String>?
     ): List<VideoServer> {
@@ -248,6 +249,6 @@ class Torrentio : AnimeApiParser() {
         val episodeNumber: Int,
         val imdbId: String? = null,
         val summary: String? = null,
-        val type:String? =null
+        val type: String? = null
     )
 }

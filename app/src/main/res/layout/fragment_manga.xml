@@ -22,13 +22,15 @@
             tools:itemCount="1"
             tools:listitem="@layout/item_anime_page" />
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
     <androidx.cardview.widget.CardView
         android:id="@+id/mangaPageScrollTop"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginBottom="16dp"
+        android:visibility="gone"
+        android:scaleX="0"
+        android:scaleY="0"
         app:cardBackgroundColor="@color/nav_bg"
         app:cardCornerRadius="24dp"
         app:contentPadding="12dp">
