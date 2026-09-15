@@ -2,7 +2,6 @@ package ani.saikou.media.anime.mpv
 
 import android.annotation.SuppressLint
 import ani.saikou.client
-import ani.saikou.others.TheMovieDatabase
 import ani.saikou.tryWithSuspend
 import kotlinx.serialization.Serializable
 

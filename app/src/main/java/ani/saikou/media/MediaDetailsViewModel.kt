@@ -66,7 +66,9 @@ class MediaDetailsViewModel : ViewModel() {
                 media.postValue(mediaDetails)
                 launch {
                     try {
-                        loadTmdbEpisodes(mediaDetails)
+                        if (mediaDetails.anime != null) {
+                            loadTmdbEpisodes(mediaDetails)
+                        }
                     } catch (e: Exception) {
                         logger("Failed to load TMDB episodes: ${e.message}", true)
                     }
