@@ -81,7 +81,7 @@ class Anikoto : AnimeParser() {
             ).parsed<EpisodeServersResponse>()
 
             val allServers = mutableListOf<VideoServer>()
-            val allowedServers = setOf("vidplay-1", "hd-1","hd-2")
+            val allowedServers = setOf( "hd-1","hd-2","vidstream-2")
 
             fun addServers(version: String, list: List<ServerItem>) {
                 list.filter { item ->
