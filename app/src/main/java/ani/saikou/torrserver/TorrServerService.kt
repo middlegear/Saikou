@@ -343,7 +343,7 @@ class TorrServerService : Service() {
         val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Saikou")
             .setContentText("P2P Streaming is Active")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.monochrome)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .addAction(

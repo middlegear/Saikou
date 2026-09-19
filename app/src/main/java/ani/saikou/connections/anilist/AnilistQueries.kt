@@ -1,6 +1,7 @@
 package ani.saikou.connections.anilist
 
 import android.app.Activity
+import android.util.Log
 import ani.saikou.R
 import ani.saikou.connections.anilist.Anilist.authorRoles
 import ani.saikou.connections.anilist.Anilist.executeQuery
@@ -10,6 +11,7 @@ import ani.saikou.connections.anilist.api.Query
 import ani.saikou.checkGenreTime
 import ani.saikou.checkId
 import ani.saikou.connections.anilist.room.AnilistCache
+import ani.saikou.connections.anilist.room.subscriptions.AiringScheduleEntity
 import ani.saikou.currContext
 import ani.saikou.loadData
 import ani.saikou.logError
@@ -24,6 +26,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
 import java.util.TimeZone
 import kotlin.system.measureTimeMillis
 
@@ -1011,5 +1014,74 @@ Page(page:$page,perPage:50) {
         }
         author.yearMedia = yearMedia
         return author
+    }
+
+    suspend fun fetchAiringSchedule(userId: Int): List<AiringScheduleEntity> {
+        val query = """
+    query (${'$'}userId: Int) {
+      MediaListCollection(userId: ${'$'}userId, type: ANIME, status_in: [CURRENT, REPEATING]) {
+        lists {
+          entries {
+            media {
+              id
+              title {
+                userPreferred
+                english
+                romaji
+              }
+              nextAiringEpisode {
+                episode
+                airingAt
+              }
+            }
+          }
+        }
+      }
+    }
+    """.trimIndent()
+
+        val variables = "{\"userId\": $userId}"
+
+        val response = Anilist.executeQuery<Query.MediaListCollection>(
+            query = query,
+            variables = variables,
+            cache = null
+        )
+
+        if (response == null) {
+            return emptyList()
+        }
+
+        val result = mutableListOf<AiringScheduleEntity>()
+
+        response.data?.mediaListCollection?.lists?.forEach { listGroup ->
+            listGroup.entries?.forEach { entry ->
+                val media = entry.media ?: return@forEach
+                val nextAiring = media.nextAiringEpisode ?: run {
+                    val name = media.title?.userPreferred ?: media.title?.english ?: media.title?.romaji ?: "Unknown"
+                    return@forEach
+                }
+
+                val episode = nextAiring.episode ?: 0
+                val airingAt = nextAiring.airingAt?.toLong() ?: 0L
+
+                val title = media.title?.userPreferred?.takeIf { it.isNotBlank() }
+                    ?: media.title?.english?.takeIf { it.isNotBlank() }
+                    ?: media.title?.romaji?.takeIf { it.isNotBlank() }
+                    ?: "Unknown"
+
+                if (airingAt > 0L) {
+                    result.add(
+                        AiringScheduleEntity(
+                            mediaId = media.id,
+                            title = title,
+                            episodeNumber = episode,
+                            airingAt = airingAt
+                        )
+                    )
+                }
+            }
+        }
+        return result
     }
 }

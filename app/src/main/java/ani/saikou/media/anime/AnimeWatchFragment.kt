@@ -22,11 +22,6 @@ import ani.saikou.parsers.AnimeSources
 import ani.saikou.parsers.HAnimeSources
 import ani.saikou.settings.player.PlayerSettings
 import ani.saikou.settings.UserInterfaceSettings
-import ani.saikou.subcriptions.Notifications
-import ani.saikou.subcriptions.Notifications.Group.ANIME_GROUP
-import ani.saikou.subcriptions.Subscription.Companion.getChannelId
-import ani.saikou.subcriptions.SubscriptionHelper
-import ani.saikou.subcriptions.SubscriptionHelper.Companion.saveSubscription
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -77,7 +72,9 @@ class AnimeWatchFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        binding.animeSourceRecycler.updatePadding(bottom = binding.animeSourceRecycler.paddingBottom + navBarHeight)
+        binding.animeSourceRecycler.updatePadding(
+            bottom = binding.animeSourceRecycler.paddingBottom + navBarHeight
+        )
         screenWidth = resources.displayMetrics.widthPixels.dp
 
         var maxGridSize = (screenWidth / 100f).roundToInt()
@@ -93,7 +90,6 @@ class AnimeWatchFragment : Fragment() {
         gridLayoutManager.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
             override fun getSpanSize(position: Int): Int {
                 val style = episodeAdapter.getItemViewType(position)
-
                 return when (position) {
                     0 -> maxGridSize
                     else -> when (style) {
@@ -118,8 +114,6 @@ class AnimeWatchFragment : Fragment() {
                 media = it
                 media.selected = model.loadSelected(media)
 
-                subscribed = SubscriptionHelper.getSubscriptions(requireContext()).containsKey(media.id)
-
                 style = media.selected!!.recyclerStyle
                 reverse = media.selected!!.recyclerReversed
 
@@ -130,9 +124,14 @@ class AnimeWatchFragment : Fragment() {
                     model.watchSources = if (media.isAdult) HAnimeSources else AnimeSources
 
                     headerAdapter = AnimeWatchAdapter(it, this, model.watchSources!!)
-                    episodeAdapter = EpisodeAdapter(style ?: uiSettings.animeDefaultView, media, this)
+                    episodeAdapter = EpisodeAdapter(
+                        style ?: uiSettings.animeDefaultView,
+                        media,
+                        this
+                    )
 
-                    binding.animeSourceRecycler.adapter = ConcatAdapter(headerAdapter, episodeAdapter)
+                    binding.animeSourceRecycler.adapter =
+                        ConcatAdapter(headerAdapter, episodeAdapter)
 
                     lifecycleScope.launch(Dispatchers.IO) {
                         awaitAll(
@@ -147,6 +146,7 @@ class AnimeWatchFragment : Fragment() {
                 }
             }
         }
+
         model.getEpisodes().observe(viewLifecycleOwner) { loadedEpisodes ->
             if (loadedEpisodes != null && ::media.isInitialized) {
                 val episodes = loadedEpisodes[media.selected!!.source]
@@ -158,13 +158,14 @@ class AnimeWatchFragment : Fragment() {
                     applyEpisodeMetadata()
 
                     if (isFirstLoadForThisSet) {
-                        setupChipsAndSubscribe(episodes)
+                        setupChips(episodes)
                     }
 
                     forceReload()
                 }
             }
         }
+
         model.getTmdbEpisodes().observe(viewLifecycleOwner) { tmdbEpisodes ->
             if (!tmdbEpisodes.isNullOrEmpty() && ::media.isInitialized) {
                 tmdbLoaded = true
@@ -184,7 +185,6 @@ class AnimeWatchFragment : Fragment() {
         if (!::media.isInitialized || media.anime?.episodes == null) return
 
         val episodes = media.anime!!.episodes!!
-        // Prefer LiveData values if media.anime copies are still null
         val fillerEpisodes = media.anime?.fillerEpisodes ?: model.getFillerEpisodes().value
         val tmdbEpisodes = media.anime?.tmdbEpisodes ?: model.getTmdbEpisodes().value
 
@@ -196,7 +196,7 @@ class AnimeWatchFragment : Fragment() {
 
             tmdbEpisodes?.get(i)?.let { tmdb ->
                 if (!tmdb.title.isNullOrBlank()) episode.title = tmdb.title
-                if (!tmdb.desc.isNullOrBlank())  episode.desc  = tmdb.desc
+                if (!tmdb.desc.isNullOrBlank()) episode.desc = tmdb.desc
                 if (tmdb.thumb != null) {
                     episode.thumb = tmdb.thumb
                 } else if (episode.thumb == null) {
@@ -208,7 +208,12 @@ class AnimeWatchFragment : Fragment() {
         }
     }
 
-    private fun setupChipsAndSubscribe(episodes: Map<String, Episode>) {
+    /**
+     * Sets up the episode-range chips. The subscribe button that used to live
+     * in the header has been removed — subscriptions are driven by the user's
+     * AniList CURRENT/REPEATING list.
+     */
+    private fun setupChips(episodes: Map<String, Episode>) {
         val total = episodes.size
         val divisions = total.toDouble() / 10
         start = 0
@@ -233,7 +238,6 @@ class AnimeWatchFragment : Fragment() {
                 position
             )
         }
-        headerAdapter.subscribeButton(true)
     }
 
     private fun forceReload() {
@@ -254,7 +258,10 @@ class AnimeWatchFragment : Fragment() {
 
     @SuppressLint("NotifyDataSetChanged")
     private fun reload() {
-        if (!::media.isInitialized || !::headerAdapter.isInitialized || !::episodeAdapter.isInitialized) {
+        if (!::media.isInitialized ||
+            !::headerAdapter.isInitialized ||
+            !::episodeAdapter.isInitialized
+        ) {
             return
         }
 
@@ -305,7 +312,9 @@ class AnimeWatchFragment : Fragment() {
         selected.preferDub = checked
         model.saveSelected(media.id, selected, requireActivity())
         media.selected = selected
-        lifecycleScope.launch(Dispatchers.IO) { model.forceLoadEpisode(media, selected.source) }
+        lifecycleScope.launch(Dispatchers.IO) {
+            model.forceLoadEpisode(media, selected.source)
+        }
     }
 
     fun loadEpisodes(i: Int) {
@@ -329,25 +338,6 @@ class AnimeWatchFragment : Fragment() {
         forceReload()
     }
 
-    var subscribed = false
-    fun onNotificationPressed(subscribed: Boolean, source: String) {
-        this.subscribed = subscribed
-        saveSubscription(requireContext(), media, subscribed)
-        if (!subscribed)
-            Notifications.deleteChannel(requireContext(), getChannelId(true, media.id))
-        else
-            Notifications.createChannel(
-                requireContext(),
-                ANIME_GROUP,
-                getChannelId(true, media.id),
-                media.userPreferredName
-            )
-        snackString(
-            if (subscribed) getString(R.string.subscribed_notification, source)
-            else getString(R.string.unsubscribed_notification)
-        )
-    }
-
     fun onEpisodeClick(i: String) {
         model.continueMedia = false
         model.saveSelected(media.id, media.selected!!, requireActivity())
@@ -361,6 +351,7 @@ class AnimeWatchFragment : Fragment() {
     }
 
     var state: Parcelable? = null
+
     override fun onResume() {
         super.onResume()
         binding.mediaInfoProgressBar.visibility = progress

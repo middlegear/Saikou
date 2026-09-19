@@ -2,16 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Required for exact Doze-piercing alarms on Android 12+ (API 31+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
@@ -29,6 +33,7 @@
     <application
         android:name=".App"
         android:allowBackup="true"
+        android:extractNativeLibs="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:largeHeap="true"
@@ -37,14 +42,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Saikou"
         android:usesCleartextTraffic="true"
-        tools:ignore="AllowBackup"
-        android:extractNativeLibs="true"
-        tools:targetApi="m">
+        tools:ignore="AllowBackup">
 
         <activity
             android:name="ani.saikou.media.novel.novelreader.NovelReaderActivity"
             android:configChanges="orientation|screenSize"
-            android:exported="true" >
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -67,13 +70,20 @@
         <activity android:name=".settings.ReaderSettingsActivity" />
         <activity android:name=".settings.UserInterfaceSettingsActivity" />
         <activity android:name=".settings.player.PlayerSettingsActivity" />
-        <activity android:name=".settings.SettingActivity" android:parentActivityName=".MainActivity" />
-<!--        <activity android:name=".settings.SettingsActivity" android:parentActivityName=".MainActivity" />-->
-        <activity android:name=".others.imagesearch.ImageSearchActivity" android:parentActivityName=".MainActivity" />
-        <activity android:name=".media.SearchActivity" android:parentActivityName=".MainActivity" />
+        <activity
+            android:name=".settings.SettingActivity"
+            android:parentActivityName=".MainActivity" />
+        <activity
+            android:name=".others.imagesearch.ImageSearchActivity"
+            android:parentActivityName=".MainActivity" />
+        <activity
+            android:name=".media.SearchActivity"
+            android:parentActivityName=".MainActivity" />
         <activity android:name=".media.StudioActivity" />
         <activity android:name=".media.AuthorActivity" />
-        <activity android:name=".media.CalendarActivity" android:parentActivityName=".MainActivity" />
+        <activity
+            android:name=".media.CalendarActivity"
+            android:parentActivityName=".MainActivity" />
         <activity android:name="ani.saikou.media.user.ListActivity" />
         <activity
             android:name="ani.saikou.media.manga.mangareader.MangaReaderActivity"
@@ -89,9 +99,7 @@
         <activity android:name=".media.CharacterDetailsActivity" />
         <activity android:name=".home.NoInternet" />
 
-        <activity
-            android:name="ani.saikou.torrserver.TorrServerActivity" >
-        </activity>
+        <activity android:name="ani.saikou.torrserver.TorrServerActivity" />
 
         <activity
             android:name="ani.saikou.settings.accounts.AccountsActivity"
@@ -116,8 +124,8 @@
             android:name=".torrserver.TorrServerService"
             android:enabled="true"
             android:exported="false"
-            android:stopWithTask="true"
-            android:foregroundServiceType="mediaPlayback|specialUse">
+            android:foregroundServiceType="mediaPlayback|specialUse"
+            android:stopWithTask="true">
 
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
@@ -126,19 +134,31 @@
 
         <activity
             android:name=".media.anime.mpv.PlayerActivity"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden">
-        </activity>
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:screenOrientation="sensorLandscape" />
 
         <activity
             android:name="ani.saikou.updater.UpdateActivity"
             android:configChanges="orientation|screenSize|layoutDirection"
-            android:launchMode="singleTop">
-        </activity>
+            android:launchMode="singleTop" />
 
         <service
             android:name=".media.anime.mpv.PlaybackService"
             android:exported="false" />
+
+        <!-- Airing Broadcast Receiver -->
+        <receiver
+            android:name="ani.saikou.subcriptions.AiringAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ani.saikou.action.AIRING_ALARM" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name="ani.saikou.connections.anilist.Login"
@@ -150,7 +170,9 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:host="anilist" android:scheme="saikou" />
+                <data
+                    android:host="anilist"
+                    android:scheme="saikou" />
             </intent-filter>
         </activity>
 
@@ -164,11 +186,14 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:host="mal" android:scheme="saikou" />
+                <data
+                    android:host="mal"
+                    android:scheme="saikou" />
             </intent-filter>
         </activity>
 
-        <activity android:name="ani.saikou.connections.discord.auth.Login"
+        <activity
+            android:name="ani.saikou.connections.discord.auth.Login"
             android:configChanges="orientation|screenSize|layoutDirection"
             android:excludeFromRecents="true"
             android:exported="true"
@@ -177,10 +202,10 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="saikou"/>
+                <data android:scheme="saikou" />
                 <data android:scheme="http" />
                 <data android:scheme="https" />
-                <data android:host="discord.saikou.com"/>
+                <data android:host="discord.saikou.com" />
             </intent-filter>
         </activity>
 
@@ -191,7 +216,9 @@
             android:exported="true"
             android:launchMode="singleTask">
 
-            <intent-filter android:label="@string/read_on_saikou" android:autoVerify="true">
+            <intent-filter
+                android:autoVerify="true"
+                android:label="@string/read_on_saikou">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -202,7 +229,9 @@
                 <data android:pathPrefix="/manga" />
             </intent-filter>
 
-            <intent-filter android:label="@string/watch_on_saikou" android:autoVerify="true">
+            <intent-filter
+                android:autoVerify="true"
+                android:label="@string/watch_on_saikou">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -224,15 +253,6 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name=".subcriptions.AlarmReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="Aani.saikou.ACTION_ALARM"/>
-            </intent-filter>
-        </receiver>
-
         <meta-data
             android:name="preloaded_fonts"
             android:resource="@array/preloaded_fonts" />
@@ -248,13 +268,6 @@
                 android:resource="@xml/provider_paths" />
         </provider>
 
-<!--        <service android:name=".download.video.MyDownloadService"-->
-<!--            android:exported="false">-->
-<!--            <intent-filter>-->
-<!--                <action android:name="androidx.media3.exoplayer.downloadService.action.RESTART"/>-->
-<!--                <category android:name="android.intent.category.DEFAULT"/>-->
-<!--            </intent-filter>-->
-<!--        </service>-->
     </application>
 
 </manifest>

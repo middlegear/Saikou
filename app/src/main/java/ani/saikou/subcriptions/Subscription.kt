@@ -1,138 +1,210 @@
 package ani.saikou.subcriptions
 
+import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Notification
 import android.content.Context
-import androidx.core.app.NotificationCompat
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import ani.saikou.*
-import ani.saikou.parsers.Episode
-import ani.saikou.parsers.MangaChapter
-import kotlinx.coroutines.CoroutineScope
+import ani.saikou.connections.anilist.Anilist
+import ani.saikou.connections.anilist.room.AnilistCacheDatabase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
-@SuppressLint("MissingPermission")
 class Subscription {
     companion object {
-        const val defaultTime = 8
-        val timeMinutes = arrayOf(0L, 5, 10, 15, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 1440)
+        const val DEFAULT_TIME = 6
 
-        private var alreadyStarted = false
-        fun Context.startSubscription(force: Boolean = false) {
-            if (!alreadyStarted || force) {
-                alreadyStarted = true
-                SubscriptionWorker.enqueue(this)
-                AlarmReceiver.alarm(this)
-            } else logger("Already Subscribed")
-        }
+        @JvmField
+        val TIME_MINUTES = arrayOf(
+            0L, 5, 10, 15, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 1440
+        )
 
-        private var currentlyPerforming = false
+        private const val PROGRESS_NOTIFICATION_ID = 100
+        private const val REFRESH_INTERVAL_FLOOR_MINUTES = 60L
+        private const val LAST_REFRESHED_KEY = "airing_schedule_last_refreshed"
 
-        suspend fun perform(context: Context) {
-            if (!currentlyPerforming) tryWithSuspend {
-                currentlyPerforming = true
-                App.context = context
+        private val performMutex = Mutex()
+        private val notifyMutex = Mutex()
 
-                val subscriptions = SubscriptionHelper.getSubscriptions(context)
-                var i = 0
-                val index = subscriptions.map { i++; it.key to i }.toMap()
-                val notificationManager = NotificationManagerCompat.from(context)
-
-                val progressEnabled = loadData("subscription_checking_notifications", context) ?: true
-                val progressNotification = if (progressEnabled) getProgressNotification(
-                    context,
-                    subscriptions.size
-                ) else null
-                if (progressNotification != null) {
-                    notificationManager.notify(progressNotificationId, progressNotification.build())
-                    //Seems like if the parent coroutine scope gets cancelled, the notification stays
-                    //So adding this as a safeguard? dk if this will be useful
-                    CoroutineScope(Dispatchers.Main).launch {
-                        delay(5 * subscriptions.size * 1000L)
-                        notificationManager.cancel(progressNotificationId)
-                    }
-                }
-
-                fun progress(progress: Int, parser: String, media: String) {
-                    if (progressNotification != null)
-                        notificationManager.notify(
-                            progressNotificationId,
-                            progressNotification
-                                .setProgress(subscriptions.size, progress, false)
-                                .setContentText("$media on $parser")
-                                .build()
-                        )
-                }
-
-                subscriptions.toList().map {
-                    val media = it.second
-                    val text = if (media.isAnime) {
-                        val parser = SubscriptionHelper.getAnimeParser(context, media.isAdult, media.id)
-                        progress(index[it.first]!!, parser.name, media.name)
-                        val ep: Episode? = SubscriptionHelper.getEpisode(context, parser, media.id, media.isAdult)
-                        if (ep != null) currActivity()!!.getString(R.string.episode)+"${ep.number}${
-                            if (ep.title != null) " : ${ep.title}" else ""
-                        }${
-                            if (ep.isFiller) " [Filler]" else ""
-                        } "+ currActivity()!!.getString(R.string.just_released) to ep.thumbnail
-                        else null
-                    } else {
-                        val parser = SubscriptionHelper.getMangaParser(context, media.isAdult, media.id)
-                        progress(index[it.first]!!, parser.name, media.name)
-                        val ep: MangaChapter? =
-                            SubscriptionHelper.getChapter(context, parser, media.id, media.isAdult)
-                        if (ep != null) currActivity()!!.getString(R.string.chapter)+"${ep.number}${
-                            if (ep.title != null) " : ${ep.title}" else ""
-                        } "+ currActivity()!!.getString(R.string.just_released) to null
-                        else null
-                    } ?: return@map
-                    createNotification(context.applicationContext, media, text.first, text.second)
-                }
-
-                if (progressNotification != null) notificationManager.cancel(progressNotificationId)
-                currentlyPerforming = false
+        fun Context.startSubscription(force: Boolean = true) {
+            SubscriptionWorker.enqueue(this)
+            if (force) {
+                refreshSubscriptionNow()
+            } else {
+                SubscriptionWorker.enqueueNow(this)
             }
         }
 
-        fun getChannelId(isAnime: Boolean, mediaId: Int) = "${if (isAnime) "anime" else "manga"}_${mediaId}"
-
-        private suspend fun createNotification(
-            context: Context,
-            media: SubscriptionHelper.Companion.SubscribeMedia,
-            text: String,
-            thumbnail: FileUrl?
-        ) {
-            val notificationManager = NotificationManagerCompat.from(context)
-
-            val notification = Notifications.getNotification(
-                context,
-                if (media.isAnime) Notifications.Group.ANIME_GROUP else Notifications.Group.MANGA_GROUP,
-                getChannelId(media.isAnime, media.id),
-                media.name,
-                text,
-                media.image,
-                false,
-                thumbnail
-            ).setContentIntent(Notifications.getIntent(context, media.id)).build()
-
-            notification.flags = Notification.FLAG_AUTO_CANCEL
-            //+100 to have extra ids for other notifications?
-            notificationManager.notify(100 + media.id, notification)
+        fun Context.refreshSubscriptionNow() {
+            saveData(LAST_REFRESHED_KEY, 0L, this)
+            SubscriptionWorker.enqueueNow(this, force = true)
         }
 
-        private const val progressNotificationId = 100
+        fun Context.refreshSubscriptionDelayed(delayMinutes: Long = 1L) {
+            saveData(LAST_REFRESHED_KEY, 0L, this)
+            SubscriptionWorker.enqueueWithDelay(this, delayMinutes)
+        }
 
-        private fun getProgressNotification(context: Context, size: Int): NotificationCompat.Builder {
-            return Notifications.getNotification(
-                context,
-                null,
-                "subscription_checking",
-                currContext()!!.getString(R.string.checking_subscriptions_title),
-                null,
-                true
-            ).setOngoing(true).setProgress(size, 0, false).setAutoCancel(false)
+        private fun scheduleDao(context: Context) =
+            AnilistCacheDatabase.getInstance(context).airingScheduleDao()
+
+        private fun canPostNotifications(context: Context): Boolean =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                    ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+
+        suspend fun perform(context: Context, allowNotify: Boolean = true, forceRefresh: Boolean = false) {
+            performMutex.withLock {
+                try {
+                    App.context = context.applicationContext
+
+                    try {
+                        refreshAiringScheduleIfStale(context, force = forceRefresh)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (t: Throwable) {
+                        logError(t)
+                    }
+
+                    if (allowNotify) {
+                        notifyScheduledPastDue(context)
+                    }
+
+                    armUpcoming(context)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (t: Throwable) {
+                    logError(t)
+                }
+            }
+        }
+
+        suspend fun notifyScheduledPastDue(context: Context) =
+            notifyMutex.withLock { notifyScheduledPastDueLocked(context) }
+
+        @SuppressLint("MissingPermission")
+        private suspend fun notifyScheduledPastDueLocked(context: Context) {
+            if (!canPostNotifications(context)) return
+
+            val dao = scheduleDao(context)
+            val nowSeconds = System.currentTimeMillis() / 1000
+            val ready = dao.getReadyToNotify(nowSeconds)
+
+            if (ready.isEmpty()) return
+
+            val notificationManager = NotificationManagerCompat.from(context)
+            var fired = 0
+
+            for (entry in ready.sortedBy { it.airingAt }) {
+                val wasScheduled = entry.scheduledAt > 0L
+
+                if (!wasScheduled) {
+                    dao.markNotified(entry.mediaId, entry.airingAt)
+                    continue
+                }
+
+                val builder = Notifications.getNotification(
+                    context = context,
+                    showTitle = entry.title,
+                    episodeNumber = entry.episodeNumber.toString(),
+                    mediaId = entry.mediaId,
+                    silent = false
+                )
+
+                val notifId = PROGRESS_NOTIFICATION_ID + 1 + entry.mediaId
+                notificationManager.notify(notifId, builder.build())
+                fired++
+
+                dao.markNotified(entry.mediaId, entry.airingAt)
+            }
+
+            if (fired > 0) saveData(LAST_REFRESHED_KEY, 0L, context)
+        }
+
+        private suspend fun refreshAiringScheduleIfStale(
+            context: Context,
+            force: Boolean = false
+        ) {
+            val userIntervalMinutes =
+                loadData<Int>("subscriptions_time", context)?.let { TIME_MINUTES.getOrNull(it) }
+                    ?: TIME_MINUTES[DEFAULT_TIME]
+            val refreshIntervalMinutes = maxOf(userIntervalMinutes, REFRESH_INTERVAL_FLOOR_MINUTES)
+
+            val lastRefreshedAt = loadData<Long>(LAST_REFRESHED_KEY, context) ?: 0L
+            val nowMillis = System.currentTimeMillis()
+
+            if (!force && nowMillis - lastRefreshedAt < refreshIntervalMinutes * 60_000L) {
+                return
+            }
+
+            Anilist.getSavedToken(context)
+
+            if (Anilist.token == null) return
+
+            if (Anilist.userid == null) {
+                val ok = Anilist.query.getUserData()
+                if (!ok) return
+            }
+
+            val userId = Anilist.userid ?: return
+            val fetchedRows = Anilist.query.fetchAiringSchedule(userId)
+
+            if (fetchedRows.isEmpty()) {
+                saveData(LAST_REFRESHED_KEY, nowMillis, context)
+                return
+            }
+
+            val dao = scheduleDao(context)
+            val before = dao.getAll().associateBy { it.mediaId }
+            val nowSeconds = nowMillis / 1000
+
+            val rowsToSave = fetchedRows.map { newEntry ->
+                val prev = before[newEntry.mediaId]
+                when {
+                    prev != null && prev.airingAt == newEntry.airingAt ->
+                        newEntry.copy(
+                            lastNotifiedAt = prev.lastNotifiedAt,
+                            scheduledAt = prev.scheduledAt
+                        )
+
+                    newEntry.airingAt <= nowSeconds ->
+                        newEntry.copy(scheduledAt = newEntry.airingAt)
+
+                    else -> newEntry
+                }
+            }
+
+            dao.upsertAll(rowsToSave)
+            dao.pruneNotIn(rowsToSave.map { it.mediaId })
+            saveData(LAST_REFRESHED_KEY, nowMillis, context)
+        }
+
+        suspend fun armUpcoming(context: Context) = withContext(Dispatchers.IO) {
+            val dao = scheduleDao(context)
+            val nowSeconds = System.currentTimeMillis() / 1000
+            val upcoming = dao.getAll().filter { it.airingAt > nowSeconds }.sortedBy { it.airingAt }
+
+            if (upcoming.isEmpty()) return@withContext
+
+            val earliestShow = upcoming.first()
+            AiringAlarms.schedule(context, earliestShow.mediaId, earliestShow.airingAt)
+            dao.markScheduled(earliestShow.mediaId, earliestShow.airingAt)
+
+            upcoming.drop(1).forEach { show ->
+                SubscriptionWorker.enqueueOneTimeWorkAt(
+                    context = context,
+                    mediaId = show.mediaId,
+                    targetAiringAtSeconds = show.airingAt
+                )
+                dao.markScheduled(show.mediaId, show.airingAt)
+            }
         }
     }
 }

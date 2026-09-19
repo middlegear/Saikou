@@ -1,8 +1,10 @@
 package ani.saikou
 
+import android.Manifest
 import android.animation.ObjectAnimator
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.drawable.Animatable
 import android.net.Uri
 import android.os.Build
@@ -15,9 +17,11 @@ import android.view.ViewGroup
 import android.view.animation.AnticipateInterpolator
 import android.widget.TextView
 import androidx.activity.addCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.view.doOnAttach
 import androidx.core.view.updateLayoutParams
@@ -61,6 +65,15 @@ class MainActivity : AppCompatActivity() {
 
     private var lastAppliedStartTab: Int? = null
 
+
+    private val requestNotificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            startSubscription(force = true)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -74,7 +87,10 @@ class MainActivity : AppCompatActivity() {
             }
             doubleBackToExitPressedOnce = true
             snackString(this@MainActivity.getString(R.string.back_to_exit))
-            Handler(Looper.getMainLooper()).postDelayed({ doubleBackToExitPressedOnce = false }, 2000)
+            Handler(Looper.getMainLooper()).postDelayed(
+                { doubleBackToExitPressedOnce = false },
+                2000
+            )
         }
 
         binding.root.isMotionEventSplittingEnabled = false
@@ -205,9 +221,13 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+
+            checkNotificationPermission()
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (!isDialogDisabled(this)) {
-                    val manager = getSystemService(android.content.pm.verify.domain.DomainVerificationManager::class.java)
+                    val manager =
+                        getSystemService(android.content.pm.verify.domain.DomainVerificationManager::class.java)
                     val userState = manager.getDomainVerificationUserState(packageName)
 
                     val isLinkHandlingAllowed = userState?.isLinkHandlingAllowed ?: false
@@ -220,7 +240,8 @@ class MainActivity : AppCompatActivity() {
                     if (!isLinkHandlingAllowed || !allSelected) {
                         CustomBottomDialog.newInstance().apply {
                             title = "Allow Saikou to automatically open Anilist & MAL Links?"
-                            val md = "Open settings & click **+Add Links** & select Anilist & Mal urls"
+                            val md =
+                                "Open settings & click **+Add Links** & select Anilist & Mal urls"
 
                             addView(TextView(this@MainActivity).apply {
                                 Markwon.builder(this@MainActivity)
@@ -246,6 +267,19 @@ class MainActivity : AppCompatActivity() {
                         }.show(supportFragmentManager, "dialog")
                     }
                 }
+            }
+        }
+    }
+
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val isGranted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!isGranted) {
+                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }

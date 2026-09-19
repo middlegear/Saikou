@@ -84,14 +84,14 @@
                     tools:ignore="LabelFor,TextContrastCheck,DuplicateSpeakableTextCheck" />
             </com.google.android.material.textfield.TextInputLayout>
 
-            <ImageView
-                android:id="@+id/animeSourceSubscribe"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="8dp"
-                app:srcCompat="@drawable/ic_round_notifications_none_24"
-                app:tint="@color/bg_opp"
-                tools:ignore="ContentDescription,ImageContrastCheck" />
+<!--            <ImageView-->
+<!--                android:id="@+id/animeSourceSubscribe"-->
+<!--                android:layout_width="wrap_content"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:padding="8dp"-->
+<!--                app:srcCompat="@drawable/ic_round_notifications_none_24"-->
+<!--                app:tint="@color/bg_opp"-->
+<!--                tools:ignore="ContentDescription,ImageContrastCheck" />-->
         </LinearLayout>
 
         <FrameLayout

@@ -6,7 +6,6 @@ import ani.saikou.parsers.anime.extractors.ALions
 import ani.saikou.parsers.anime.extractors.AWish
 import ani.saikou.parsers.anime.extractors.DoodStream
 import ani.saikou.parsers.anime.extractors.FileMoon
-import ani.saikou.parsers.anime.extractors.Mp4Upload
 import ani.saikou.parsers.anime.extractors.OkRu
 import ani.saikou.parsers.anime.extractors.StreamTape
 import ani.saikou.tryWithSuspend
@@ -82,7 +81,6 @@ abstract class AnimeParser : BaseParser() {
 
             "streamtape.com", "watchsb.com" -> StreamTape(server)
 
-            "mp4upload.com"                 -> Mp4Upload(server)
 
             "alions.pro"                    -> ALions(server)
             "awish.pro"                     -> AWish(server)

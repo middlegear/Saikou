@@ -365,7 +365,11 @@ fun setAnimation(
 }
 
 
-class FadingEdgeRecyclerView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) : RecyclerView(context, attrs, defStyleAttr) {
+class FadingEdgeRecyclerView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : RecyclerView(context, attrs, defStyleAttr) {
 
     override fun isPaddingOffsetRequired(): Boolean {
         return !clipToPadding
@@ -675,9 +679,10 @@ fun countDown(media: Media, view: ViewGroup) {
                 R.string.episode_release_countdown,
                 media.anime.nextAiringEpisode!! + 1
             )
-
+//        val bufferMs = 20 * 60 * 1000L // 20 minute
+        val bufferMs = 0L
         object : CountDownTimer(
-            (media.anime.nextAiringEpisodeTime!! + 10000) * 1000 - System.currentTimeMillis(),
+            (media.anime.nextAiringEpisodeTime!! * 1000L - System.currentTimeMillis()) + bufferMs,
             1000
         ) {
             override fun onTick(millisUntilFinished: Long) {
@@ -936,7 +941,6 @@ suspend fun View.pop() {
     }
     delay(100)
 }
-
 
 
 fun decryptTobeparsed(base64Payload: String): String {

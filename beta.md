@@ -1,5 +1,4 @@
-## Version 1.2.5-beta (15/09/2026)
+## Version 1.2.5-beta (19/09/2026)
 
 ### Fixes
-* **Anime:** Minor fix for serialization errors.
-
+* **Notifications(Anime):** Fixed notification by adding permissions and `AlarmManager` scheduling. Works with watchlist entries.

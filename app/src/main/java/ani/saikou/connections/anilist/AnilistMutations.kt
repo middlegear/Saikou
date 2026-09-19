@@ -1,7 +1,9 @@
 package ani.saikou.connections.anilist
 
+import ani.saikou.App
 import ani.saikou.connections.anilist.Anilist.executeQuery
 import ani.saikou.connections.anilist.api.FuzzyDate
+import ani.saikou.subcriptions.Subscription.Companion.refreshSubscriptionDelayed
 import kotlinx.serialization.json.JsonObject
 
 class AnilistMutations {
@@ -20,7 +22,7 @@ class AnilistMutations {
         repeat: Int? = null,
         notes: String? = null,
         status: String? = null,
-        private:Boolean? = null,
+        private: Boolean? = null,
         startedAt: FuzzyDate? = null,
         completedAt: FuzzyDate? = null,
         customList: List<String>? = null
@@ -41,15 +43,22 @@ class AnilistMutations {
             ${if (repeat != null) ""","repeat":$repeat""" else ""}
             ${if (notes != null) ""","notes":"${notes.replace("\n", "\\n")}"""" else ""}
             ${if (status != null) ""","status":"$status"""" else ""}
-            ${if (customList !=null) ""","customLists":[${customList.joinToString { "\"$it\"" }}]""" else ""}
+            ${if (customList != null) ""","customLists":[${customList.joinToString { "\"$it\"" }}]""" else ""}
             }""".replace("\n", "").replace("""    """, "")
-        println(variables)
-        executeQuery<JsonObject>(query, variables, show = true)
+
+        val response = executeQuery<JsonObject>(query, variables, show = true)
+        if (response != null && status != null) {
+            App.context?.refreshSubscriptionDelayed(1L)
+        }
     }
 
     suspend fun deleteList(listId: Int) {
         val query = "mutation(${"$"}id:Int){DeleteMediaListEntry(id:${"$"}id){deleted}}"
         val variables = """{"id":"$listId"}"""
-        executeQuery<JsonObject>(query, variables)
+        val response = executeQuery<JsonObject>(query, variables)
+
+        if (response != null) {
+            App.context?.refreshSubscriptionDelayed(1L)
+        }
     }
 }

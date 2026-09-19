@@ -22,11 +22,6 @@ import ani.saikou.parsers.HMangaSources
 import ani.saikou.parsers.MangaParser
 import ani.saikou.parsers.MangaSources
 import ani.saikou.settings.UserInterfaceSettings
-import ani.saikou.subcriptions.Notifications
-import ani.saikou.subcriptions.Notifications.Group.MANGA_GROUP
-import ani.saikou.subcriptions.Subscription.Companion.getChannelId
-import ani.saikou.subcriptions.SubscriptionHelper
-import ani.saikou.subcriptions.SubscriptionHelper.Companion.saveSubscription
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
@@ -54,7 +49,8 @@ open class MangaReadFragment : Fragment() {
     var continueEp: Boolean = false
     var loaded = false
 
-    val uiSettings = loadData("ui_settings", toast = false) ?: UserInterfaceSettings().apply { saveData("ui_settings", this) }
+    val uiSettings = loadData("ui_settings", toast = false)
+        ?: UserInterfaceSettings().apply { saveData("ui_settings", this) }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -67,9 +63,10 @@ open class MangaReadFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        binding.animeSourceRecycler.updatePadding(bottom = binding.animeSourceRecycler.paddingBottom + navBarHeight)
+        binding.animeSourceRecycler.updatePadding(
+            bottom = binding.animeSourceRecycler.paddingBottom + navBarHeight
+        )
         screenWidth = resources.displayMetrics.widthPixels.dp
-
 
         var maxGridSize = (screenWidth / 100f).roundToInt()
         maxGridSize = max(4, maxGridSize - (maxGridSize % 2))
@@ -79,12 +76,11 @@ open class MangaReadFragment : Fragment() {
         gridLayoutManager.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
             override fun getSpanSize(position: Int): Int {
                 val style = chapterAdapter.getItemViewType(position)
-
                 return when (position) {
-                    0    -> maxGridSize
+                    0 -> maxGridSize
                     else -> when (style) {
-                        0    -> maxGridSize
-                        1    -> 1
+                        0 -> maxGridSize
+                        1 -> 1
                         else -> maxGridSize
                     }
                 }
@@ -107,18 +103,22 @@ open class MangaReadFragment : Fragment() {
                 if (media.format == "MANGA" || media.format == "ONE SHOT") {
                     media.selected = model.loadSelected(media)
 
-                    subscribed = SubscriptionHelper.getSubscriptions(requireContext()).containsKey(media.id)
-
                     style = media.selected!!.recyclerStyle
                     reverse = media.selected!!.recyclerReversed
 
                     if (!loaded) {
-                        model.mangaReadSources = if (media.isAdult) HMangaSources else MangaSources
+                        model.mangaReadSources =
+                            if (media.isAdult) HMangaSources else MangaSources
 
                         headerAdapter = MangaReadAdapter(it, this, model.mangaReadSources!!)
-                        chapterAdapter = MangaChapterAdapter(style ?: uiSettings.mangaDefaultView, media, this)
+                        chapterAdapter = MangaChapterAdapter(
+                            style ?: uiSettings.mangaDefaultView,
+                            media,
+                            this
+                        )
 
-                        binding.animeSourceRecycler.adapter = ConcatAdapter(headerAdapter, chapterAdapter)
+                        binding.animeSourceRecycler.adapter =
+                            ConcatAdapter(headerAdapter, chapterAdapter)
 
                         lifecycleScope.launch(Dispatchers.IO) {
                             model.loadMangaChapters(media, media.selected!!.source)
@@ -129,7 +129,8 @@ open class MangaReadFragment : Fragment() {
                     }
                 } else {
                     binding.animeNotSupported.visibility = View.VISIBLE
-                    binding.animeNotSupported.text = getString(R.string.not_supported, media.format ?: "")
+                    binding.animeNotSupported.text =
+                        getString(R.string.not_supported, media.format ?: "")
                 }
             }
         }
@@ -140,7 +141,7 @@ open class MangaReadFragment : Fragment() {
                 if (chapters != null) {
                     media.manga?.chapters = chapters
 
-                    //CHIP GROUP
+                    // CHIP GROUP
                     val total = chapters.size
                     val divisions = total.toDouble() / 10
                     start = 0
@@ -148,14 +149,15 @@ open class MangaReadFragment : Fragment() {
                     val limit = when {
                         (divisions < 25) -> 25
                         (divisions < 50) -> 50
-                        else             -> 100
+                        else -> 100
                     }
                     headerAdapter.clearChips()
                     if (total > limit) {
                         val arr = chapters.keys.toTypedArray()
                         val stored = ceil((total).toDouble() / limit).toInt()
                         val position = clamp(media.selected!!.chip, 0, stored - 1)
-                        val last = if (position + 1 == stored) total else (limit * (position + 1))
+                        val last = if (position + 1 == stored) total
+                        else (limit * (position + 1))
                         start = limit * (position)
                         end = last - 1
                         headerAdapter.updateChips(
@@ -166,7 +168,6 @@ open class MangaReadFragment : Fragment() {
                         )
                     }
 
-                    headerAdapter.subscribeButton(true)
                     reload()
                 }
             }
@@ -206,31 +207,13 @@ open class MangaReadFragment : Fragment() {
         reload()
     }
 
-    var subscribed = false
-    fun onNotificationPressed(subscribed: Boolean, source: String) {
-        this.subscribed = subscribed
-        saveSubscription(requireContext(), media, subscribed)
-        if (!subscribed)
-            Notifications.deleteChannel(requireContext(), getChannelId(true, media.id))
-        else
-            Notifications.createChannel(
-                requireContext(),
-                MANGA_GROUP,
-                getChannelId(true, media.id),
-                media.userPreferredName
-            )
-        snackString(
-            if (subscribed) getString(R.string.subscribed_notification, source)
-            else getString(R.string.unsubscribed_notification)
-        )
-    }
-
     fun onMangaChapterClick(i: String) {
         model.continueMedia = false
         media.manga?.chapters?.get(i)?.let {
             media.manga?.selectedChapter = i
             model.saveSelected(media.id, media.selected!!, requireActivity())
-            ChapterLoaderDialog.newInstance(it, true).show(requireActivity().supportFragmentManager, "dialog")
+            ChapterLoaderDialog.newInstance(it, true)
+                .show(requireActivity().supportFragmentManager, "dialog")
         }
     }
 
@@ -238,18 +221,23 @@ open class MangaReadFragment : Fragment() {
     private fun reload() {
         val selected = model.loadSelected(media)
 
-        //Find latest chapter for subscription
-        selected.latest = media.manga?.chapters?.values?.maxOfOrNull { it.number.toFloatOrNull() ?: 0f } ?: 0f
-        selected.latest = media.userProgress?.toFloat()?.takeIf { selected.latest < it } ?: selected.latest
+        // Latest chapter, used only for continue-watching / progress display.
+        selected.latest = media.manga?.chapters?.values
+            ?.maxOfOrNull { it.number.toFloatOrNull() ?: 0f } ?: 0f
+        selected.latest = media.userProgress?.toFloat()
+            ?.takeIf { selected.latest < it } ?: selected.latest
 
         model.saveSelected(media.id, selected, requireActivity())
         headerAdapter.handleChapters()
         chapterAdapter.notifyItemRangeRemoved(0, chapterAdapter.arr.size)
+
         var arr: ArrayList<MangaChapter> = arrayListOf()
         if (media.manga!!.chapters != null) {
-            val end = if (end != null && end!! < media.manga!!.chapters!!.size) end else null
+            val endIdx =
+                if (end != null && end!! < media.manga!!.chapters!!.size) end else null
             arr.addAll(
-                media.manga!!.chapters!!.values.toList().slice(start..(end ?: (media.manga!!.chapters!!.size - 1)))
+                media.manga!!.chapters!!.values.toList()
+                    .slice(start..(endIdx ?: (media.manga!!.chapters!!.size - 1)))
             )
             if (reverse)
                 arr = (arr.reversed() as? ArrayList<MangaChapter>) ?: arr
@@ -265,6 +253,7 @@ open class MangaReadFragment : Fragment() {
     }
 
     private var state: Parcelable? = null
+
     override fun onResume() {
         super.onResume()
         binding.mediaInfoProgressBar.visibility = progress

@@ -5,9 +5,7 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.updateLayoutParams
 import ani.saikou.R
-import ani.saikou.databinding.ActivityMangaSettingsBinding
 import ani.saikou.databinding.ActivityNotificationsSettingsBinding
-
 import ani.saikou.initActivity
 import ani.saikou.loadData
 import ani.saikou.navBarHeight
@@ -26,7 +24,6 @@ class NotificationSettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         initActivity(this)
-
 
         binding.notificationsMainLayout.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             topMargin = statusBarHeight
@@ -50,11 +47,10 @@ class NotificationSettingsActivity : AppCompatActivity() {
             saveData("subscription_checking_notifications", isChecked)
             if (isChecked) {
                 Notifications.createChannel(
-                    this,
-                    null,
-                    "subscription_checking",
-                    getString(R.string.checking_subscriptions),
-                    false
+                    context = this,
+                    id = "subscription_checking",
+                    name = getString(R.string.checking_subscriptions_title),
+                    silent = true
                 )
             } else {
                 Notifications.deleteChannel(this, "subscription_checking")
@@ -73,22 +69,12 @@ class NotificationSettingsActivity : AppCompatActivity() {
             saveData("anime_notifications", isChecked)
         }
 
-        // Manga Release Notifications Switch
-        binding.settingsMangaReleaseNotifications.isChecked = loadData("manga_notifications") ?: true
-        binding.settingsMangaReleaseNotifications.setOnCheckedChangeListener { _, isChecked ->
-            saveData("manga_notifications", isChecked)
-        }
-
         // Initial view state sync based on master toggle
         updateChildSwitchStates(isMasterEnabled)
     }
 
     private fun updateChildSwitchStates(isEnabled: Boolean) {
         binding.settingsAnimeReleaseNotifications.isEnabled = isEnabled
-        binding.settingsMangaReleaseNotifications.isEnabled = isEnabled
-
-        val alpha = if (isEnabled) 1.0f else 0.4f
-        binding.settingsAnimeReleaseNotifications.alpha = alpha
-        binding.settingsMangaReleaseNotifications.alpha = alpha
+        binding.settingsAnimeReleaseNotifications.alpha = if (isEnabled) 1.0f else 0.4f
     }
 }

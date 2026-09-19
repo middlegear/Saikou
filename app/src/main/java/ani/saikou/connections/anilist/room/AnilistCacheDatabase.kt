@@ -1,14 +1,20 @@
 package ani.saikou.connections.anilist.room
 
-
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import ani.saikou.connections.anilist.room.subscriptions.AiringScheduleDao
+import ani.saikou.connections.anilist.room.subscriptions.AiringScheduleEntity
 
-@Database(entities = [AnilistCacheEntity::class], version = 1, exportSchema = false)
+@Database(
+    entities = [AnilistCacheEntity::class, AiringScheduleEntity::class],
+    version = 3,
+    exportSchema = false
+)
 abstract class AnilistCacheDatabase : RoomDatabase() {
     abstract fun cacheDao(): AnilistCacheDao
+    abstract fun airingScheduleDao(): AiringScheduleDao
 
     companion object {
         @Volatile
@@ -21,7 +27,6 @@ abstract class AnilistCacheDatabase : RoomDatabase() {
                     AnilistCacheDatabase::class.java,
                     "anilist_cache.db"
                 )
-                    // Cache is disposable data, safe to just wipe & recreate on schema bumps
                     .fallbackToDestructiveMigration()
                     .build().also { INSTANCE = it }
             }

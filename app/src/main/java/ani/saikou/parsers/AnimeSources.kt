@@ -8,7 +8,6 @@ import ani.saikou.parsers.anime.HentaiFF
 import ani.saikou.parsers.anime.HentaiMama
 import ani.saikou.parsers.anime.HentaiStream
 import ani.saikou.parsers.anime.Anizone
-import ani.saikou.parsers.anime.AniDB
 import ani.saikou.parsers.anime.AnimeHeaven
 import ani.saikou.parsers.anime.AniBD
 import ani.saikou.parsers.anime.Anikoto
@@ -24,7 +23,7 @@ object AnimeSources : WatchSources() {
     )
 
     private val fullList: List<Lazier<BaseParser>> = lazyList(
-//        "AllAnime" to ::AllAnime,
+
         "Anikoto" to ::Anikoto,
         "AnimeHeaven" to ::AnimeHeaven,
         "AniBD" to ::AniBD,

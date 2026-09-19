@@ -5,12 +5,14 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import ani.saikou.App
 import ani.saikou.R
 import ani.saikou.connections.anilist.room.AnilistCache
 import ani.saikou.loadData
 import ani.saikou.connections.mal.MAL
 import ani.saikou.media.Media
 import ani.saikou.snackString
+import ani.saikou.subcriptions.Subscription
 import ani.saikou.tryWithSuspend
 import ani.saikou.updater.AppUpdater
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +42,10 @@ class AnilistHomeViewModel : ViewModel() {
 
     private val animeContinue: MutableLiveData<ArrayList<Media>> = MutableLiveData(null)
     fun getAnimeContinue(): LiveData<ArrayList<Media>> = animeContinue
-    suspend fun setAnimeContinue() = animeContinue.postValue(Anilist.query.continueMedia("ANIME"))
+    suspend fun setAnimeContinue() {
+        val list = Anilist.query.continueMedia("ANIME")
+        animeContinue.postValue(list)
+    }
 
     private val animeFav: MutableLiveData<ArrayList<Media>> = MutableLiveData(null)
     fun getAnimeFav(): LiveData<ArrayList<Media>> = animeFav
@@ -83,7 +88,6 @@ class AnilistHomeViewModel : ViewModel() {
     var loaded: Boolean = false
     val genres: MutableLiveData<Boolean?> = MutableLiveData(null)
 }
-
 class AnilistAnimeViewModel : ViewModel() {
     var searched = false
     var notSet = true

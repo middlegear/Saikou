@@ -1,7 +1,6 @@
 package ani.saikou.subcriptions
 
 import android.app.NotificationChannel
-import android.app.NotificationChannelGroup
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -10,24 +9,17 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
-import ani.saikou.FileUrl
 import ani.saikou.R
 import ani.saikou.connections.anilist.UrlMedia
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.model.GlideUrl
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @Suppress("MemberVisibilityCanBePrivate", "unused")
 class Notifications {
-    enum class Group(val title: String, val icon: Int) {
-        ANIME_GROUP("New Episodes", R.drawable.ic_round_movie_filter_24),
-        MANGA_GROUP("New Chapters", R.drawable.ic_round_menu_book_24)
-    }
 
     companion object {
+        private const val CHANNEL_ID = "anime_notifications"
+        private const val CHANNEL_NAME = "New Episodes"
 
-        fun openSettings(context: Context, channelId: String?): Boolean {
+        fun openSettings(context: Context, channelId: String? = CHANNEL_ID): Boolean {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val intent = Intent(
                     if (channelId != null) Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
@@ -42,120 +34,78 @@ class Notifications {
         }
 
         fun getIntent(context: Context, mediaId: Int): PendingIntent {
-            val notifyIntent = Intent(context, UrlMedia::class.java)
-                .putExtra("media", mediaId)
-                .setAction(mediaId.toString())
-                .apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                }
+            val notifyIntent = Intent(context, UrlMedia::class.java).apply {
+                putExtra("media", mediaId)
+                action = mediaId.toString()
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
             return PendingIntent.getActivity(
-                context, 0, notifyIntent,
+                context,
+                mediaId,
+                notifyIntent,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 } else {
-                    PendingIntent.FLAG_ONE_SHOT
+                    PendingIntent.FLAG_UPDATE_CURRENT
                 }
             )
         }
 
-        fun createChannel(context: Context, group: Group?, id: String, name: String, silent: Boolean = false) {
+        fun createChannel(
+            context: Context,
+            id: String = CHANNEL_ID,
+            name: String = CHANNEL_NAME,
+            silent: Boolean = false
+        ) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val importance = if (!silent) NotificationManager.IMPORTANCE_HIGH else NotificationManager.IMPORTANCE_LOW
-                val mChannel = NotificationChannel(id, name, importance)
+                val notificationManager =
+                    context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
-                val notificationManager = context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-
-                if (group != null) {
-                    notificationManager.createNotificationChannelGroup(NotificationChannelGroup(group.name, group.title))
-                    mChannel.group = group.name
+                val importance = if (!silent) {
+                    NotificationManager.IMPORTANCE_HIGH
+                } else {
+                    NotificationManager.IMPORTANCE_LOW
                 }
 
-                notificationManager.createNotificationChannel(mChannel)
+                var mChannel = notificationManager.getNotificationChannel(id)
+                if (mChannel == null) {
+                    mChannel = NotificationChannel(id, name, importance).apply {
+                        lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+                        enableVibration(true)
+                    }
+                    notificationManager.createNotificationChannel(mChannel)
+                }
             }
         }
 
-        fun deleteChannel(context: Context, id: String) {
+        fun deleteChannel(context: Context, id: String = CHANNEL_ID) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val notificationManager = context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                val notificationManager =
+                    context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.deleteNotificationChannel(id)
             }
         }
 
         fun getNotification(
             context: Context,
-            group: Group?,
-            channelId: String,
-            title: String,
-            text: String?,
+            showTitle: String,
+            episodeNumber: String,
+            mediaId: Int,
             silent: Boolean = false
         ): NotificationCompat.Builder {
-            createChannel(context, group, channelId, title, silent)
-            return NotificationCompat.Builder(context, channelId)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setSmallIcon(group?.icon ?: R.drawable.monochrome)
-                .setContentTitle(title)
-                .setContentText(text)
+            createChannel(context, CHANNEL_ID, CHANNEL_NAME, silent)
+
+            val contentText = "Episode $episodeNumber has released!"
+
+            return NotificationCompat.Builder(context, CHANNEL_ID)
+                .setPriority(if (!silent) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_LOW)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setSmallIcon(R.drawable.monochrome)
+                .setContentTitle(showTitle)
+                .setContentText(contentText)
+                .setContentIntent(getIntent(context, mediaId))
                 .setAutoCancel(true)
-        }
-
-        suspend fun getNotification(
-            context: Context,
-            group: Group?,
-            channelId: String,
-            title: String,
-            text: String,
-            img: FileUrl?,
-            silent: Boolean = false,
-            largeImg: FileUrl?
-        ): NotificationCompat.Builder {
-            val builder = getNotification(context, group, channelId, title, text, silent)
-            return if (img != null) {
-                val bitmap = withContext(Dispatchers.IO) {
-                    Glide.with(context)
-                        .asBitmap()
-                        .load(GlideUrl(img.url) { img.headers })
-                        .submit()
-                        .get()
-                }
-                @Suppress("BlockingMethodInNonBlockingContext")
-                val largeBitmap = if (largeImg != null) Glide.with(context)
-                        .asBitmap()
-                        .load(GlideUrl(largeImg.url) { largeImg.headers })
-                        .submit()
-                        .get()
-                else null
-
-                if(largeBitmap!=null) builder.setStyle(
-                        NotificationCompat
-                            .BigPictureStyle()
-                            .bigPicture(largeBitmap)
-                            .bigLargeIcon(bitmap)
-                    )
-
-                builder.setLargeIcon(bitmap)
-            } else builder
-        }
-
-        suspend fun getNotification(
-            context: Context,
-            group: Group?,
-            channelId: String,
-            title: String,
-            text: String,
-            img: String? = null,
-            silent: Boolean = false,
-            largeImg: FileUrl? = null
-        ): NotificationCompat.Builder {
-            return getNotification(
-                context,
-                group,
-                channelId,
-                title,
-                text,
-                if (img != null) FileUrl(img) else null,
-                silent,
-                largeImg
-            )
         }
     }
 }
