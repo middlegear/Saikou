@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Log
 import ani.saikou.torrserver.models.TorrentFile
 import ani.saikou.torrserver.models.TorrentStats
+import ani.saikou.torrserver.utils.TorrentSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -16,11 +17,13 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
 import java.io.IOException
+import java.net.URI
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class TorrServerApiClient(
+    var settings: TorrentSettings = TorrentSettings(),
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -29,11 +32,46 @@ class TorrServerApiClient(
 ) {
     companion object {
         private const val TAG = "TorrServer"
-
-        const val PORT = TorrServerManager.PORT
     }
 
-    private val baseUrl: String = "http://127.0.0.1:$PORT"
+    val baseUrl: String
+        get() = resolveBaseUrl(settings)
+
+    private fun resolveBaseUrl(settings: TorrentSettings): String {
+        val rawProxy = settings.proxyUrl.trim()
+
+        if (rawProxy.isNotEmpty()) {
+            try {
+                val formattedProxy = if (!rawProxy.startsWith("http://") && !rawProxy.startsWith("https://")) {
+                    "http://$rawProxy"
+                } else {
+                    rawProxy
+                }
+
+                val uri = URI(formattedProxy)
+                val scheme = uri.scheme ?: "http"
+                val host = uri.host ?: "127.0.0.1"
+
+                val explicitPort = if (uri.port != -1) uri.port else null
+
+                return if (explicitPort == null) {
+                    "$scheme://$host"
+                } else {
+                    val isDefaultPort = (scheme == "http" && explicitPort == 80) ||
+                            (scheme == "https" && explicitPort == 443)
+                    if (isDefaultPort) {
+                        "$scheme://$host"
+                    } else {
+                        "$scheme://$host:$explicitPort"
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse proxyUrl: ${settings.proxyUrl}, falling back to local host", e)
+            }
+        }
+
+        return "http://127.0.0.1:${settings.serverPort}"
+    }
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 

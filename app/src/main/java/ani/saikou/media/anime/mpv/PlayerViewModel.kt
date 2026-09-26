@@ -882,7 +882,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         }
 
                         startTorrentStatsMonitoring()
-                        val streamUrl = service.resolveStreamUrl(resolvedVideo.file.url)
+                        val showTitle  = media?.let { it.userPreferredName ?: it.nameRomaji ?: it.name }
+                        val streamUrl = service.resolveStreamUrl(magnetOrUrl = resolvedVideo.file.url, title = showTitle.toString())
                         if (streamUrl == null) {
                             Log.e("TorrServer", "[PlayerViewModel] Failed to resolve torrent for episode ${ep.number}")
                             stopTorrentStatsMonitoring()

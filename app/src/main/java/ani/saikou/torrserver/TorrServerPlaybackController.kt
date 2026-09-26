@@ -45,12 +45,13 @@ class TorrServerPlaybackController(
     suspend fun resolveStreamUrl(
         magnetOrUrl: String,
         fileIndex: Int? = null,
-        fileName: String? = null
+        fileName: String? = null,
+        title:String,
     ): String? {
         return try {
             updateStage(TorrentStats.Stage.RESOLVING_MAGNET, "Adding torrent...")
             Log.d(TAG, "Added torrent with uri: $magnetOrUrl")
-            val hash = apiClient.addTorrent(magnetOrUrl)
+            val hash = apiClient.addTorrent(magnetOrUrl,title)
             activeHash = hash
             Log.d(TAG, "Added torrent with hash: $hash")
 

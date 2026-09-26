@@ -2,7 +2,9 @@ package ani.saikou.torrserver
 
 import android.content.Context
 import android.os.Bundle
+import android.text.InputType
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
@@ -14,12 +16,14 @@ import ani.saikou.saveData
 import ani.saikou.torrserver.utils.TorrentProfile
 import ani.saikou.torrserver.utils.TorrentSettings
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 
 class TorrServerActivity : AppCompatActivity() {
     private lateinit var binding: ActivityTorrentSettingsBinding
-    private val torrentKey = "torrent_settings"
+    private val torrentKey = TorrServerService.TORRENT_SETTINGS_KEY
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,6 +33,12 @@ class TorrServerActivity : AppCompatActivity() {
 
         var settings = loadData<TorrentSettings>(torrentKey, toast = false) ?: TorrentSettings().apply {
             saveData(torrentKey, this)
+        }
+
+
+        if (!settings.enableDHT) {
+            settings.enableDHT = true
+            saveData(torrentKey, settings)
         }
 
         onBackPressedDispatcher.addCallback(this) {
@@ -44,7 +54,6 @@ class TorrServerActivity : AppCompatActivity() {
 
         setupTorrentServerListener(settings)
 
-
         binding.torrentProfile.setOnClickListener {
             showProfileSelectionDialog(settings) { updated ->
                 settings = updated
@@ -52,22 +61,18 @@ class TorrServerActivity : AppCompatActivity() {
             }
         }
 
-
-        binding.torrentBufferSize.setOnClickListener {
-            showBufferSizeDialog(settings)
+        binding.torrentServerPort.setOnClickListener {
+            showPortInputDialog(settings)
         }
 
-
-        binding.torrentEnableDHT.setOnCheckedChangeListener { _, isChecked ->
-            settings.enableDHT = isChecked
-            markAsCustomAndSave(settings)
+        binding.torrentProxyUrl.setOnClickListener {
+            showProxyUrlInputDialog(settings)
         }
 
         binding.torrentEnableEncryption.setOnCheckedChangeListener { _, isChecked ->
             settings.enableEncryption = isChecked
             markAsCustomAndSave(settings)
         }
-
 
         binding.torrentEnableStats.setOnCheckedChangeListener { _, isChecked ->
             settings.enableStatics = isChecked
@@ -79,14 +84,83 @@ class TorrServerActivity : AppCompatActivity() {
     private fun updateUiFromSettings(settings: TorrentSettings) {
         binding.torrentEnableServer.isChecked = settings.enableTorrentServer
         binding.torrentProfileValue.text = settings.profile.displayName
-        binding.torrentBufferSizeValue.text = "${settings.bufferSizeMb} MB"
-        binding.torrentEnableDHT.isChecked = settings.enableDHT
+        binding.torrentServerPortValue.text = settings.serverPort.toString()
+        binding.torrentProxyUrlValue.text = settings.proxyUrl.ifEmpty { getString(R.string.torrent_proxy_url_default) }
         binding.torrentEnableEncryption.isChecked = settings.enableEncryption
         binding.torrentEnableStats.isChecked = settings.enableStatics
     }
 
+    private fun showPortInputDialog(settings: TorrentSettings) {
+        val input = TextInputEditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText(settings.serverPort.toString())
+            setSingleLine()
+        }
+
+        val textInputLayout = TextInputLayout(this).apply {
+            hint = getString(R.string.torrent_server_port)
+            addView(input)
+        }
+
+        val container = FrameLayout(this).apply {
+            val paddingHorizontal = (24 * resources.displayMetrics.density).toInt()
+            val paddingTop = (16 * resources.displayMetrics.density).toInt()
+            setPadding(paddingHorizontal, paddingTop, paddingHorizontal, 0)
+            addView(textInputLayout)
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.torrent_server_port)
+            .setView(container)
+            .setPositiveButton(R.string.save) { dialog, _ ->
+                val portInt = input.text.toString().toIntOrNull()
+                if (portInt != null && portInt in 1024..65535) {
+                    settings.serverPort = portInt
+                    markAsCustomAndSave(settings)
+                    updateUiFromSettings(settings)
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
+    private fun showProxyUrlInputDialog(settings: TorrentSettings) {
+        val input = TextInputEditText(this).apply {
+            setText(settings.proxyUrl)
+            inputType = InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine()
+        }
+
+        val textInputLayout = TextInputLayout(this).apply {
+            hint = getString(R.string.torrent_proxy_url_default)
+            endIconMode = TextInputLayout.END_ICON_CLEAR_TEXT
+            addView(input)
+        }
+
+        val container = FrameLayout(this).apply {
+            val paddingHorizontal = (24 * resources.displayMetrics.density).toInt()
+            val paddingTop = (16 * resources.displayMetrics.density).toInt()
+            setPadding(paddingHorizontal, paddingTop, paddingHorizontal, 0)
+            addView(textInputLayout)
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.torrent_proxy_url)
+            .setView(container)
+            .setPositiveButton(R.string.save) { dialog, _ ->
+                settings.proxyUrl = input.text?.toString()?.trim().orEmpty()
+                markAsCustomAndSave(settings)
+                updateUiFromSettings(settings)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
     private fun markAsCustomAndSave(settings: TorrentSettings) {
         settings.profile = TorrentProfile.BALANCED
+        settings.enableDHT = true
         binding.torrentProfileValue.text = settings.profile.displayName
         saveData(torrentKey, settings)
         TorrServerService.startOrStop(this, settings)
@@ -98,17 +172,19 @@ class TorrServerActivity : AppCompatActivity() {
         val currentIndex = profiles.indexOf(settings.profile).coerceAtLeast(0)
 
         MaterialAlertDialogBuilder(this)
-            .setTitle("Server Presets")
+            .setTitle(R.string.torrent_profile_title)
             .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
                 val selectedProfile = profiles[which]
-                val updatedSettings = selectedProfile.applyTo(settings)
+                val updatedSettings = selectedProfile.applyTo(settings).apply {
+                    enableDHT = true
+                }
                 saveData(torrentKey, updatedSettings)
                 onProfileChanged(updatedSettings)
 
                 TorrServerService.startOrStop(this, updatedSettings)
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
+            .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
             .show()
     }
 
@@ -158,23 +234,6 @@ class TorrServerActivity : AppCompatActivity() {
         }
 
         binding.torrentEnableServer.isChecked = settings.enableTorrentServer
-    }
-
-    private fun showBufferSizeDialog(settings: TorrentSettings) {
-        val options = intArrayOf( 64, 128, 256,)
-        val labels = options.map { "$it MB" }.toTypedArray()
-        val currentIndex = options.indexOf(settings.bufferSizeMb).coerceAtLeast(0)
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Video Buffer Size (RAM)")
-            .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
-                settings.bufferSizeMb = options[which]
-                markAsCustomAndSave(settings)
-                binding.torrentBufferSizeValue.text = "${options[which]} MB"
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
-            .show()
     }
 
     private fun warning(

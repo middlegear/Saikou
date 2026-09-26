@@ -229,12 +229,15 @@ class AnimeWatchAdapter(
                 binding.animeSourceContinue.setOnClickListener {
                     fragment.onEpisodeClick(continueEp)
                 }
-                if (fragment.continueEp) {
+
+                if (fragment.continueEp && fragment.isAdded && !fragment.isDetached) {
+                    fragment.continueEp = false
                     if ((binding.itemEpisodeProgress.layoutParams as LinearLayout.LayoutParams).weight
                         < fragment.playerSettings.watchPercentage
                     ) {
-                        binding.animeSourceContinue.performClick()
-                        fragment.continueEp = false
+                        binding.animeSourceContinue.post {
+                            binding.animeSourceContinue.performClick()
+                        }
                     }
                 }
             } else {

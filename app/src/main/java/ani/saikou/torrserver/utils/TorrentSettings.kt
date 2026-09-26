@@ -14,6 +14,8 @@ data class TorrentSettings(
     var enableUpload: Boolean = true,
     var enableEncryption: Boolean = false,
     var enableStatics: Boolean = true,
+    var serverPort: Int = 47935,
+    var proxyUrl :String = ""
 ) : Serializable
 
 

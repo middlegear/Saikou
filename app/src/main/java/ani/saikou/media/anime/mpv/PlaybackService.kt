@@ -17,8 +17,10 @@ import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class PlaybackService : Service() {
@@ -47,10 +49,15 @@ class PlaybackService : Service() {
 
     private var preDuckStep: Int? = null
 
+    private var pendingPauseJob: Job? = null
+    private val transientPauseDebounceMs = 250L
+
     private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS -> {
                 Log.d(TAG, "AUDIOFOCUS_LOSS ")
+                pendingPauseJob?.cancel()
+                pendingPauseJob = null
                 hasAudioFocus = false
                 resumeOnFocusGain = false
                 preDuckStep = null
@@ -58,13 +65,24 @@ class PlaybackService : Service() {
                 publishState(PlaybackStateCompat.STATE_PAUSED)
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                Log.d(TAG, "AUDIOFOCUS_LOSS_TRANSIENT ")
-                resumeOnFocusGain = player.isPlaying.value
-                player.pause()
-                publishState(PlaybackStateCompat.STATE_PAUSED)
+                Log.d(TAG, "AUDIOFOCUS_LOSS_TRANSIENT — debouncing for ${transientPauseDebounceMs}ms")
+
+                pendingPauseJob?.cancel()
+                val wasPlaying = player.isPlaying.value
+
+                pendingPauseJob = serviceScope.launch {
+                    delay(transientPauseDebounceMs)
+                    Log.d(TAG, "AUDIOFOCUS_LOSS_TRANSIENT — debounce elapsed, pausing")
+                    resumeOnFocusGain = wasPlaying
+                    player.pause()
+                    publishState(PlaybackStateCompat.STATE_PAUSED)
+                }
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 Log.d(TAG, "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK — ducking to half volume")
+
+                pendingPauseJob?.cancel()
+                pendingPauseJob = null
 
                 if (preDuckStep == null) {
                     preDuckStep = getCurrentVolumeStep()
@@ -75,6 +93,10 @@ class PlaybackService : Service() {
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
                 Log.d(TAG, "AUDIOFOCUS_GAIN")
+
+                pendingPauseJob?.cancel()
+                pendingPauseJob = null
+
                 hasAudioFocus = true
 
                 preDuckStep?.let { originalStep ->
@@ -139,6 +161,8 @@ class PlaybackService : Service() {
 
     private fun abandonAudioFocus() {
         if (!hasAudioFocus && focusRequest == null) return
+        pendingPauseJob?.cancel()
+        pendingPauseJob = null
         focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
         hasAudioFocus = false
         resumeOnFocusGain = false
@@ -150,6 +174,8 @@ class PlaybackService : Service() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
                 Log.d(TAG, "ACTION_AUDIO_BECOMING_NOISY ")
+                pendingPauseJob?.cancel()
+                pendingPauseJob = null
                 player.pause()
                 publishState(PlaybackStateCompat.STATE_PAUSED)
             }
@@ -253,6 +279,8 @@ class PlaybackService : Service() {
     }
 
     fun teardown() {
+        pendingPauseJob?.cancel()
+        pendingPauseJob = null
         abandonAudioFocus()
         mediaSession.isActive = false
         mediaSession.release()

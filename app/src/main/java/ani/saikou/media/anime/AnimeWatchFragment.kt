@@ -1,11 +1,16 @@
 package ani.saikou.media.anime
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Parcelable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.ImageView
+import android.widget.LinearLayout
 import androidx.core.math.MathUtils
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
@@ -13,19 +18,24 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import ani.saikou.*
 import ani.saikou.databinding.FragmentAnimeWatchBinding
+import ani.saikou.databinding.ItemAnimeWatchBinding
+import ani.saikou.databinding.ItemChipBinding
 import ani.saikou.media.Media
 import ani.saikou.media.MediaDetailsViewModel
+import ani.saikou.media.SourceSearchDialogFragment
 import ani.saikou.parsers.AnimeParser
 import ani.saikou.parsers.AnimeSources
 import ani.saikou.parsers.HAnimeSources
+import ani.saikou.parsers.WatchSources
 import ani.saikou.settings.player.PlayerSettings
 import ani.saikou.settings.UserInterfaceSettings
+import com.google.android.material.chip.Chip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 import kotlin.math.max
@@ -60,14 +70,15 @@ class AnimeWatchFragment : Fragment() {
 
     private var isReloading = false
     private var metadataRefreshJob: Job? = null
+    private var episodeFetchJob: Job? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         _binding = FragmentAnimeWatchBinding.inflate(inflater, container, false)
-        return _binding?.root
+        return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -133,13 +144,7 @@ class AnimeWatchFragment : Fragment() {
                     binding.animeSourceRecycler.adapter =
                         ConcatAdapter(headerAdapter, episodeAdapter)
 
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        awaitAll(
-                            async { model.loadTmdbEpisodes(media) },
-                            async { model.loadFillerEpisodes(media) }
-                        )
-                        model.loadEpisodes(media, media.selected!!.source)
-                    }
+                    loadEpisodes(media.selected!!.source)
                     loaded = true
                 } else {
                     forceReload()
@@ -170,6 +175,8 @@ class AnimeWatchFragment : Fragment() {
             if (!tmdbEpisodes.isNullOrEmpty() && ::media.isInitialized) {
                 tmdbLoaded = true
                 media.anime?.tmdbEpisodes = tmdbEpisodes
+                applyEpisodeMetadata()
+                forceReload()
             }
         }
 
@@ -177,6 +184,8 @@ class AnimeWatchFragment : Fragment() {
             if (fillerEpisodes != null && ::media.isInitialized) {
                 fillerLoaded = true
                 media.anime?.fillerEpisodes = fillerEpisodes
+                applyEpisodeMetadata()
+                forceReload()
             }
         }
     }
@@ -208,11 +217,6 @@ class AnimeWatchFragment : Fragment() {
         }
     }
 
-    /**
-     * Sets up the episode-range chips. The subscribe button that used to live
-     * in the header has been removed — subscriptions are driven by the user's
-     * AniList CURRENT/REPEATING list.
-     */
     private fun setupChips(episodes: Map<String, Episode>) {
         val total = episodes.size
         val divisions = total.toDouble() / 10
@@ -244,7 +248,7 @@ class AnimeWatchFragment : Fragment() {
         if (!::headerAdapter.isInitialized || !::episodeAdapter.isInitialized) return
         if (isReloading) return
 
-        lifecycleScope.launch(Dispatchers.Main) {
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
             if (isReloading) return@launch
             isReloading = true
             try {
@@ -294,9 +298,12 @@ class AnimeWatchFragment : Fragment() {
     }
 
     fun onSourceChange(i: Int): AnimeParser {
+        episodeFetchJob?.cancel()
+
         media.anime?.episodes = null
         episodesLoaded = false
         forceReload()
+
         val selected = model.loadSelected(media)
         model.watchSources?.get(selected.source)?.showUserTextListener = null
         selected.source = i
@@ -312,13 +319,18 @@ class AnimeWatchFragment : Fragment() {
         selected.preferDub = checked
         model.saveSelected(media.id, selected, requireActivity())
         media.selected = selected
-        lifecycleScope.launch(Dispatchers.IO) {
+
+        episodeFetchJob?.cancel()
+        episodeFetchJob = viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             model.forceLoadEpisode(media, selected.source)
         }
     }
 
     fun loadEpisodes(i: Int) {
-        lifecycleScope.launch(Dispatchers.IO) { model.loadEpisodes(media, i) }
+        episodeFetchJob?.cancel()
+        episodeFetchJob = viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            model.loadEpisodes(media, i)
+        }
     }
 
     fun onIconPressed(viewType: Int, rev: Boolean) {
@@ -344,12 +356,6 @@ class AnimeWatchFragment : Fragment() {
         model.onEpisodeClick(media, i, requireActivity().supportFragmentManager)
     }
 
-    override fun onDestroy() {
-        model.watchSources?.flushText()
-        metadataRefreshJob?.cancel()
-        super.onDestroy()
-    }
-
     var state: Parcelable? = null
 
     override fun onResume() {
@@ -361,5 +367,18 @@ class AnimeWatchFragment : Fragment() {
     override fun onPause() {
         super.onPause()
         state = binding.animeSourceRecycler.layoutManager?.onSaveInstanceState()
+    }
+
+    override fun onDestroyView() {
+        episodeFetchJob?.cancel()
+        episodeFetchJob = null
+        _binding = null
+        super.onDestroyView()
+    }
+
+    override fun onDestroy() {
+        model.watchSources?.flushText()
+        metadataRefreshJob?.cancel()
+        super.onDestroy()
     }
 }

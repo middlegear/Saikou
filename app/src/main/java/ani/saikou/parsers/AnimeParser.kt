@@ -11,6 +11,8 @@ import ani.saikou.parsers.anime.extractors.StreamTape
 import ani.saikou.tryWithSuspend
 import kotlin.properties.Delegates
 import androidx.core.net.toUri
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * An abstract class for creating a new Source
@@ -109,11 +111,11 @@ abstract class AnimeParser : BaseParser() {
      * **/
     open suspend fun loadByVideoServers(episodeUrl: String, extra: Map<String, String>?, callback: (VideoExtractor) -> Unit) {
         tryWithSuspend(true) {
-            loadVideoServers(episodeUrl, extra).asyncMap {
-                getVideoExtractor(it)?.apply {
-                    tryWithSuspend(true) {
-                        load()
-                    }
+            loadVideoServers(episodeUrl, extra).asyncMap { server ->
+                currentCoroutineContext().ensureActive()
+                getVideoExtractor(server)?.apply {
+                    tryWithSuspend(true) { load() }
+                    currentCoroutineContext().ensureActive() // don't deliver a stale result
                     callback.invoke(this)
                 }
             }
@@ -132,8 +134,10 @@ abstract class AnimeParser : BaseParser() {
         post: Boolean
     ): VideoExtractor? {
         return tryWithSuspend(post) {
+            currentCoroutineContext().ensureActive()
             loadVideoServers(episodeUrl, extra).apply {
                 find { it.name == serverName }?.also {
+                    currentCoroutineContext().ensureActive()
                     return@tryWithSuspend getVideoExtractor(it)?.apply {
                         load()
                     }

@@ -5,6 +5,8 @@ import ani.saikou.media.anime.Episode
 import ani.saikou.media.manga.MangaChapter
 import ani.saikou.media.Media
 import ani.saikou.tryWithSuspend
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 
 abstract class WatchSources : BaseSources() {
@@ -13,6 +15,8 @@ abstract class WatchSources : BaseSources() {
         (list.getOrNull(i) ?: list.first()).get.value as AnimeParser
 
     suspend fun loadEpisodesFromMedia(i: Int, media: Media): MutableMap<String, Episode> {
+
+        currentCoroutineContext().ensureActive()
 
         val res = tryWithSuspend(post = false, snackbar = false) { get(i).autoSearch(media) }
             ?: return mutableMapOf()
@@ -29,6 +33,7 @@ abstract class WatchSources : BaseSources() {
             return mutableMapOf()
         }
 
+        currentCoroutineContext().ensureActive()
 
         return loadEpisodes(i, link, res.extra)
     }
@@ -43,6 +48,7 @@ abstract class WatchSources : BaseSources() {
             post = false, snackbar = false
         ) {
             if (showLink.isBlank()) return@tryWithSuspend mutableMapOf()
+            currentCoroutineContext().ensureActive()
             get(i).loadEpisodes(showLink, extra).associateBy({ it.number }) {
                 Episode(
                     number = it.number,
@@ -108,5 +114,3 @@ abstract class BaseSources {
         get(i).saveShowResponse(mediaId, response, true)
     }
 }
-
-

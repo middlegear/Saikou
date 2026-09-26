@@ -1,6 +1,5 @@
 package ani.saikou.others
 
-import android.content.res.Resources.getSystem
 import ani.saikou.FileUrl
 import ani.saikou.client
 import ani.saikou.currContext
@@ -9,17 +8,11 @@ import ani.saikou.media.anime.Episode
 import ani.saikou.media.anime.mpv.PlayerRepository
 import ani.saikou.tryWithSuspend
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.engine.GlideException
-import com.bumptech.glide.request.RequestListener
-import com.bumptech.glide.request.target.Target
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -42,22 +35,16 @@ object TheMovieDatabase {
 
         media.idTMDB = data.tmdbId.toString()
 
-        val bestLogo = data.artWorks?.logos?.firstOrNull()
-            ?.let { it.large ?: it.original ?: it.medium }
-        val bestBackdrop = data.coverImage?.large
-            ?: data.coverImage?.original
-            ?: data.artWorks?.coverImages?.firstOrNull()?.large
+        val bestLogo = data.artWorks?.logos?.firstOrNull() ?: data.fanart?.logo?.firstOrNull()
+
+        val bestBackdrop = data.fanart?.backdrop?.firstOrNull()
+            ?: data.artWorks?.backdrop?.firstOrNull()
 
         media.anime?.tmdbLogo = bestLogo
         media.anime?.tmdbBackdrop = bestBackdrop
 
-        prefetchScope.launch {
-            preloadArtwork(
-                bestLogo,
-                bestBackdrop,
-                data.posterImage?.large ?: data.posterImage?.original
-            )
-        }
+
+        preloadArtwork(bestLogo, bestBackdrop)
 
         val episodes = data.parsedEpisodes ?: return null
 
@@ -71,73 +58,25 @@ object TheMovieDatabase {
                 desc = ep.summary,
                 seasonNumber = ep.seasonNumber,
                 seasonEpisodeNumber = ep.episodeNumber,
-                thumb = FileUrl[ep.images?.medium ?: ep.images?.original ?: ep.images?.large],
+                thumb = FileUrl[ep.images],
             )
         }.toMap()
     }
 
-    private fun preloadArtwork(logoUrl: String?, backdropUrl: String?, posterUrl: String?) {
-        val context = currContext() ?: return
-        val appContext = context.applicationContext
+    private fun preloadArtwork(vararg urls: String?) {
+        val context = currContext()?.applicationContext ?: return
 
-        val screenWidth = getSystem().displayMetrics.widthPixels
-        val screenHeight = getSystem().displayMetrics.heightPixels
-
-        listOfNotNull(
-            logoUrl?.let { FileUrl[it] to null },
-            backdropUrl?.let { FileUrl[it] to (screenWidth to screenHeight) },
-            posterUrl?.let { FileUrl[it] to null }
-        ).forEach { (fileUrl, overrideSize) ->
-            fileUrl ?: return@forEach
+        urls.filterNotNull().forEach { url ->
             prefetchScope.launch {
-                tryWithSuspend {
-                    preloadOne(appContext, fileUrl, overrideSize)
+                try {
+                    Glide.with(context)
+                        .load(url)
+                        .diskCacheStrategy(DiskCacheStrategy.ALL)
+                        .skipMemoryCache(false)
+                        .preload()
+                } catch (_: Exception) {
+
                 }
-            }
-        }
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun preloadOne(
-        context: android.content.Context,
-        model: FileUrl,
-        overrideSize: Pair<Int, Int>? = null
-    ) {
-        suspendCancellableCoroutine<Unit> { cont ->
-            val request = Glide.with(context)
-                .load(model)
-                .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .listener(object : RequestListener<android.graphics.drawable.Drawable> {
-                    override fun onLoadFailed(
-                        e: GlideException?,
-                        model: Any?,
-                        target: Target<android.graphics.drawable.Drawable>,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                        if (cont.isActive) cont.resume(Unit) {}
-                        return false
-                    }
-
-                    override fun onResourceReady(
-                        resource: android.graphics.drawable.Drawable,
-                        model: Any,
-                        target: Target<android.graphics.drawable.Drawable>?,
-                        dataSource: DataSource,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                        if (cont.isActive) cont.resume(Unit) {}
-                        return false
-                    }
-                })
-
-            val target = if (overrideSize != null) {
-                request.override(overrideSize.first, overrideSize.second).preload()
-            } else {
-                request.preload()
-            }
-
-            cont.invokeOnCancellation {
-                Glide.with(context).clear(target)
             }
         }
     }
@@ -220,26 +159,27 @@ object TheMovieDatabase {
         val tmdbId: Int? = null,
         val name: String? = null,
         val originalName: String? = null,
-        val coverImage: TmdbImageItem? = null,
-        val posterImage: TmdbImageItem? = null,
+        val backdrop: String? = null,
+        val posterImage: String? = null,
+        val fanart: Fanart? = null,
         val artWorks: TmdbArtWorks? = null,
         val parsedEpisodes: List<Episodes>? = emptyList()
     )
 
     @Serializable
     data class TmdbArtWorks(
-        val coverImages: List<TmdbImageItem>? = emptyList(),
-        val logos: List<TmdbImageItem>? = emptyList(),
-        val posterImages: List<TmdbImageItem>? = emptyList()
+        val backdrop: List<String>? = emptyList(),
+        val logos: List<String>? = emptyList(),
+        val posterImages: List<String>? = emptyList()
     )
 
     @Serializable
-    data class TmdbImageItem(
-        val small: String? = null,
-        val medium: String? = null,
-        val large: String? = null,
-        val original: String? = null,
+    data class Fanart(
+        val logo: List<String>? = emptyList(),
+        val backdrop: List<String>? = emptyList()
     )
+
+
 
     @Serializable
     data class Episodes(
@@ -249,7 +189,7 @@ object TheMovieDatabase {
         val title: String? = null,
         val summary: String? = null,
         val seasonNumber: Int? = null,
-        val images: TmdbImageItem? = null,
+        val images: String? = null,
         val absoluteEpisodeNumber: Int? = null
     )
 }

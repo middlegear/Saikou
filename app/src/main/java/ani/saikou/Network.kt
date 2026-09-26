@@ -93,12 +93,35 @@ object Mapper : ResponseParser {
     }
 }
 
-fun <A, B> Collection<A>.asyncMap(f: suspend (A) -> B): List<B> = runBlocking {
-    map { async { f(it) } }.map { it.await() }
+
+suspend fun <A, B> Collection<A>.asyncMap(f: suspend (A) -> B): List<B> = coroutineScope {
+    val deferreds = map { async { f(it) } }
+    val results = mutableListOf<B>()
+    for (d in deferreds) {
+        try {
+            results.add(d.await())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            logError(e, post = false, snackbar = false)
+        }
+    }
+    results
 }
 
-fun <A, B> Collection<A>.asyncMapNotNull(f: suspend (A) -> B?): List<B> = runBlocking {
-    map { async { f(it) } }.mapNotNull { it.await() }
+suspend fun <A, B> Collection<A>.asyncMapNotNull(f: suspend (A) -> B?): List<B> = coroutineScope {
+    val deferreds = map { async { f(it) } }
+    val results = mutableListOf<B>()
+    for (d in deferreds) {
+        try {
+            d.await()?.let { results.add(it) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            logError(e, post = false, snackbar = false)
+        }
+    }
+    results
 }
 
 fun logError(e: Throwable, post: Boolean = true, snackbar: Boolean = true) {

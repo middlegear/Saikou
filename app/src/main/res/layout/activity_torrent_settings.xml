@@ -54,8 +54,8 @@
                     android:layout_gravity="bottom"
                     android:layout_marginEnd="20dp"
                     android:layout_marginBottom="20dp"
-                    android:padding="16dp"
                     android:contentDescription="@string/torrent_magnet_icon_desc"
+                    android:padding="16dp"
                     app:srcCompat="@drawable/ic_magnet"
                     app:tint="?attr/colorPrimary" />
             </LinearLayout>
@@ -84,7 +84,9 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="8dp"
+                android:minHeight="48dp"
+                android:paddingVertical="8dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -122,9 +124,9 @@
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/torrentEnableServer"
-                    app:thumbTint="@color/button_switch_track"
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
+                    android:layout_height="wrap_content"
+                    app:thumbTint="@color/button_switch_track" />
             </LinearLayout>
 
 
@@ -153,7 +155,9 @@
                     android:id="@+id/torrentProfile"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginBottom="8dp"
+                    android:minHeight="48dp"
+                    android:paddingVertical="8dp"
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
@@ -204,74 +208,7 @@
                 </LinearLayout>
 
 
-                <!-- ================= CACHE ================= -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:layout_marginBottom="16dp"
-                    android:fontFamily="@font/poppins_bold"
-                    android:text="@string/torrent_cache_title"
-                    android:textColor="?attr/colorSecondary"
-                    android:textSize="14sp" />
-
-                <!-- Video Buffer Size Row -->
-                <LinearLayout
-                    android:id="@+id/torrentBufferSize"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:background="?attr/selectableItemBackground"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_marginEnd="16dp"
-                        android:contentDescription="@string/torrent_storage_icon_desc"
-                        app:srcCompat="@drawable/rounded_storage_24"
-                        app:tint="?attr/colorPrimary" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/poppins_bold"
-                            android:text="@string/torrent_buffer_size"
-                            android:textColor="@color/bg_opp"
-                            android:textSize="14sp" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:alpha="0.6"
-                            android:fontFamily="@font/poppins_family"
-                            android:text="@string/torrent_buffer_size_desc"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/torrentBufferSizeValue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:fontFamily="@font/poppins_bold"
-                        android:text="@string/torrent_buffer_size_default"
-                        android:textColor="?attr/colorPrimary"
-                        android:textSize="14sp" />
-                </LinearLayout>
-
-
-                <!-- ================= NETWORK & PRIVACY ================= -->
+                <!-- ================= NETWORK & CONNECTION ================= -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -282,11 +219,17 @@
                     android:textColor="?attr/colorSecondary"
                     android:textSize="14sp" />
 
-                <!-- Enable DHT -->
+                <!-- Server Port Row -->
                 <LinearLayout
+                    android:id="@+id/torrentServerPort"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginBottom="8dp"
+                    android:minHeight="48dp"
+                    android:paddingVertical="8dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
@@ -294,7 +237,7 @@
                         android:layout_width="24dp"
                         android:layout_height="24dp"
                         android:layout_marginEnd="16dp"
-                        app:srcCompat="@drawable/outline_network_node_24"
+                        app:srcCompat="@drawable/ic_round_dns_24"
                         app:tint="?attr/colorPrimary"
                         tools:ignore="ContentDescription" />
 
@@ -308,7 +251,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:fontFamily="@font/poppins_bold"
-                            android:text="@string/torrent_enable_dht"
+                            android:text="@string/torrent_server_port"
                             android:textColor="@color/bg_opp"
                             android:textSize="14sp" />
 
@@ -318,22 +261,87 @@
                             android:layout_marginTop="2dp"
                             android:alpha="0.6"
                             android:fontFamily="@font/poppins_family"
-                            android:text="@string/torrent_enable_dht_desc"
+                            android:text="@string/torrent_server_port_desc"
                             android:textSize="12sp" />
                     </LinearLayout>
 
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/torrentEnableDHT"
+                    <TextView
+                        android:id="@+id/torrentServerPortValue"
                         android:layout_width="wrap_content"
-                        app:thumbTint="@color/button_switch_track"
-                        android:layout_height="wrap_content" />
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:fontFamily="@font/poppins_bold"
+                        android:text="8090"
+                        android:textColor="?attr/colorPrimary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <!-- Proxy / Remote Server URL Row -->
+                <LinearLayout
+                    android:id="@+id/torrentProxyUrl"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:minHeight="48dp"
+                    android:paddingVertical="8dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginEnd="16dp"
+                        app:srcCompat="@drawable/lan_24px"
+                        app:tint="?attr/colorPrimary"
+                        tools:ignore="ContentDescription" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/poppins_bold"
+                            android:text="@string/torrent_proxy_url"
+                            android:textColor="@color/bg_opp"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:alpha="0.6"
+                            android:fontFamily="@font/poppins_family"
+                            android:text="@string/torrent_proxy_url_desc"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/torrentProxyUrlValue"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:ellipsize="middle"
+                            android:fontFamily="@font/poppins_bold"
+                            android:maxLines="1"
+                            android:text="@string/torrent_proxy_url_default"
+                            android:textColor="?attr/colorPrimary"
+                            android:textSize="14sp" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <!-- Enable Encryption -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginBottom="8dp"
+                    android:minHeight="48dp"
+                    android:paddingVertical="8dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
@@ -372,8 +380,8 @@
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/torrentEnableEncryption"
                         android:layout_width="wrap_content"
-                        app:thumbTint="@color/button_switch_track"
-                        android:layout_height="wrap_content" />
+                        android:layout_height="wrap_content"
+                        app:thumbTint="@color/button_switch_track" />
                 </LinearLayout>
 
 
@@ -392,7 +400,9 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginBottom="8dp"
+                    android:minHeight="48dp"
+                    android:paddingVertical="8dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
@@ -430,9 +440,9 @@
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/torrentEnableStats"
-                        app:thumbTint="@color/button_switch_track"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
+                        android:layout_height="wrap_content"
+                        app:thumbTint="@color/button_switch_track" />
                 </LinearLayout>
 
             </LinearLayout>

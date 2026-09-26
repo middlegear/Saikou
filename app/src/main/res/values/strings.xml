@@ -294,11 +294,17 @@
     <string name="torrent_profile_icon_desc">Profile icon</string>
     <string name="torrent_storage_icon_desc">Storage icon</string>
 
-    <string name="torrent_buffer_size_default">300 MB</string>
 
-    <string name="torrent_disk_cache">Max Disk Cache</string>
-    <string name="torrent_disk_cache_desc">Maximum disk space reserved for downloaded pieces before older pieces are automatically pruned (LRU).</string>
-    <string name="torrent_disk_cache_default">1 GB</string>
+
+
+    <string name="torrent_server_port">Server Port</string>
+    <string name="torrent_server_port_desc">Local port used by TorrServer</string>
+
+    <string name="torrent_proxy_url">Proxy / Remote URL</string>
+    <string name="torrent_proxy_url_desc">Set a remote server endpoint or leave blank for local</string>
+    <string name="torrent_proxy_url_default">Localhost</string>
+    <string name="torrent_proxy_url_clear">Use Localhost</string>
+
 
     <string name="app">App</string>
     <string name="immersive_mode">Hide Status Bar</string>

@@ -52,6 +52,9 @@ class TorrServerService : Service() {
     private var currentSettings: TorrentSettings = TorrentSettings()
     private var wakeLock: PowerManager.WakeLock? = null
 
+    private val isRemoteMode: Boolean
+        get() = currentSettings.proxyUrl.isNotBlank()
+
     inner class LocalBinder : Binder() {
         val service: TorrServerService get() = this@TorrServerService
     }
@@ -63,7 +66,7 @@ class TorrServerService : Service() {
         currentSettings = loadData(TORRENT_SETTINGS_KEY, toast = false) ?: TorrentSettings()
 
         manager = TorrServerManager(applicationContext)
-        apiClient = TorrServerApiClient()
+        apiClient = TorrServerApiClient(settings = currentSettings)
         controller = TorrServerPlaybackController(apiClient)
 
         acquireWakeLock()
@@ -72,18 +75,26 @@ class TorrServerService : Service() {
         observePlaybackStats()
 
         startupJob = serviceScope.launch {
-            Log.d(TAG, "Starting server...")
-            val result = manager.startServer()
-            if (result.isSuccess) {
+            if (isRemoteMode) {
+                Log.d(TAG, "Remote proxyUrl set (${currentSettings.proxyUrl}), skipping local binary")
                 isServerReady = true
                 lastStartError = null
-                Log.d(TAG, "Server started successfully on port ${TorrServerManager.PORT}")
                 applySettingsToServer(currentSettings, clearCache = false)
                 settingsApplied = true
             } else {
-                val error = result.exceptionOrNull()?.message ?: "Unknown error"
-                lastStartError = error
-                Log.e(TAG, "Failed to start server: $error")
+                Log.d(TAG, "Starting local server...")
+                val result = manager.startServer()
+                if (result.isSuccess) {
+                    isServerReady = true
+                    lastStartError = null
+                    Log.d(TAG, "Server started successfully on port ${currentSettings.serverPort}")
+                    applySettingsToServer(currentSettings, clearCache = false)
+                    settingsApplied = true
+                } else {
+                    val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                    lastStartError = error
+                    Log.e(TAG, "Failed to start server: $error")
+                }
             }
         }
     }
@@ -162,13 +173,43 @@ class TorrServerService : Service() {
 
         if (incomingSettings != null) {
             val settingsChanged = incomingSettings != currentSettings
+            val wasRemoteMode = isRemoteMode
             currentSettings = incomingSettings
+            val nowRemoteMode = isRemoteMode
 
             if (settingsChanged) {
                 serviceScope.launch {
                     controller.releaseStream()
-                    applySettingsToServer(currentSettings, clearCache = true)
-                    settingsApplied = true
+
+                    if (wasRemoteMode != nowRemoteMode) {
+                        startupJob?.cancel()
+                        startupJob = serviceScope.launch {
+                            if (nowRemoteMode) {
+                                Log.d(TAG, "Switched to remote proxyUrl (${currentSettings.proxyUrl}); stopping local binary")
+                                manager.stopServer()
+                                isServerReady = true
+                                lastStartError = null
+                                applySettingsToServer(currentSettings, clearCache = true)
+                                settingsApplied = true
+                            } else {
+                                Log.d(TAG, "Switched to local mode; starting local binary")
+                                val result = manager.startServer()
+                                if (result.isSuccess) {
+                                    isServerReady = true
+                                    lastStartError = null
+                                    applySettingsToServer(currentSettings, clearCache = true)
+                                    settingsApplied = true
+                                } else {
+                                    lastStartError = result.exceptionOrNull()?.message ?: "Unknown error"
+                                    isServerReady = false
+                                    Log.e(TAG, "Failed to start local server: $lastStartError")
+                                }
+                            }
+                        }
+                    } else {
+                        applySettingsToServer(currentSettings, clearCache = true)
+                        settingsApplied = true
+                    }
                 }
             }
         }
@@ -207,7 +248,8 @@ class TorrServerService : Service() {
     suspend fun resolveStreamUrl(
         magnetOrUrl: String,
         fileIndex: Int? = null,
-        preferredFileName: String? = null
+        preferredFileName: String? = null,
+        title:String,
     ): String? {
         Log.d(TAG, "resolveStreamUrl called")
 
@@ -222,24 +264,26 @@ class TorrServerService : Service() {
             return null
         }
 
-        serverMutex.withLock {
-            if (manager.state.value !is ServerState.Running) {
-                Log.d(TAG, "Server not running, starting...")
-                val result = manager.startServer()
-                if (result.isFailure) {
-                    lastStartError = result.exceptionOrNull()?.message ?: "Failed to start server"
-                    Log.e(TAG, lastStartError ?: "Failed to start server")
-                    startInactivityTimer()
-                    return null
+        if (!isRemoteMode) {
+            serverMutex.withLock {
+                if (manager.state.value !is ServerState.Running) {
+                    Log.d(TAG, "Server not running, starting...")
+                    val result = manager.startServer()
+                    if (result.isFailure) {
+                        lastStartError = result.exceptionOrNull()?.message ?: "Failed to start server"
+                        Log.e(TAG, lastStartError ?: "Failed to start server")
+                        startInactivityTimer()
+                        return null
+                    }
+                    lastStartError = null
+                    isServerReady = true
+                    applySettingsToServer(currentSettings, clearCache = false)
+                    settingsApplied = true
                 }
-                lastStartError = null
-                isServerReady = true
-                applySettingsToServer(currentSettings, clearCache = false)
-                settingsApplied = true
             }
         }
 
-        return controller.resolveStreamUrl(magnetOrUrl, fileIndex, preferredFileName)
+        return controller.resolveStreamUrl(magnetOrUrl, fileIndex, preferredFileName,title)
     }
 
     fun releaseStream() {
@@ -250,13 +294,14 @@ class TorrServerService : Service() {
 
     fun getStats() = controller.getCurrentStats()
 
-
     fun getLastStartError(): String? = if (isServerReady) null else lastStartError
 
     private suspend fun stopServerAndRelease() {
         try {
             controller.releaseStream()
-            manager.stopServer()
+            if (!isRemoteMode) {
+                manager.stopServer()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error during background shutdown", e)
         }
@@ -267,21 +312,26 @@ class TorrServerService : Service() {
         clearCache: Boolean = false
     ) {
         serverMutex.withLock {
+            apiClient.settings = settings
+
             if (!isServerReady) {
                 Log.e(TAG, "Server never became ready, settings not applied")
                 return
             }
 
             try {
-                if (clearCache) {
+
+                if (clearCache && !isRemoteMode) {
                     controller.releaseStream()
                     val cleaned = manager.clearTorrentCache()
                     Log.d(TAG, "Cache cleared on settings change: $cleaned")
+                } else if (clearCache) {
+                    controller.releaseStream()
                 }
 
                 val payload = settings.toTorrServerJson()
                 val applied = apiClient.updateSettings(payload)
-                Log.d(TAG, "Settings applied: $applied")
+                Log.d(TAG, "Settings applied: $applied (target=${apiClient.baseUrl})")
             } catch (e: Exception) {
                 Log.e(TAG, "Error applying settings", e)
             }

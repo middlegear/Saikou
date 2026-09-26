@@ -58,29 +58,29 @@ class MediaDetailsViewModel : ViewModel() {
 
     private val media: MutableLiveData<Media> = MutableLiveData<Media>(null)
     fun getMedia(): LiveData<Media> = media
+
     fun loadMedia(m: Media) {
         if (!loading) {
             loading = true
             viewModelScope.launch(Dispatchers.IO) {
                 val mediaDetails = Anilist.query.mediaDetails(m)
                 media.postValue(mediaDetails)
-                launch {
-                    try {
-                        if (mediaDetails.anime != null) {
-                            loadTmdbEpisodes(mediaDetails)
-                        }
-                    } catch (e: Exception) {
-                        logger("Failed to load TMDB episodes: ${e.message}", true)
-                    }
-                }
 
-                launch {
-                    try {
-                        if (mediaDetails.anime != null) {
-                            loadFillerEpisodes(mediaDetails)
+                if (mediaDetails.anime != null) {
+                    launch {
+                        try {
+                            loadTmdbEpisodes(mediaDetails)
+                        } catch (e: Exception) {
+                            logger("Failed to load TMDB episodes: ${e.message}", true)
                         }
-                    } catch (e: Exception) {
-                        logger("Failed to load filler episodes: ${e.message}", true)
+                    }
+
+                    launch {
+                        try {
+                            loadFillerEpisodes(mediaDetails)
+                        } catch (e: Exception) {
+                            logger("Failed to load filler episodes: ${e.message}", true)
+                        }
                     }
                 }
 
@@ -91,6 +91,12 @@ class MediaDetailsViewModel : ViewModel() {
 
     fun setMedia(m: Media) {
         media.postValue(m)
+        if (m.anime != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                launch { loadTmdbEpisodes(m) }
+                launch { loadFillerEpisodes(m) }
+            }
+        }
     }
 
     val responses = MutableLiveData<List<ShowResponse>?>(null)
@@ -174,21 +180,24 @@ class MediaDetailsViewModel : ViewModel() {
 
     suspend fun loadEpisodes(media: Media, i: Int) {
         if (!epsLoaded.containsKey(i)) {
-            epsLoaded[i] = watchSources?.loadEpisodesFromMedia(i, media) ?: return
+            val result = watchSources?.loadEpisodesFromMedia(i, media) ?: return
+            epsLoaded[i] = result
         }
         applyMetadataToEpisodes(epsLoaded[i]!!, media)
         episodes.postValue(epsLoaded)
     }
 
     suspend fun forceLoadEpisode(media: Media, i: Int) {
-        epsLoaded[i] = watchSources?.loadEpisodesFromMedia(i, media) ?: return
+        val result = watchSources?.loadEpisodesFromMedia(i, media) ?: return
+        epsLoaded[i] = result
         applyMetadataToEpisodes(epsLoaded[i]!!, media)
         episodes.postValue(epsLoaded)
     }
 
     suspend fun overrideEpisodes(i: Int, source: ShowResponse, id: Int) {
         watchSources?.saveResponse(i, id, source)
-        epsLoaded[i] = watchSources?.loadEpisodes(i, source.link, source.extra) ?: return
+        val result = watchSources?.loadEpisodes(i, source.link, source.extra) ?: return
+        epsLoaded[i] = result
         media.value?.let { applyMetadataToEpisodes(epsLoaded[i]!!, it) }
         episodes.postValue(epsLoaded)
     }
@@ -198,11 +207,13 @@ class MediaDetailsViewModel : ViewModel() {
 
     suspend fun loadEpisodeVideos(ep: Episode, i: Int, post: Boolean = true) {
         val link = ep.link ?: return
+        if (!post) return
+
         if (!ep.allStreams || ep.extractors.isNullOrEmpty()) {
             val list = mutableListOf<VideoExtractor>()
             ep.extractors = list
             watchSources?.get(i)?.apply {
-                if (!post && !allowsPreloading) return@apply
+                if (!allowsPreloading && !post) return@apply
                 loadByVideoServers(link, ep.extra) {
                     if (it.videos.isNotEmpty()) {
                         list.add(it)
@@ -268,12 +279,12 @@ class MediaDetailsViewModel : ViewModel() {
         }
     }
 
-    //Manga
     var mangaReadSources: MangaReadSources? = null
 
     private val mangaChapters = MutableLiveData<MutableMap<Int, MutableMap<String, MangaChapter>>>(null)
     private val mangaLoaded = mutableMapOf<Int, MutableMap<String, MangaChapter>>()
     fun getMangaChapters(): LiveData<MutableMap<Int, MutableMap<String, MangaChapter>>> = mangaChapters
+
     suspend fun loadMangaChapters(media: Media, i: Int) {
         logger("Loading Manga Chapters : $mangaLoaded")
         if (!mangaLoaded.containsKey(i)) tryWithSuspend {
@@ -308,6 +319,7 @@ class MediaDetailsViewModel : ViewModel() {
 
     val novelSources = NovelSources
     val novelResponses = MutableLiveData<List<ShowResponse>>(null)
+
     suspend fun searchNovels(query: String, i: Int) {
         val source = novelSources[i]
         tryWithSuspend(post = true) {
