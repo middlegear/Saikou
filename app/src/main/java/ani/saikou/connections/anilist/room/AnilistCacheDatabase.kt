@@ -4,17 +4,24 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import ani.saikou.connections.anilist.room.debrid.DebridAccountDao
+import ani.saikou.connections.anilist.room.debrid.DebridAccountEntity
 import ani.saikou.connections.anilist.room.subscriptions.AiringScheduleDao
 import ani.saikou.connections.anilist.room.subscriptions.AiringScheduleEntity
 
 @Database(
-    entities = [AnilistCacheEntity::class, AiringScheduleEntity::class],
-    version = 3,
+    entities = [
+        AnilistCacheEntity::class,
+        AiringScheduleEntity::class,
+        DebridAccountEntity::class,
+    ],
+    version = 4,
     exportSchema = false
 )
 abstract class AnilistCacheDatabase : RoomDatabase() {
     abstract fun cacheDao(): AnilistCacheDao
     abstract fun airingScheduleDao(): AiringScheduleDao
+    abstract fun debridAccountDao(): DebridAccountDao
 
     companion object {
         @Volatile

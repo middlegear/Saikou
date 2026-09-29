@@ -1,9 +1,11 @@
 package ani.saikou.parsers.anime
 
+import android.content.Context
 import android.util.Log
-import ani.saikou.BuildConfig
 import ani.saikou.FileUrl
 import ani.saikou.client
+import ani.saikou.connections.anilist.room.debrid.DebridRepository
+import ani.saikou.currContext
 import ani.saikou.parsers.AnimeApiParser
 import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse
@@ -152,14 +154,36 @@ class Torrentio : AnimeApiParser() {
         } ?: emptyList()
     }
 
-    fun buildEmbedUrl(type: String, streamId: String): String =
-        "https://torrentio.strem.fun/providers=eztv,rarbg,1337x,ext,thepiratebay,kickasstorrents,torrentgalaxy,magnetdl,horriblesubs,nyaasi,tokyotosho,anidex,nekobt,yts|sort=seeders/stream/$type/${streamId}.json"
+    suspend fun buildEmbedUrl(type: String, streamId: String): String {
+        val segments = mutableListOf(BASE_PROVIDERS, "sort=seeders")
+        activeDebridSegment()?.let { segments += it }
+        return "https://torrentio.strem.fun/${segments.joinToString("|")}/stream/$type/$streamId.json"
+    }
+
+    private suspend fun activeDebridSegment(): String? {
+        val context: Context = currContext() ?: return null
+        val repository = DebridRepository(context)
+        val active = runCatching { repository.getActive()?.provider }.getOrNull()
+        val segment = runCatching { repository.activeConfigSegment() }.getOrNull()
+
+        if (active != null && segment == null) {
+            Log.w(
+                "Torrentio",
+                "Debrid provider '$active' is selected but unsupported or missing credentials; using magnet links"
+            )
+        }
+        return segment
+    }
+
+
+    private fun redact(url: String): String =
+        Regex("(${DebridRepository.CONFIG_KEYS.joinToString("|")})=[^|/]+").replace(url, "\$1=***")
 
     suspend fun fetchTorrentioStreams(type: String, streamId: String): TorrentioResponse? {
         val embedUrl = buildEmbedUrl(type, streamId)
 
         Log.d("Torrentio", "Stream id: $streamId")
-        Log.d("Torrentio", "Final URL: $embedUrl")
+        Log.d("Torrentio", "Final URL: ${redact(embedUrl)}")
 
         return try {
             val response = client.get(embedUrl, timeout = 15L)
@@ -169,7 +193,10 @@ class Torrentio : AnimeApiParser() {
             Log.d("Torrentio", "Parsed streams: ${parsed.streams.size}")
             parsed
         } catch (e: Exception) {
-            Log.e("Torrentio", "Exception while requesting Torrentio for $streamId", e)
+            Log.e(
+                "Torrentio",
+                "Exception while requesting Torrentio for $streamId: ${e::class.simpleName}"
+            )
             null
         }
     }
@@ -244,11 +271,16 @@ class Torrentio : AnimeApiParser() {
     @Serializable
     private data class EpisodeItem(
         val title: String? = null,
-        val kitsuId: String,
+        val kitsuId: String? = null,
         val thumbnail: String? = null,
         val episodeNumber: Int,
         val imdbId: String? = null,
         val summary: String? = null,
         val type: String? = null
     )
+
+    private companion object {
+        const val BASE_PROVIDERS =
+            "providers=eztv,rarbg,1337x,ext,thepiratebay,kickasstorrents,torrentgalaxy,magnetdl,horriblesubs,nyaasi,tokyotosho,anidex,nekobt,yts"
+    }
 }

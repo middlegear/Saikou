@@ -22,10 +22,11 @@ class TorrentioExtractor(
     data class TorrentInfo(
         val name: String,
         val title: String,
-        val infoHash: String,
+        val infoHash: String? = null,
         val fileIdx: Int? = null,
         val sources: List<String> = emptyList(),
-        val behaviorHints: BehaviorHints? = null
+        val behaviorHints: BehaviorHints? = null,
+        val url: String? = null
     )
 
     @Serializable
@@ -49,7 +50,6 @@ class TorrentioExtractor(
                 val providerData = Json.decodeFromString<TorrentProviderData>(jsonData)
                 providerData.streams
             } else {
-
                 val response = client.get(server.embed.url).parsed<TorrentioResponse>()
                 response.streams
             }
@@ -60,38 +60,67 @@ class TorrentioExtractor(
     }
 
     private fun createVideos(streams: List<TorrentInfo>): VideoContainer {
-        val videos = streams.map { stream ->
-            val magnetBuilder = StringBuilder("magnet:?xt=urn:btih:${stream.infoHash}")
+        val usingDebrid = streams.any { !it.url.isNullOrBlank() }
 
-            val filename = stream.behaviorHints?.filename
-            if (!filename.isNullOrBlank()) {
-                magnetBuilder.append("&dn=${URLEncoder.encode(filename, "UTF-8")}")
+        val candidates = if (usingDebrid) {
+            val direct = streams.filter { !it.url.isNullOrBlank() }
+            direct.filterNot { isUncached(it.name) }.ifEmpty { direct }
+        } else {
+            streams
+        }
+
+        val videos = candidates.mapNotNull { stream ->
+            val directUrl = stream.url?.takeIf { it.isNotBlank() }
+
+            if (directUrl != null) {
+                Video(
+                    quality = getQuality(stream.name),
+                    format = VideoType.CONTAINER,
+                    file = FileUrl(directUrl),
+                    extraNote = buildNote(stream)
+                )
+            } else {
+                val magnet = buildMagnet(stream) ?: return@mapNotNull null
+                Video(
+                    quality = getQuality(stream.name),
+                    format = VideoType.CONTAINER,
+                    file = FileUrl(magnet),
+                    extraNote = stream.title
+                )
             }
-
-            // Kept as a secondary hint only — fileIdx from Torrentio isn't reliable
-            // enough to trust as the primary file selector.
-            stream.fileIdx?.let { idx ->
-                magnetBuilder.append("&index=$idx")
-            }
-
-            stream.sources.forEach { source ->
-                if (source.startsWith("tracker:")) {
-                    val trackerUrl = source.removePrefix("tracker:")
-                    val encodedTracker = URLEncoder.encode(trackerUrl, "UTF-8")
-                    magnetBuilder.append("&tr=$encodedTracker")
-                }
-            }
-
-            Video(
-                quality = getQuality(stream.name),
-                format = VideoType.CONTAINER,
-                file = FileUrl(magnetBuilder.toString()),
-                extraNote = stream.title
-            )
         }
 
         return VideoContainer(videos, subtitles = emptyList())
     }
+
+    private fun buildMagnet(stream: TorrentInfo): String? {
+        val hash = stream.infoHash?.takeIf { it.isNotBlank() } ?: return null
+        val magnetBuilder = StringBuilder("magnet:?xt=urn:btih:$hash")
+
+        val filename = stream.behaviorHints?.filename
+        if (!filename.isNullOrBlank()) {
+            magnetBuilder.append("&dn=${URLEncoder.encode(filename, "UTF-8")}")
+        }
+
+        stream.fileIdx?.let { idx ->
+            magnetBuilder.append("&index=$idx")
+        }
+
+        stream.sources.forEach { source ->
+            if (source.startsWith("tracker:")) {
+                val trackerUrl = source.removePrefix("tracker:")
+                val encodedTracker = URLEncoder.encode(trackerUrl, "UTF-8")
+                magnetBuilder.append("&tr=$encodedTracker")
+            }
+        }
+
+        return magnetBuilder.toString()
+    }
+
+    private fun isUncached(name: String): Boolean = uncachedRegex.containsMatchIn(name)
+
+    private fun buildNote(stream: TorrentInfo): String =
+        if (isUncached(stream.name)) "${stream.title}\n(not cached)" else stream.title
 
     private fun getQuality(name: String): Int? {
         return when {
@@ -107,4 +136,8 @@ class TorrentioExtractor(
     data class TorrentioResponse(
         val streams: List<TorrentInfo> = emptyList()
     )
+
+    private companion object {
+        val uncachedRegex = Regex("\\[[^\\]]*download]", RegexOption.IGNORE_CASE)
+    }
 }

@@ -8,6 +8,7 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.SurfaceHolder
 import ani.saikou.R
+import ani.saikou.media.anime.mpv.preferences.MpvPreferences
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.MPV
 import `is`.xyz.mpv.MPVNode
@@ -193,18 +194,15 @@ class MpvVideoPlayer(
             mpv.setOptionString("network-timeout", "10")
             mpv.setOptionString("stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5")
 
-            val cacheSize = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) 150 else 64) * 1024 * 1024
+            val cacheSize = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) 128 else 64) * 1024 * 1024
             mpv.setOptionString("demuxer-max-bytes", "$cacheSize")
             mpv.setOptionString("demuxer-max-back-bytes", "$cacheSize")
 
             mpv.setOptionString("framedrop", "vo")
             mpv.setOptionString("vd-lavc-framedrop", "nonkey")
 
-            val targetDecoder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                Decoder.HWPlus
-            } else {
-                Decoder.Auto
-            }
+
+            val targetDecoder = MpvPreferences.resolveDecoder(context)
             mpv.setOptionString("hwdec", targetDecoder.value)
             _currentDecoder.value = targetDecoder
 
@@ -884,6 +882,7 @@ class MpvVideoPlayer(
         if (!isInitialized || isShutdown.get()) return
         player?.setPropertyString("hwdec", decoder.value)
         _currentDecoder.value = decoder
+        MpvPreferences.setDecoder(context, decoder)
     }
 
     fun setPlaybackSpeed(speed: Float) {

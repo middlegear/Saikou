@@ -69,65 +69,6 @@
             android:paddingStart="24dp"
             android:paddingEnd="24dp">
 
-            <!-- ================= SERVER ================= -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="16dp"
-                android:fontFamily="@font/poppins_bold"
-                android:text="@string/torrent_server_title"
-                android:textColor="?attr/colorSecondary"
-                android:textSize="14sp" />
-
-            <!-- Enable Server -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:minHeight="48dp"
-                android:paddingVertical="8dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_marginEnd="16dp"
-                    app:srcCompat="@drawable/ic_round_dns_24"
-                    app:tint="?attr/colorPrimary"
-                    tools:ignore="ContentDescription" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/poppins_bold"
-                        android:text="@string/torrent_enable_server"
-                        android:textColor="@color/bg_opp"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:alpha="0.6"
-                        android:fontFamily="@font/poppins_family"
-                        android:text="@string/torrent_enable_server_desc"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/torrentEnableServer"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:thumbTint="@color/button_switch_track" />
-            </LinearLayout>
 
 
             <!-- DEPENDENT SETTINGS CONTAINER -->

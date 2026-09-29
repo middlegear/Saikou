@@ -51,7 +51,9 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="32dp"
                     android:layout_weight="1"
+                    android:fontFamily="@font/poppins_bold"
                     android:text="@string/accounts"
+                    android:textColor="@color/bg_opp"
                     android:textSize="28sp" />
 
                 <ImageView
@@ -87,10 +89,9 @@
                 android:orientation="horizontal">
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginStart="4dp"
-                    android:layout_marginEnd="20dp"
+                    android:layout_width="32dp"
+                    android:layout_height="64dp"
+                    android:layout_marginEnd="16dp"
                     android:contentDescription="@string/anilist"
                     app:srcCompat="@drawable/ic_anilist" />
 
@@ -110,6 +111,7 @@
                         android:fontFamily="@font/poppins_bold"
                         android:gravity="center"
                         android:text="@string/username"
+                        android:textColor="@color/bg_opp"
                         android:textSize="16sp" />
 
                     <TextView
@@ -133,7 +135,9 @@
                     android:layout_height="52dp"
                     android:layout_marginTop="4dp"
                     android:backgroundTint="@color/nav_bg_inv"
-                    app:cardCornerRadius="26dp">
+                    app:cardCornerRadius="26dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="0dp">
 
                     <com.google.android.material.imageview.ShapeableImageView
                         android:id="@+id/settingsAnilistAvatar"
@@ -156,7 +160,7 @@
 
                 <ImageView
                     android:layout_width="32dp"
-                    android:layout_height="match_parent"
+                    android:layout_height="64dp"
                     android:layout_marginEnd="16dp"
                     android:contentDescription="@string/myanimelist"
                     app:srcCompat="@drawable/ic_myanimelist" />
@@ -187,6 +191,7 @@
                         android:fontFamily="@font/poppins_bold"
                         android:gravity="center"
                         android:text="@string/username"
+                        android:textColor="@color/bg_opp"
                         android:textSize="16sp" />
 
                     <TextView
@@ -210,7 +215,9 @@
                     android:layout_height="52dp"
                     android:layout_marginTop="4dp"
                     android:backgroundTint="@color/nav_bg_inv"
-                    app:cardCornerRadius="26dp">
+                    app:cardCornerRadius="26dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="0dp">
 
                     <com.google.android.material.imageview.ShapeableImageView
                         android:id="@+id/settingsMALAvatar"
@@ -254,6 +261,7 @@
                         android:layout_marginBottom="-4dp"
                         android:fontFamily="@font/poppins_bold"
                         android:text="@string/username"
+                        android:textColor="@color/bg_opp"
                         android:textSize="16sp" />
 
                     <TextView
@@ -276,7 +284,9 @@
                     android:layout_height="52dp"
                     android:layout_marginTop="4dp"
                     android:backgroundTint="@color/nav_bg_inv"
-                    app:cardCornerRadius="26dp">
+                    app:cardCornerRadius="26dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="0dp">
 
                     <com.google.android.material.imageview.ShapeableImageView
                         android:id="@+id/settingsDiscordAvatar"
@@ -286,6 +296,76 @@
                         app:srcCompat="@drawable/ic_round_person_24"
                         tools:ignore="ContentDescription" />
                 </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/settingsDebridContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="64dp"
+                    android:layout_marginEnd="16dp"
+                    android:contentDescription="Debrid Service"
+                    app:srcCompat="@drawable/ic_magnet" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:minHeight="64dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/settingsDebridUsername"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="-4dp"
+                        android:fontFamily="@font/poppins_bold"
+                        android:text="Debrid Service"
+                        android:textColor="@color/bg_opp"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/settingsDebridLogin"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="-16dp"
+                        android:layout_marginTop="-16dp"
+                        android:layout_marginBottom="-16dp"
+                        android:fontFamily="@font/poppins_bold"
+                        android:padding="16dp"
+                        android:text="Connect"
+                        android:textColor="?attr/colorSecondaryVariant"
+                        android:textSize="14sp" />
+
+                </LinearLayout>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/settingsDebridAvatarContainer"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="4dp"
+                    android:backgroundTint="@color/nav_bg_inv"
+                    app:cardCornerRadius="26dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="0dp">
+
+                    <TextView
+                        android:id="@+id/settingsDebridAvatarText"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:fontFamily="@font/poppins_bold"
+                        android:gravity="center"
+                        android:text="-"
+                        android:textColor="@color/bg_opp"
+                        android:textSize="18sp" />
+
+                </com.google.android.material.card.MaterialCardView>
+
             </LinearLayout>
 
             <!-- Discord Rich Presence Switch -->

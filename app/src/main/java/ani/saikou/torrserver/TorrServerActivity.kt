@@ -5,21 +5,17 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.View
 import android.widget.FrameLayout
-import android.widget.TextView
 import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
 import ani.saikou.R
 import ani.saikou.databinding.ActivityTorrentSettingsBinding
 import ani.saikou.loadData
-import ani.saikou.others.CustomBottomDialog
 import ani.saikou.saveData
 import ani.saikou.torrserver.utils.TorrentProfile
 import ani.saikou.torrserver.utils.TorrentSettings
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import io.noties.markwon.Markwon
-import io.noties.markwon.SoftBreakAddsNewLinePlugin
 
 class TorrServerActivity : AppCompatActivity() {
     private lateinit var binding: ActivityTorrentSettingsBinding
@@ -35,8 +31,8 @@ class TorrServerActivity : AppCompatActivity() {
             saveData(torrentKey, this)
         }
 
-
-        if (!settings.enableDHT) {
+        if (!settings.enableTorrentServer || !settings.enableDHT) {
+            settings.enableTorrentServer = true
             settings.enableDHT = true
             saveData(torrentKey, settings)
         }
@@ -50,9 +46,10 @@ class TorrServerActivity : AppCompatActivity() {
 
         updateUiFromSettings(settings)
 
-        binding.torrentSubSettingsContainer.visibility = if (settings.enableTorrentServer) View.VISIBLE else View.GONE
 
-        setupTorrentServerListener(settings)
+        binding.torrentSubSettingsContainer.visibility = View.VISIBLE
+
+
 
         binding.torrentProfile.setOnClickListener {
             showProfileSelectionDialog(settings) { updated ->
@@ -82,7 +79,6 @@ class TorrServerActivity : AppCompatActivity() {
     }
 
     private fun updateUiFromSettings(settings: TorrentSettings) {
-        binding.torrentEnableServer.isChecked = settings.enableTorrentServer
         binding.torrentProfileValue.text = settings.profile.displayName
         binding.torrentServerPortValue.text = settings.serverPort.toString()
         binding.torrentProxyUrlValue.text = settings.proxyUrl.ifEmpty { getString(R.string.torrent_proxy_url_default) }
@@ -186,84 +182,5 @@ class TorrServerActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
             .show()
-    }
-
-    private fun setupTorrentServerListener(settings: TorrentSettings) {
-        binding.torrentEnableServer.setOnCheckedChangeListener(null)
-
-        binding.torrentEnableServer.setOnCheckedChangeListener { buttonView, isChecked ->
-            if (isChecked) {
-                binding.torrentEnableServer.setOnCheckedChangeListener(null)
-
-                warning(
-                    context = this,
-                    onConfirm = {
-                        settings.enableTorrentServer = true
-                        saveData(torrentKey, settings)
-                        binding.torrentSubSettingsContainer.visibility = View.VISIBLE
-
-                        TorrServerService.startOrStop(this, settings)
-                        setupTorrentServerListener(settings)
-                    },
-                    onCancel = {
-                        settings.enableTorrentServer = false
-                        saveData(torrentKey, settings)
-                        buttonView.isChecked = false
-                        binding.torrentSubSettingsContainer.visibility = View.GONE
-
-                        TorrServerService.startOrStop(this, settings)
-                        setupTorrentServerListener(settings)
-                    },
-                    onDismiss = {
-                        settings.enableTorrentServer = false
-                        saveData(torrentKey, settings)
-                        buttonView.isChecked = false
-                        binding.torrentSubSettingsContainer.visibility = View.GONE
-
-                        TorrServerService.startOrStop(this, settings)
-                        setupTorrentServerListener(settings)
-                    }
-                ).show(supportFragmentManager, "torrent_warning")
-            } else {
-                settings.enableTorrentServer = false
-                saveData(torrentKey, settings)
-                binding.torrentSubSettingsContainer.visibility = View.GONE
-
-                TorrServerService.startOrStop(this, settings)
-            }
-        }
-
-        binding.torrentEnableServer.isChecked = settings.enableTorrentServer
-    }
-
-    private fun warning(
-        context: Context,
-        onConfirm: () -> Unit,
-        onCancel: () -> Unit,
-        onDismiss: () -> Unit = {}
-    ) = CustomBottomDialog().apply {
-        title = context.getString(R.string.warning)
-        val md = context.getString(R.string.torrent_warning)
-
-        addView(TextView(context).apply {
-            val markWon = Markwon.builder(context)
-                .usePlugin(SoftBreakAddsNewLinePlugin.create())
-                .build()
-            markWon.setMarkdown(this, md)
-        })
-
-        setNegativeButton(context.getString(R.string.cancel)) {
-            onCancel()
-            dismiss()
-        }
-
-        setPositiveButton(context.getString(android.R.string.ok)) {
-            onConfirm()
-            dismiss()
-        }
-
-        setOnDismissListener {
-            onDismiss()
-        }
     }
 }

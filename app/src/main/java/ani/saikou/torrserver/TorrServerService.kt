@@ -64,6 +64,7 @@ class TorrServerService : Service() {
         Log.d(TAG, "Service onCreate")
 
         currentSettings = loadData(TORRENT_SETTINGS_KEY, toast = false) ?: TorrentSettings()
+        currentSettings.enableTorrentServer = true
 
         manager = TorrServerManager(applicationContext)
         apiClient = TorrServerApiClient(settings = currentSettings)
@@ -257,27 +258,29 @@ class TorrServerService : Service() {
 
         startupJob?.join()
 
-        if (!isServerReady) {
-            val reason = lastStartError ?: "Server failed to start or is not ready"
-            Log.e(TAG, reason)
-            startInactivityTimer()
-            return null
-        }
-
-        if (!isRemoteMode) {
+        if (isRemoteMode) {
+            if (!isServerReady) {
+                val reason = lastStartError ?: "Server failed to start or is not ready"
+                Log.e(TAG, reason)
+                startInactivityTimer()
+                return null
+            }
+        } else {
+        
             serverMutex.withLock {
-                if (manager.state.value !is ServerState.Running) {
-                    Log.d(TAG, "Server not running, starting...")
+                if (!isServerReady || manager.state.value !is ServerState.Running) {
+                    Log.d(TAG, "Server not ready (ready=$isServerReady), (re)starting...")
                     val result = manager.startServer()
                     if (result.isFailure) {
                         lastStartError = result.exceptionOrNull()?.message ?: "Failed to start server"
+                        isServerReady = false
                         Log.e(TAG, lastStartError ?: "Failed to start server")
                         startInactivityTimer()
                         return null
                     }
                     lastStartError = null
                     isServerReady = true
-                    applySettingsToServer(currentSettings, clearCache = false)
+                    applySettingsUnlocked(currentSettings, clearCache = false)
                     settingsApplied = true
                 }
             }
@@ -312,29 +315,37 @@ class TorrServerService : Service() {
         clearCache: Boolean = false
     ) {
         serverMutex.withLock {
-            apiClient.settings = settings
+            applySettingsUnlocked(settings, clearCache)
+        }
+    }
 
-            if (!isServerReady) {
-                Log.e(TAG, "Server never became ready, settings not applied")
-                return
+
+    private suspend fun applySettingsUnlocked(
+        settings: TorrentSettings,
+        clearCache: Boolean = false
+    ) {
+        apiClient.settings = settings
+
+        if (!isServerReady) {
+            Log.e(TAG, "Server never became ready, settings not applied")
+            return
+        }
+
+        try {
+
+            if (clearCache && !isRemoteMode) {
+                controller.releaseStream()
+                val cleaned = manager.clearTorrentCache()
+                Log.d(TAG, "Cache cleared on settings change: $cleaned")
+            } else if (clearCache) {
+                controller.releaseStream()
             }
 
-            try {
-
-                if (clearCache && !isRemoteMode) {
-                    controller.releaseStream()
-                    val cleaned = manager.clearTorrentCache()
-                    Log.d(TAG, "Cache cleared on settings change: $cleaned")
-                } else if (clearCache) {
-                    controller.releaseStream()
-                }
-
-                val payload = settings.toTorrServerJson()
-                val applied = apiClient.updateSettings(payload)
-                Log.d(TAG, "Settings applied: $applied (target=${apiClient.baseUrl})")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error applying settings", e)
-            }
+            val payload = settings.toTorrServerJson()
+            val applied = apiClient.updateSettings(payload)
+            Log.d(TAG, "Settings applied: $applied (target=${apiClient.baseUrl})")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error applying settings", e)
         }
     }
 
@@ -427,15 +438,10 @@ class TorrServerService : Service() {
         const val ACTION_STOP_SERVICE = "ani.saikou.action.STOP_TORRSERVER"
 
         fun startOrStop(context: Context, settings: TorrentSettings) {
-            Log.d(TAG, "startOrStop: enable=${settings.enableTorrentServer}")
+            settings.enableTorrentServer = true
             val intent = Intent(context, TorrServerService::class.java)
             intent.putExtra(EXTRA_SETTINGS, settings)
-
-            if (settings.enableTorrentServer) {
-                context.startForegroundService(intent)
-            } else {
-                context.stopService(intent)
-            }
+            context.startForegroundService(intent)
         }
     }
 }
