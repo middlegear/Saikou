@@ -12,9 +12,9 @@ enum class TorrentProfile(val displayName: String) : Serializable {
 
     private val localPreset: Preset
         get() = when (this) {
-            BATTERY -> Preset(bufferSizeMb = 64, maxConnections = 25)
+            BATTERY -> Preset(bufferSizeMb = 64, maxConnections = 30)
             BALANCED -> Preset(bufferSizeMb = 128, maxConnections = 50)
-            PERFORMANCE -> Preset(bufferSizeMb = 180, maxConnections = 70)
+            PERFORMANCE -> Preset(bufferSizeMb = 180, maxConnections = 100)
         }
 
     /**

@@ -189,6 +189,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val torrServerService: TorrServerService?
         get() = _torrServerServiceRef?.get()
 
+    private var torrServerBound = false
+
     private var boundMediaDetailsModel: WeakReference<MediaDetailsViewModel>? = null
 
     private val loadGuard = AtomicBoolean(false)
@@ -277,6 +279,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+
+    private fun isMagnet(url: String): Boolean =
+        url.startsWith("magnet:", ignoreCase = true)
+
+    private fun ensureTorrServer(context: Context) {
+        if (torrServerBound) return
+
+        TorrServerService.startOrStop(context, torrentSettings)
+
+        torrServerBound = context.bindService(
+            Intent(context, TorrServerService::class.java),
+            torrServerConnection,
+            Context.BIND_AUTO_CREATE
+        )
+
+        Log.d("mpv", "[PlayerViewModel] TorrServer started on demand, bound=$torrServerBound")
+    }
+
     fun setMediaSessionActive(active: Boolean) {
         val service = playbackService
 
@@ -295,17 +315,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+
     fun bindService(activity: AppCompatActivity, mediaDetailsModel: MediaDetailsViewModel) {
         boundMediaDetailsModel = WeakReference(mediaDetailsModel)
 
         val playbackIntent = Intent(activity, PlaybackService::class.java)
         activity.bindService(playbackIntent, playbackConnection, Context.BIND_AUTO_CREATE)
-        TorrServerService.startOrStop(activity, torrentSettings)
-        if (torrentSettings.enableTorrentServer) {
-            val torrentIntent = Intent(activity, TorrServerService::class.java)
-            activity.bindService(torrentIntent, torrServerConnection, Context.BIND_AUTO_CREATE)
-        }
     }
+
 
     fun unbindService(context: Context) {
         try {
@@ -313,11 +330,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         } catch (_: IllegalArgumentException) {
         }
 
-        try {
-            if (torrentSettings.enableTorrentServer) {
+        if (torrServerBound) {
+            try {
                 context.unbindService(torrServerConnection)
+            } catch (_: IllegalArgumentException) {
             }
-        } catch (_: IllegalArgumentException) {
+            torrServerBound = false
         }
 
         boundMediaDetailsModel?.clear()
@@ -834,8 +852,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             Log.d("mpv", "[PlayerViewModel] Stopping previous playback before loading episode ${ep.number}")
             player?.stop()
 
-            val isNewTorrent = resolvedVideo.file.url.startsWith("magnet:", ignoreCase = true)
+            val isNewTorrent = isMagnet(resolvedVideo.file.url)
             if (isNewTorrent) {
+                ensureTorrServer(activity)
                 torrServerService?.releaseStream()
                 stopTorrentStatsMonitoring()
             }
@@ -871,7 +890,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     if (isNewTorrent) {
                         var service = torrServerService
                         var waitAttempts = 0
-                        while (service == null && waitAttempts < 30) {
+
+                        while (service == null && waitAttempts < 50) {
                             delay(100)
                             service = torrServerService
                             waitAttempts++
@@ -882,8 +902,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         }
 
                         startTorrentStatsMonitoring()
-                        val showTitle  = media?.let { it.userPreferredName ?: it.nameRomaji ?: it.name }
-                        val streamUrl = service.resolveStreamUrl(magnetOrUrl = resolvedVideo.file.url, title = showTitle.toString())
+                        val showTitle = media?.let { it.userPreferredName ?: it.nameRomaji ?: it.name }
+                        val streamUrl = service.resolveStreamUrl(
+                            magnetOrUrl = resolvedVideo.file.url,
+                            title = showTitle.toString()
+                        )
                         if (streamUrl == null) {
                             Log.e("TorrServer", "[PlayerViewModel] Failed to resolve torrent for episode ${ep.number}")
                             stopTorrentStatsMonitoring()
@@ -1076,7 +1099,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val service = torrServerService ?: return
         _torrentStats.value = service.getStats()
         torrentStatsJob = viewModelScope.launch {
-            service.controller.stats.collect { stats ->
+            service.controller?.stats?.collect { stats ->
                 _torrentStats.value = stats
             }
         }

@@ -31,15 +31,12 @@ class TorrServerService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val serverMutex = Mutex()
 
-    lateinit var manager: TorrServerManager
-        private set
-    lateinit var apiClient: TorrServerApiClient
-        private set
-    lateinit var controller: TorrServerPlaybackController
-        private set
+    private var manager: TorrServerManager? = null
+    private var apiClient: TorrServerApiClient? = null
+    var controller: TorrServerPlaybackController? = null
 
-    private var startupJob: Job? = null
     private var inactivityJob: Job? = null
+    private var statsJob: Job? = null
 
     @Volatile
     private var isServerReady = false
@@ -61,48 +58,38 @@ class TorrServerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Service onCreate")
+        Log.d(TAG, "Service onCreate - waiting for resolveStreamUrl to start")
 
         currentSettings = loadData(TORRENT_SETTINGS_KEY, toast = false) ?: TorrentSettings()
         currentSettings.enableTorrentServer = true
 
-        manager = TorrServerManager(applicationContext)
-        apiClient = TorrServerApiClient(settings = currentSettings)
-        controller = TorrServerPlaybackController(apiClient)
-
         acquireWakeLock()
         startForegroundNotification()
 
-        observePlaybackStats()
-
-        startupJob = serviceScope.launch {
-            if (isRemoteMode) {
-                Log.d(TAG, "Remote proxyUrl set (${currentSettings.proxyUrl}), skipping local binary")
-                isServerReady = true
-                lastStartError = null
-                applySettingsToServer(currentSettings, clearCache = false)
-                settingsApplied = true
-            } else {
-                Log.d(TAG, "Starting local server...")
-                val result = manager.startServer()
-                if (result.isSuccess) {
-                    isServerReady = true
-                    lastStartError = null
-                    Log.d(TAG, "Server started successfully on port ${currentSettings.serverPort}")
-                    applySettingsToServer(currentSettings, clearCache = false)
-                    settingsApplied = true
-                } else {
-                    val error = result.exceptionOrNull()?.message ?: "Unknown error"
-                    lastStartError = error
-                    Log.e(TAG, "Failed to start server: $error")
-                }
-            }
-        }
+        startInactivityTimer()
     }
 
-    private fun observePlaybackStats() {
-        serviceScope.launch {
-            controller.stats.collect { stats ->
+    private fun ensureEngineStarted(): Boolean {
+
+        if (manager == null) {
+            manager = TorrServerManager(applicationContext)
+        }
+        if (apiClient == null) {
+            apiClient = TorrServerApiClient(settings = currentSettings)
+        }
+        if (controller == null) {
+            val client = apiClient!!
+            val newController = TorrServerPlaybackController(client)
+            controller = newController
+            observePlaybackStats(newController)
+        }
+        return isServerReady
+    }
+
+    private fun observePlaybackStats(playbackController: TorrServerPlaybackController) {
+        statsJob?.cancel()
+        statsJob = serviceScope.launch {
+            playbackController.stats.collect { stats ->
                 when (stats.stage) {
                     TorrentStats.Stage.RESOLVING_MAGNET,
                     TorrentStats.Stage.METADATA_DOWNLOAD,
@@ -178,38 +165,35 @@ class TorrServerService : Service() {
             currentSettings = incomingSettings
             val nowRemoteMode = isRemoteMode
 
-            if (settingsChanged) {
+
+            apiClient?.settings = currentSettings
+
+            if (settingsChanged && isServerReady) {
                 serviceScope.launch {
-                    controller.releaseStream()
+                    controller?.releaseStream()
 
                     if (wasRemoteMode != nowRemoteMode) {
-                        startupJob?.cancel()
-                        startupJob = serviceScope.launch {
-                            if (nowRemoteMode) {
-                                Log.d(TAG, "Switched to remote proxyUrl (${currentSettings.proxyUrl}); stopping local binary")
-                                manager.stopServer()
+                        if (nowRemoteMode) {
+                            Log.d(TAG, "Switched to remote proxyUrl (${currentSettings.proxyUrl}); stopping local binary")
+                            manager?.stopServer()
+                            isServerReady = true
+                            lastStartError = null
+                            applySettingsToServer(currentSettings, clearCache = true)
+                        } else {
+                            Log.d(TAG, "Switched to local mode; starting local binary")
+                            val result = manager?.startServer()
+                            if (result?.isSuccess == true) {
                                 isServerReady = true
                                 lastStartError = null
                                 applySettingsToServer(currentSettings, clearCache = true)
-                                settingsApplied = true
                             } else {
-                                Log.d(TAG, "Switched to local mode; starting local binary")
-                                val result = manager.startServer()
-                                if (result.isSuccess) {
-                                    isServerReady = true
-                                    lastStartError = null
-                                    applySettingsToServer(currentSettings, clearCache = true)
-                                    settingsApplied = true
-                                } else {
-                                    lastStartError = result.exceptionOrNull()?.message ?: "Unknown error"
-                                    isServerReady = false
-                                    Log.e(TAG, "Failed to start local server: $lastStartError")
-                                }
+                                lastStartError = result?.exceptionOrNull()?.message ?: "Unknown error"
+                                isServerReady = false
+                                Log.e(TAG, "Failed to start local server: $lastStartError")
                             }
                         }
                     } else {
                         applySettingsToServer(currentSettings, clearCache = true)
-                        settingsApplied = true
                     }
                 }
             }
@@ -234,8 +218,8 @@ class TorrServerService : Service() {
 
     override fun onDestroy() {
         Log.d(TAG, "Service onDestroy")
-        startupJob?.cancel()
         inactivityJob?.cancel()
+        statsJob?.cancel()
         releaseWakeLock()
 
         CoroutineScope(Dispatchers.IO).launch(NonCancellable) {
@@ -250,61 +234,71 @@ class TorrServerService : Service() {
         magnetOrUrl: String,
         fileIndex: Int? = null,
         preferredFileName: String? = null,
-        title:String,
+        title: String,
     ): String? {
         Log.d(TAG, "resolveStreamUrl called")
 
         cancelInactivityTimer()
 
-        startupJob?.join()
+        val initialized = serverMutex.withLock {
+            ensureEngineStarted()
 
-        if (isRemoteMode) {
-            if (!isServerReady) {
-                val reason = lastStartError ?: "Server failed to start or is not ready"
-                Log.e(TAG, reason)
-                startInactivityTimer()
-                return null
-            }
-        } else {
-        
-            serverMutex.withLock {
-                if (!isServerReady || manager.state.value !is ServerState.Running) {
-                    Log.d(TAG, "Server not ready (ready=$isServerReady), (re)starting...")
-                    val result = manager.startServer()
+            if (isRemoteMode) {
+                if (!isServerReady) {
+                    Log.d(TAG, "Remote mode active (${currentSettings.proxyUrl})")
+                    isServerReady = true
+                    lastStartError = null
+                    applySettingsUnlocked(currentSettings, clearCache = false)
+                    settingsApplied = true
+                }
+                true
+            } else {
+                val currentManager = manager ?: return@withLock false
+                if (!isServerReady || currentManager.state.value !is ServerState.Running) {
+                    Log.d(TAG, "Server binary starting on-demand...")
+                    val result = currentManager.startServer()
                     if (result.isFailure) {
                         lastStartError = result.exceptionOrNull()?.message ?: "Failed to start server"
                         isServerReady = false
                         Log.e(TAG, lastStartError ?: "Failed to start server")
-                        startInactivityTimer()
-                        return null
+                        return@withLock false
                     }
                     lastStartError = null
                     isServerReady = true
                     applySettingsUnlocked(currentSettings, clearCache = false)
                     settingsApplied = true
                 }
+                true
             }
         }
 
-        return controller.resolveStreamUrl(magnetOrUrl, fileIndex, preferredFileName,title)
+        if (!initialized || !isServerReady) {
+            startInactivityTimer()
+            return null
+        }
+
+        val currentController = controller ?: return null
+        return currentController.resolveStreamUrl(magnetOrUrl, fileIndex, preferredFileName, title)
     }
 
     fun releaseStream() {
         Log.d(TAG, "releaseStream")
-        controller.releaseStream()
+        controller?.releaseStream()
         startInactivityTimer()
     }
 
-    fun getStats() = controller.getCurrentStats()
+    fun getStats(): TorrentStats? = controller?.getCurrentStats()
 
     fun getLastStartError(): String? = if (isServerReady) null else lastStartError
 
     private suspend fun stopServerAndRelease() {
         try {
-            controller.releaseStream()
+            controller?.releaseStream()
             if (!isRemoteMode) {
-                manager.stopServer()
+                manager?.stopServer()
             }
+            isServerReady = false
+            settingsApplied = false
         } catch (e: Exception) {
             Log.e(TAG, "Error during background shutdown", e)
         }
@@ -319,12 +313,13 @@ class TorrServerService : Service() {
         }
     }
 
-
     private suspend fun applySettingsUnlocked(
         settings: TorrentSettings,
         clearCache: Boolean = false
     ) {
-        apiClient.settings = settings
+        val client = apiClient ?: return
+
+        client.settings = settings
 
         if (!isServerReady) {
             Log.e(TAG, "Server never became ready, settings not applied")
@@ -332,18 +327,17 @@ class TorrServerService : Service() {
         }
 
         try {
-
             if (clearCache && !isRemoteMode) {
-                controller.releaseStream()
-                val cleaned = manager.clearTorrentCache()
+                controller?.releaseStream()
+                val cleaned = manager?.clearTorrentCache() ?: false
                 Log.d(TAG, "Cache cleared on settings change: $cleaned")
             } else if (clearCache) {
-                controller.releaseStream()
+                controller?.releaseStream()
             }
 
             val payload = settings.toTorrServerJson()
-            val applied = apiClient.updateSettings(payload)
-            Log.d(TAG, "Settings applied: $applied (target=${apiClient.baseUrl})")
+            val applied = client.updateSettings(payload)
+            Log.d(TAG, "Settings applied: $applied (target=${client.baseUrl})")
         } catch (e: Exception) {
             Log.e(TAG, "Error applying settings", e)
         }
