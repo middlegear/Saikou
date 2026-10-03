@@ -17,7 +17,7 @@ object AnimeSources : WatchSources() {
     override val list: List<Lazier<BaseParser>> = lazyList(
         "Torrentio" to ::Torrentio,
         "Anikoto" to ::Anikoto,
-        "AniBD" to ::AniBD,
+//        "AniBD" to ::AniBD,
         "AnimeHeaven" to ::AnimeHeaven,
         "Anizone" to ::Anizone,
 
