@@ -4,5 +4,5 @@
 * **Debrid:** Add debrid service via  account settings. 
 
 ### Changes
-* **P2P:** P2P streaming starts automatically on magnet link detection. Use Torrentio source
+* **P2P:** Service starts automatically on magnet link detection. 
 
