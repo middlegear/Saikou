@@ -1,8 +1,5 @@
-## Version 1.2.5-beta (03/10/2026)
+## Version 1.2.5-beta (10/10/2026)
 
 ### Features
-* **Debrid:** Add debrid service via  account settings. 
 
-### Changes
-* **P2P:** Service starts automatically on magnet link detection. 
-
+* **Torrentio:** Added full configuration options for Torrentio streams. Customize your providers, excluded qualities, languages, and sorting preferences directly from **Settings ➔ Anime ➔ TorrServer Settings**.

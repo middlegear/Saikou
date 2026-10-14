@@ -3,7 +3,6 @@ package ani.saikou.parsers.anime
 import ani.saikou.BuildConfig
 import ani.saikou.FileUrl
 import ani.saikou.client
-import ani.saikou.parsers.AnimeApiParser
 import ani.saikou.parsers.AnimeParser
 import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse

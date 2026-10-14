@@ -294,6 +294,17 @@
     <string name="torrent_profile_icon_desc">Profile icon</string>
     <string name="torrent_storage_icon_desc">Storage icon</string>
 
+    <string name="torrentio_config_title">Torrentio Config</string>
+    <string name="torrentio_providers">Providers</string>
+    <string name="torrentio_providers_desc">Enable or disable torrent sources</string>
+    <string name="torrentio_exclude_quality">Exclude Qualities</string>
+    <string name="torrentio_exclude_quality_desc">Hide streams with these resolutions or formats</string>
+    <string name="torrentio_languages">Priority Languages</string>
+    <string name="torrentio_languages_desc">Prefer streams in these foreign languages</string>
+    <string name="torrentio_sorting">Sorting</string>
+    <string name="torrentio_sorting_desc">How streams are ordered</string>
+    <string name="torrentio_selected_count">%d selected</string>
+    <string name="torrentio_none">None</string>
 
 
 

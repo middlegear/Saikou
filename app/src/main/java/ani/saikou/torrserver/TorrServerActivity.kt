@@ -13,6 +13,8 @@ import ani.saikou.loadData
 import ani.saikou.saveData
 import ani.saikou.torrserver.utils.TorrentProfile
 import ani.saikou.torrserver.utils.TorrentSettings
+import ani.saikou.torrserver.utils.TorrentioConfig
+import ani.saikou.torrserver.utils.TorrentioOptions
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
@@ -20,6 +22,7 @@ import com.google.android.material.textfield.TextInputLayout
 class TorrServerActivity : AppCompatActivity() {
     private lateinit var binding: ActivityTorrentSettingsBinding
     private val torrentKey = TorrServerService.TORRENT_SETTINGS_KEY
+    private lateinit var torrentioConfig: TorrentioConfig
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,10 +49,7 @@ class TorrServerActivity : AppCompatActivity() {
 
         updateUiFromSettings(settings)
 
-
         binding.torrentSubSettingsContainer.visibility = View.VISIBLE
-
-
 
         binding.torrentProfile.setOnClickListener {
             showProfileSelectionDialog(settings) { updated ->
@@ -76,6 +76,45 @@ class TorrServerActivity : AppCompatActivity() {
             saveData(torrentKey, settings)
             TorrServerService.startOrStop(this, settings)
         }
+
+        // ---------------- Torrentio config ----------------
+        torrentioConfig = TorrentioConfig.load()
+        updateTorrentioUi()
+
+        binding.torrentioProviders.setOnClickListener {
+            showMultiSelectDialog(
+                R.string.torrentio_providers,
+                TorrentioOptions.providers,
+                torrentioConfig.providers
+            ) {
+                torrentioConfig.providers = it
+                saveTorrentioConfig()
+            }
+        }
+
+        binding.torrentioQuality.setOnClickListener {
+            showMultiSelectDialog(
+                R.string.torrentio_exclude_quality,
+                TorrentioOptions.qualities,
+                torrentioConfig.excludedQualities
+            ) {
+                torrentioConfig.excludedQualities = it
+                saveTorrentioConfig()
+            }
+        }
+
+        binding.torrentioLanguages.setOnClickListener {
+            showMultiSelectDialog(
+                R.string.torrentio_languages,
+                TorrentioOptions.languages,
+                torrentioConfig.languages
+            ) {
+                torrentioConfig.languages = it
+                saveTorrentioConfig()
+            }
+        }
+
+        binding.torrentioSort.setOnClickListener { showSortDialog() }
     }
 
     private fun updateUiFromSettings(settings: TorrentSettings) {
@@ -85,6 +124,63 @@ class TorrServerActivity : AppCompatActivity() {
         binding.torrentEnableEncryption.isChecked = settings.enableEncryption
         binding.torrentEnableStats.isChecked = settings.enableStatics
     }
+
+    // ============================ Torrentio config ============================
+
+    private fun saveTorrentioConfig() {
+        saveData(TorrentioConfig.KEY, torrentioConfig)
+        updateTorrentioUi()
+    }
+
+    private fun updateTorrentioUi() {
+        fun count(list: List<String>) =
+            if (list.isEmpty()) getString(R.string.torrentio_none)
+            else getString(R.string.torrentio_selected_count, list.size)
+
+        binding.torrentioProvidersValue.text = count(torrentioConfig.providers)
+        binding.torrentioQualityValue.text = count(torrentioConfig.excludedQualities)
+        binding.torrentioLanguagesValue.text = count(torrentioConfig.languages)
+        binding.torrentioSortValue.text =
+            TorrentioOptions.sorts.firstOrNull { it.second == torrentioConfig.sort }?.first.orEmpty()
+    }
+
+    private fun showMultiSelectDialog(
+        titleRes: Int,
+        options: List<Pair<String, String>>,
+        selected: List<String>,
+        onSave: (List<String>) -> Unit
+    ) {
+        val checked = BooleanArray(options.size) { options[it].second in selected }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(titleRes)
+            .setMultiChoiceItems(options.map { it.first }.toTypedArray(), checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton(R.string.save) { dialog, _ ->
+                onSave(options.filterIndexed { i, _ -> checked[i] }.map { it.second })
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
+    private fun showSortDialog() {
+        val sorts = TorrentioOptions.sorts
+        val current = sorts.indexOfFirst { it.second == torrentioConfig.sort }.coerceAtLeast(0)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.torrentio_sorting)
+            .setSingleChoiceItems(sorts.map { it.first }.toTypedArray(), current) { dialog, which ->
+                torrentioConfig.sort = sorts[which].second
+                saveTorrentioConfig()
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
+    // ============================ TorrServer dialogs ============================
 
     private fun showPortInputDialog(settings: TorrentSettings) {
         val input = TextInputEditText(this).apply {
