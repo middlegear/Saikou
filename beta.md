@@ -1,4 +1,4 @@
-## Version 1.2.5-beta (10/10/2026)
+## Version 1.2.5-beta (17/10/2026)
 
 ### Features
 
