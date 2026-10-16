@@ -105,18 +105,14 @@ object TrackParser {
 
             when (type) {
                 "audio" -> {
-                    // Better channel detection
                     val channels = map["demux-channel-count"]?.asInt()?.toInt()
                         ?: map["audio-channels"]?.asInt()?.toInt()
                         ?: map["channels"]?.asInt()?.toInt()
 
-
                     val channelLayout = map["channel-layout"]?.asString()
-
                     val sampleRate = map["demux-samplerate"]?.asInt()?.toInt()
                     val bitrate = map["demux-bitrate"]?.asInt()?.toLong()
                         ?: map["codec-bitrate"]?.asInt()?.toLong()
-
                     val codecProfile = map["codec-profile"]?.asString()
 
                     val langName = langCodeToName(lang) ?: run {
@@ -125,7 +121,6 @@ object TrackParser {
                         if (!comment.isNullOrBlank()) comment.trim()
                         else lang?.uppercase() ?: "Unknown"
                     }
-
 
                     val channelStr = when {
                         channelLayout?.contains("5.1", ignoreCase = true) == true -> "5.1 Surround"
@@ -174,7 +169,6 @@ object TrackParser {
                 "sub" -> {
                     val metadata = map["metadata"]?.asMap()
                     val comment = metadata?.get("comment")?.asString()
-                    val externalFilename = map["external-filename"]?.asString()
                     val title = map["title"]?.asString()
 
                     val langName = langCodeToName(lang)
@@ -232,15 +226,7 @@ object TrackParser {
 
                     val resolution = if (width > 0 && height > 0) "${width}x$height" else null
 
-                    val heightLabel = when {
-                        height >= 2160 -> "4K"
-                        height >= 1080 -> "1080p"
-                        height >= 720 -> "720p"
-                        height >= 480 -> "480p"
-                        height >= 360 -> "360p"
-                        height > 0 -> "${height}p"
-                        else -> null
-                    }
+                    val heightLabel = heightToLabel(height)
 
                     val codecStr = buildString {
                         append(codec?.uppercase() ?: "H264")
@@ -257,7 +243,6 @@ object TrackParser {
                         if (kbps > 0) "${kbps}kbps" else null
                     }
 
-                    // e.g. "1080p · H264 [High] · 25fps · 2164kbps"
                     val details = listOfNotNull(codecStr, fpsStr, bitrateStr).joinToString(" · ")
                     val name =
                         if (heightLabel != null) "$heightLabel · $details" else details.ifEmpty { "Video $id" }
@@ -277,6 +262,57 @@ object TrackParser {
         }
 
         return Triple(audio, subtitle, video)
+    }
+
+
+    fun parseEditionList(node: MPVNode?, currentEdition: Int?): List<VideoTrack> {
+        val array = node?.asArray() ?: return emptyList()
+        val resRegex = Regex("(\\d{3,4})x(\\d{3,4})")
+        val bitrateRegex = Regex("Bitrate:\\s*([\\d.]+)\\s*(kbps|Mbps)", RegexOption.IGNORE_CASE)
+        val codecRegex = Regex("\\((\\w+)")
+
+        return array.mapNotNull { n ->
+            val map = n.asMap() ?: return@mapNotNull null
+            val editionId = map["id"]?.asInt()?.toInt() ?: return@mapNotNull null
+            val title = map["title"]?.asString().orEmpty()
+
+            val res = resRegex.find(title)
+            val width = res?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val height = res?.groupValues?.get(2)?.toIntOrNull() ?: 0
+
+            val bitrateStr = bitrateRegex.find(title)?.let {
+                val value = it.groupValues[1].toDoubleOrNull() ?: return@let null
+                if (it.groupValues[2].equals("Mbps", ignoreCase = true)) {
+                    "${(value * 1000).toInt()}kbps"
+                } else {
+                    "${value.toInt()}kbps"
+                }
+            }
+            val codec = codecRegex.find(title)?.groupValues?.get(1)
+
+            val label = heightToLabel(height) ?: title.ifBlank { "Quality ${editionId + 1}" }
+            val details = listOfNotNull(codec?.uppercase(), bitrateStr).joinToString(" · ")
+            val name = if (details.isNotEmpty() && height > 0) "$label · $details" else label
+
+            height to VideoTrack(
+                id = editionId + 1,
+                name = name,
+                codec = codec,
+                resolution = if (width > 0 && height > 0) "${width}x$height" else null,
+                isSelected = currentEdition != null && currentEdition == editionId
+            )
+        }.sortedByDescending { it.first }.map { it.second }
+    }
+
+    private fun heightToLabel(height: Int): String? = when {
+        height >= 2160 -> "4K"
+        height >= 1440 -> "1440p"
+        height >= 1080 -> "1080p"
+        height >= 720 -> "720p"
+        height >= 480 -> "480p"
+        height >= 360 -> "360p"
+        height > 0 -> "${height}p"
+        else -> null
     }
 
     fun langCodeToName(lang: String?): String? = when (lang?.lowercase()) {

@@ -81,7 +81,6 @@ class MpvVideoPlayer(
     private val _bufferCacheDuration = MutableStateFlow(0L)
     val bufferCacheDuration: StateFlow<Long> = _bufferCacheDuration.asStateFlow()
 
-
     private val _playerReady = MutableStateFlow(false)
     val playerReady: StateFlow<Boolean> = _playerReady.asStateFlow()
 
@@ -120,6 +119,9 @@ class MpvVideoPlayer(
     private var wasBackgrounded = false
     private var lastGoodPositionMs = 0L
     private val refreshTracksRunnable = Runnable { refreshTracks() }
+
+
+    private var editionMode = false
 
     private val player: MPV?
         get() = mpv
@@ -201,7 +203,6 @@ class MpvVideoPlayer(
             mpv.setOptionString("framedrop", "vo")
             mpv.setOptionString("vd-lavc-framedrop", "nonkey")
 
-
             val targetDecoder = MpvPreferences.resolveDecoder(context)
             mpv.setOptionString("hwdec", targetDecoder.value)
             _currentDecoder.value = targetDecoder
@@ -238,6 +239,9 @@ class MpvVideoPlayer(
         mpv.observeProperty("track-list", MPV.mpvFormat.MPV_FORMAT_NODE)
         mpv.observeProperty("sid", MPV.mpvFormat.MPV_FORMAT_STRING)
         mpv.observeProperty("aid", MPV.mpvFormat.MPV_FORMAT_STRING)
+        mpv.observeProperty("vid", MPV.mpvFormat.MPV_FORMAT_STRING)
+        mpv.observeProperty("edition-list", MPV.mpvFormat.MPV_FORMAT_NODE)
+        mpv.observeProperty("current-edition", MPV.mpvFormat.MPV_FORMAT_INT64)
         mpv.observeProperty("eof-reached", MPV.mpvFormat.MPV_FORMAT_FLAG)
         mpv.observeProperty("demuxer-cache-duration", MPV.mpvFormat.MPV_FORMAT_DOUBLE)
         mpv.observeProperty("paused-for-cache", MPV.mpvFormat.MPV_FORMAT_FLAG)
@@ -357,6 +361,7 @@ class MpvVideoPlayer(
         initialBufferingDone = false
         _bufferingProgress.value = 0f
         _mediaLoaded.value = false
+        editionMode = false
         isShutdown.set(true)
 
         val holder = currentSurfaceHolder
@@ -400,14 +405,17 @@ class MpvVideoPlayer(
             }
             "volume" -> _volume.value = mpv.getPropertyInt("volume") ?: 100
             "speed" -> _playbackSpeed.value = (mpv.getPropertyDouble("speed") ?: 1.0).toFloat()
-            "track-list" -> {
+            "track-list", "edition-list", "current-edition" -> { // CHANGED
                 removeCallbacks(refreshTracksRunnable)
                 postDelayed(refreshTracksRunnable, 120L)
-                detectAndUpdateAudioChannel()
+                if (property == "track-list") detectAndUpdateAudioChannel()
             }
             "vid" -> {
-                val activeId = mpv.getPropertyInt("vid") ?: 0
-                _currentVideoTrack.value = _videoTracks.value.firstOrNull { it.id == activeId } ?: defaultVideoTrack
+                if (!editionMode) {
+                    val activeId = mpv.getPropertyInt("vid") ?: 0
+                    _currentVideoTrack.value =
+                        _videoTracks.value.firstOrNull { it.id == activeId } ?: defaultVideoTrack
+                }
             }
             "aid" -> {
                 val activeId = mpv.getPropertyString("aid")?.toIntOrNull() ?: 0
@@ -555,7 +563,15 @@ class MpvVideoPlayer(
     private fun refreshTracks() {
         val mpv = player ?: return
         val trackListNode = mpv.getPropertyNode("track-list") ?: return
-        val (audio, subtitle, video) = TrackParser.parseTrackList(trackListNode)
+        val (audio, subtitle, parsedVideo) = TrackParser.parseTrackList(trackListNode)
+
+        val currentEdition = mpv.getPropertyInt("current-edition")
+        val editionTracks = TrackParser.parseEditionList(
+            mpv.getPropertyNode("edition-list"),
+            currentEdition
+        )
+        editionMode = editionTracks.size > 1
+        val video = if (editionMode) editionTracks else parsedVideo
 
         _audioTracks.value = audio
         _subtitleTracks.value = subtitle
@@ -588,8 +604,12 @@ class MpvVideoPlayer(
         }
 
         if (video.isNotEmpty()) {
-            val currentVid = mpv.getPropertyInt("vid") ?: 0
-            _currentVideoTrack.value = video.firstOrNull { it.id == currentVid } ?: video.first()
+            _currentVideoTrack.value = if (editionMode) {
+                video.firstOrNull { it.isSelected } ?: video.first()
+            } else {
+                val currentVid = mpv.getPropertyInt("vid") ?: 0
+                video.firstOrNull { it.id == currentVid } ?: video.first()
+            }
         } else {
             _currentVideoTrack.value = defaultVideoTrack
         }
@@ -614,6 +634,7 @@ class MpvVideoPlayer(
         currentMediaState = null
         wasBackgrounded = false
         lastGoodPositionMs = 0L
+        editionMode = false
 
         _isPlaying.value = false
         _playbackState.value = PlaybackState.IDLE
@@ -661,6 +682,7 @@ class MpvVideoPlayer(
         initialBufferingDone = false
         wasBackgrounded = false
         lastGoodPositionMs = 0L
+        editionMode = false
 
         _mediaLoaded.value = false
         _bufferingProgress.value = 0f
@@ -668,7 +690,6 @@ class MpvVideoPlayer(
 
         player?.command("stop")
     }
-
 
     fun loadMedia(
         videoUrl: String,
@@ -714,6 +735,7 @@ class MpvVideoPlayer(
         _mediaLoaded.value = false
         isFileLoaded = false
         initialBufferingDone = false
+        editionMode = false
         _bufferingProgress.value = 0f
         _playbackState.value = PlaybackState.BUFFERING
 
@@ -801,8 +823,45 @@ class MpvVideoPlayer(
     fun selectVideoTrack(trackId: Int) {
         if (!isInitialized || isShutdown.get()) return
         val mpv = player ?: return
-        if (trackId == -1) mpv.setPropertyString("vid", "no")
-        else mpv.setPropertyInt("vid", trackId)
+
+        if (trackId == -1) {
+            mpv.setPropertyString("vid", "no")
+            return
+        }
+
+        if (editionMode) {
+            selectEdition(trackId - 1)
+            return
+        }
+
+        mpv.setPropertyInt("vid", trackId)
+    }
+
+
+    private fun selectEdition(editionId: Int) {
+        val mpv = player ?: return
+        if (mpv.getPropertyInt("current-edition") == editionId) return
+
+        val resumeMs = _currentPosition.value
+        Log.d(TAG, "Switching edition -> $editionId at ${resumeMs}ms")
+
+
+        val updated = _videoTracks.value.map { it.copy(isSelected = it.id == editionId + 1) }
+        _videoTracks.value = updated
+        updated.firstOrNull { it.isSelected }?.let { _currentVideoTrack.value = it }
+
+        mpv.setPropertyInt("edition", editionId)
+
+        listOf(1000L, 3000L).forEach { delayMs ->
+            postDelayed({
+                if (isInitialized && !isShutdown.get() &&
+                    resumeMs > 0L && _currentPosition.value < resumeMs - 3000L
+                ) {
+                    Log.d(TAG, "Edition switch restarted playback; restoring ${resumeMs}ms")
+                    seekTo(resumeMs)
+                }
+            }, delayMs)
+        }
     }
 
     fun setVolume(level: Int) {
@@ -892,8 +951,10 @@ class MpvVideoPlayer(
         _playbackSpeed.value = clamped
     }
 
+
     fun attachVideoOutput() {
         if (!isInitialized || isShutdown.get() || !isFileLoaded) return
+        if (editionMode) return
         val vid = _currentVideoTrack.value.id
         if (vid != 0) {
             Log.d(TAG, "attachVideoOutput() - reconnecting vid=$vid")
@@ -911,7 +972,6 @@ class MpvVideoPlayer(
         currentSurfaceHolder = holder
         reinitAndHandleReady(holder)
     }
-
 
     private fun reinitAndHandleReady(holder: SurfaceHolder): Boolean {
         if (!isInitialized || isShutdown.get()) {
