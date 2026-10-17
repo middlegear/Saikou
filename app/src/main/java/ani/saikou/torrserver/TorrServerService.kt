@@ -34,18 +34,15 @@ class TorrServerService : Service() {
     private var manager: TorrServerManager? = null
     private var apiClient: TorrServerApiClient? = null
     var controller: TorrServerPlaybackController? = null
+        private set
 
     private var inactivityJob: Job? = null
     private var statsJob: Job? = null
 
-    @Volatile
-    private var isServerReady = false
+    @Volatile private var isServerReady = false
+    @Volatile private var lastStartError: String? = null
+    @Volatile private var settingsApplied = false
 
-    @Volatile
-    private var lastStartError: String? = null
-
-    @Volatile
-    private var settingsApplied = false
     private var currentSettings: TorrentSettings = TorrentSettings()
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -58,19 +55,19 @@ class TorrServerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Service onCreate - waiting for resolveStreamUrl to start")
+        Log.d(TAG, "Service onCreate")
 
         currentSettings = loadData(TORRENT_SETTINGS_KEY, toast = false) ?: TorrentSettings()
         currentSettings.enableTorrentServer = true
 
+        ensureEngineStarted()
+
         acquireWakeLock()
         startForegroundNotification()
-
         startInactivityTimer()
     }
 
-    private fun ensureEngineStarted(): Boolean {
-
+    private fun ensureEngineStarted() {
         if (manager == null) {
             manager = TorrServerManager(applicationContext)
         }
@@ -78,12 +75,10 @@ class TorrServerService : Service() {
             apiClient = TorrServerApiClient(settings = currentSettings)
         }
         if (controller == null) {
-            val client = apiClient!!
-            val newController = TorrServerPlaybackController(client)
+            val newController = TorrServerPlaybackController(apiClient!!)
             controller = newController
             observePlaybackStats(newController)
         }
-        return isServerReady
     }
 
     private fun observePlaybackStats(playbackController: TorrServerPlaybackController) {
@@ -94,13 +89,10 @@ class TorrServerService : Service() {
                     TorrentStats.Stage.RESOLVING_MAGNET,
                     TorrentStats.Stage.METADATA_DOWNLOAD,
                     TorrentStats.Stage.HTTP_HANDOFF,
-                    TorrentStats.Stage.READY -> {
-                        cancelInactivityTimer()
-                    }
+                    TorrentStats.Stage.READY -> cancelInactivityTimer()
+
                     TorrentStats.Stage.STOPPED,
-                    TorrentStats.Stage.ERROR -> {
-                        startInactivityTimer()
-                    }
+                    TorrentStats.Stage.ERROR -> startInactivityTimer()
                 }
             }
         }
@@ -111,12 +103,10 @@ class TorrServerService : Service() {
         inactivityJob = serviceScope.launch {
             Log.d(TAG, "Inactivity timer started: will shut down in 10 minutes if idle")
             delay(INACTIVITY_TIMEOUT)
-            Log.d(TAG, "Inactivity timeout reached (10 min idle). Stopping service...")
+            Log.d(TAG, "Inactivity timeout reached. Stopping service...")
             stopServerAndRelease()
-            withContext(Dispatchers.Main) {
-                stopForegroundCompat()
-                stopSelf()
-            }
+            stopForegroundCompat()
+            stopSelf()
         }
     }
 
@@ -152,6 +142,9 @@ class TorrServerService : Service() {
             return START_NOT_STICKY
         }
 
+
+        startForegroundNotification()
+
         val incomingSettings = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getSerializableExtra(EXTRA_SETTINGS, TorrentSettings::class.java)
         } else {
@@ -159,51 +152,37 @@ class TorrServerService : Service() {
             intent?.getSerializableExtra(EXTRA_SETTINGS) as? TorrentSettings
         }
 
+        val wasRemoteMode = isRemoteMode
+        val wasReady = isServerReady
+        var settingsChanged = false
+
         if (incomingSettings != null) {
-            val settingsChanged = incomingSettings != currentSettings
-            val wasRemoteMode = isRemoteMode
+            settingsChanged = incomingSettings != currentSettings
             currentSettings = incomingSettings
-            val nowRemoteMode = isRemoteMode
-
-
             apiClient?.settings = currentSettings
+        }
+        val nowRemoteMode = isRemoteMode
 
-            if (settingsChanged && isServerReady) {
-                serviceScope.launch {
-                    controller?.releaseStream()
 
-                    if (wasRemoteMode != nowRemoteMode) {
-                        if (nowRemoteMode) {
-                            Log.d(TAG, "Switched to remote proxyUrl (${currentSettings.proxyUrl}); stopping local binary")
-                            manager?.stopServer()
-                            isServerReady = true
-                            lastStartError = null
-                            applySettingsToServer(currentSettings, clearCache = true)
-                        } else {
-                            Log.d(TAG, "Switched to local mode; starting local binary")
-                            val result = manager?.startServer()
-                            if (result?.isSuccess == true) {
-                                isServerReady = true
-                                lastStartError = null
-                                applySettingsToServer(currentSettings, clearCache = true)
-                            } else {
-                                lastStartError = result?.exceptionOrNull()?.message ?: "Unknown error"
-                                isServerReady = false
-                                Log.e(TAG, "Failed to start local server: $lastStartError")
-                            }
-                        }
-                    } else {
-                        applySettingsToServer(currentSettings, clearCache = true)
+        serviceScope.launch(Dispatchers.IO) {
+            val reapply = settingsChanged && wasReady
+            if (reapply) {
+                controller?.releaseStream()
+                if (wasRemoteMode != nowRemoteMode) {
+                    serverMutex.withLock {
+                        if (nowRemoteMode) manager?.stopServer()
+                        isServerReady = false
                     }
                 }
             }
+            ensureServerRunning(reapplySettings = reapply)
         }
 
         return START_STICKY
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        Log.d(TAG, "Service onTaskRemoved - swiped away from recents")
+        Log.d(TAG, "Service onTaskRemoved")
 
         CoroutineScope(Dispatchers.IO).launch(NonCancellable) {
             stopServerAndRelease()
@@ -230,6 +209,45 @@ class TorrServerService : Service() {
         super.onDestroy()
     }
 
+
+    private suspend fun ensureServerRunning(reapplySettings: Boolean = false): Boolean =
+        serverMutex.withLock {
+            ensureEngineStarted()
+
+            val needsStart = if (isRemoteMode) {
+                !isServerReady
+            } else {
+                !isServerReady || manager?.state?.value !is ServerState.Running
+            }
+
+            if (needsStart) {
+                if (isRemoteMode) {
+                    Log.d(TAG, "Remote mode active (${currentSettings.proxyUrl})")
+                } else {
+                    val currentManager = manager ?: return@withLock false
+                    Log.d(TAG, "Server binary starting...")
+                    val result = currentManager.startServer()
+                    if (result.isFailure) {
+                        lastStartError = result.exceptionOrNull()?.message ?: "Failed to start server"
+                        isServerReady = false
+                        Log.e(TAG, lastStartError ?: "Failed to start server")
+                        return@withLock false
+                    }
+                }
+                lastStartError = null
+                isServerReady = true
+            }
+
+            if (needsStart || reapplySettings) {
+                applySettingsUnlocked(
+                    currentSettings,
+                    clearCache = reapplySettings && !needsStart
+                )
+                settingsApplied = true
+            }
+            true
+        }
+
     suspend fun resolveStreamUrl(
         magnetOrUrl: String,
         fileIndex: Int? = null,
@@ -240,39 +258,7 @@ class TorrServerService : Service() {
 
         cancelInactivityTimer()
 
-        val initialized = serverMutex.withLock {
-            ensureEngineStarted()
-
-            if (isRemoteMode) {
-                if (!isServerReady) {
-                    Log.d(TAG, "Remote mode active (${currentSettings.proxyUrl})")
-                    isServerReady = true
-                    lastStartError = null
-                    applySettingsUnlocked(currentSettings, clearCache = false)
-                    settingsApplied = true
-                }
-                true
-            } else {
-                val currentManager = manager ?: return@withLock false
-                if (!isServerReady || currentManager.state.value !is ServerState.Running) {
-                    Log.d(TAG, "Server binary starting on-demand...")
-                    val result = currentManager.startServer()
-                    if (result.isFailure) {
-                        lastStartError = result.exceptionOrNull()?.message ?: "Failed to start server"
-                        isServerReady = false
-                        Log.e(TAG, lastStartError ?: "Failed to start server")
-                        return@withLock false
-                    }
-                    lastStartError = null
-                    isServerReady = true
-                    applySettingsUnlocked(currentSettings, clearCache = false)
-                    settingsApplied = true
-                }
-                true
-            }
-        }
-
-        if (!initialized || !isServerReady) {
+        if (!ensureServerRunning() || !isServerReady) {
             startInactivityTimer()
             return null
         }
@@ -304,21 +290,11 @@ class TorrServerService : Service() {
         }
     }
 
-    private suspend fun applySettingsToServer(
-        settings: TorrentSettings,
-        clearCache: Boolean = false
-    ) {
-        serverMutex.withLock {
-            applySettingsUnlocked(settings, clearCache)
-        }
-    }
-
     private suspend fun applySettingsUnlocked(
         settings: TorrentSettings,
         clearCache: Boolean = false
     ) {
         val client = apiClient ?: return
-
         client.settings = settings
 
         if (!isServerReady) {
@@ -327,16 +303,15 @@ class TorrServerService : Service() {
         }
 
         try {
-            if (clearCache && !isRemoteMode) {
+            if (clearCache) {
                 controller?.releaseStream()
-                val cleaned = manager?.clearTorrentCache() ?: false
-                Log.d(TAG, "Cache cleared on settings change: $cleaned")
-            } else if (clearCache) {
-                controller?.releaseStream()
+                if (!isRemoteMode) {
+                    val cleaned = withContext(Dispatchers.IO) { manager?.clearTorrentCache() ?: false }
+                    Log.d(TAG, "Cache cleared on settings change: $cleaned")
+                }
             }
 
-            val payload = settings.toTorrServerJson()
-            val applied = client.updateSettings(payload)
+            val applied = client.updateSettings(settings.toTorrServerJson())
             Log.d(TAG, "Settings applied: $applied (target=${client.baseUrl})")
         } catch (e: Exception) {
             Log.e(TAG, "Error applying settings", e)
@@ -410,11 +385,7 @@ class TorrServerService : Service() {
         contentPendingIntent?.let { builder.setContentIntent(it) }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                1001,
-                builder.build(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            )
+            startForeground(1001, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             startForeground(1001, builder.build())
         }

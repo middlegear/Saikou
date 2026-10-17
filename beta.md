@@ -7,3 +7,4 @@
 ### Fixes
 
 * **Player:** Missing video quality tracks for multi-quality hls files.
+* **P2P:** Ensure P2P server starts on magnet detection.

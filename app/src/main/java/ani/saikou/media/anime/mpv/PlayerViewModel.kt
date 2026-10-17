@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToInt
@@ -284,17 +285,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         url.startsWith("magnet:", ignoreCase = true)
 
     private fun ensureTorrServer(context: Context) {
-        if (torrServerBound) return
-
         TorrServerService.startOrStop(context, torrentSettings)
 
-        torrServerBound = context.bindService(
-            Intent(context, TorrServerService::class.java),
-            torrServerConnection,
-            Context.BIND_AUTO_CREATE
-        )
+        if (!torrServerBound) {
+            torrServerBound = context.bindService(
+                Intent(context, TorrServerService::class.java),
+                torrServerConnection,
+                Context.BIND_AUTO_CREATE
+            )
+        }
 
-        Log.d("mpv", "[PlayerViewModel] TorrServer started on demand, bound=$torrServerBound")
+        Log.d("mpv", "[PlayerViewModel] TorrServer ensured, bound=$torrServerBound")
     }
 
     fun setMediaSessionActive(active: Boolean) {
@@ -336,6 +337,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: IllegalArgumentException) {
             }
             torrServerBound = false
+            _torrServerServiceRef?.clear()
+            _torrServerServiceRef = null
         }
 
         boundMediaDetailsModel?.clear()
@@ -766,7 +769,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         val currentMedia = media ?: return
 
-
         if (!loadGuard.compareAndSet(false, true)) {
             Log.d("mpv", "[PlayerViewModel] Load already in progress - queueing episode ${ep.number}")
             pendingEpisode = ep
@@ -852,11 +854,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             Log.d("mpv", "[PlayerViewModel] Stopping previous playback before loading episode ${ep.number}")
             player?.stop()
 
-            val isNewTorrent = isMagnet(resolvedVideo.file.url)
-            if (isNewTorrent) {
+            val isTorrent = isMagnet(resolvedVideo.file.url)
+            if (isTorrent) {
                 ensureTorrServer(activity)
-                torrServerService?.releaseStream()
-                stopTorrentStatsMonitoring()
             }
 
             coroutineStarted = true
@@ -887,31 +887,32 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     }
 
                     val playbackUrl: String
-                    if (isNewTorrent) {
-                        var service = torrServerService
-                        var waitAttempts = 0
-
-                        while (service == null && waitAttempts < 50) {
-                            delay(100)
-                            service = torrServerService
-                            waitAttempts++
+                    if (isTorrent) {
+                        val service = withTimeoutOrNull(5000L) {
+                            while (torrServerService == null) delay(50)
+                            torrServerService
                         }
                         if (service == null) {
                             Log.e("TorrServer", "[PlayerViewModel] TorrServerService not bound")
+                            withContext(Dispatchers.Main) { snackString("Torrent service failed to start") }
                             return@launch
                         }
 
                         startTorrentStatsMonitoring()
-                        val showTitle = media?.let { it.userPreferredName ?: it.nameRomaji ?: it.name }
+                        val showTitle = currentMedia.userPreferredName
+                            ?: currentMedia.nameRomaji
+                            ?: currentMedia.name
+                            ?: "Anime Stream"
+
                         val streamUrl = service.resolveStreamUrl(
                             magnetOrUrl = resolvedVideo.file.url,
-                            title = showTitle.toString()
+                            title = showTitle
                         )
                         if (streamUrl == null) {
                             Log.e("TorrServer", "[PlayerViewModel] Failed to resolve torrent for episode ${ep.number}")
                             stopTorrentStatsMonitoring()
                             withContext(Dispatchers.Main) {
-                                snackString(service.getLastStartError())
+                                snackString(service.getLastStartError() ?: "Failed to resolve torrent")
                             }
                             return@launch
                         }
@@ -952,7 +953,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         loadedMediaKey = newMediaKey
                         loadingEpisodeKey = null
                     } else if (!isPlayerAttached) {
-
                         Log.d("mpv", "[PlayerViewModel] Load deferred for episode ${ep.number}; holding key")
                         stillDeferred = true
                     } else {
@@ -1095,8 +1095,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun startTorrentStatsMonitoring() {
-        stopTorrentStatsMonitoring()
         val service = torrServerService ?: return
+        torrentStatsJob?.cancel()
         _torrentStats.value = service.getStats()
         torrentStatsJob = viewModelScope.launch {
             service.controller?.stats?.collect { stats ->
@@ -1318,8 +1318,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playbackService?.teardown()
         _playbackServiceRef?.clear()
         _playbackServiceRef = null
-        _torrServerServiceRef?.clear()
-        _torrServerServiceRef = null
     }
 
     fun releasePlayer(mediaDetailsModel: MediaDetailsViewModel) {

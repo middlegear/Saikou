@@ -35,9 +35,9 @@ object TheMovieDatabase {
 
         media.idTMDB = data.tmdbId.toString()
 
-        val bestLogo = data.artWorks?.logos?.firstOrNull() ?: data.fanart?.logo?.firstOrNull()
+        val bestLogo = data.artWorks?.logos?.firstOrNull()
 
-        val bestBackdrop = data.fanart?.backdrop?.firstOrNull()
+        val bestBackdrop = data.backdrop
             ?: data.artWorks?.backdrop?.firstOrNull()
 
         media.anime?.tmdbLogo = bestLogo
@@ -161,7 +161,6 @@ object TheMovieDatabase {
         val originalName: String? = null,
         val backdrop: String? = null,
         val posterImage: String? = null,
-        val fanart: Fanart? = null,
         val artWorks: TmdbArtWorks? = null,
         val parsedEpisodes: List<Episodes>? = emptyList()
     )
@@ -173,11 +172,7 @@ object TheMovieDatabase {
         val posterImages: List<String>? = emptyList()
     )
 
-    @Serializable
-    data class Fanart(
-        val logo: List<String>? = emptyList(),
-        val backdrop: List<String>? = emptyList()
-    )
+
 
 
 
