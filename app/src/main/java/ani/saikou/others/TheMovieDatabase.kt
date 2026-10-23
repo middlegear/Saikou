@@ -1,5 +1,6 @@
 package ani.saikou.others
 
+import ani.saikou.BuildConfig
 import ani.saikou.FileUrl
 import ani.saikou.client
 import ani.saikou.currContext
@@ -20,11 +21,13 @@ object TheMovieDatabase {
 
     private val prefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    val hostUrl: String = BuildConfig.SERVER_URL
+    val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
     private suspend fun fetchMetadata(media: Media): TmdbMetaResponse? {
         val anilistId = media.id
         return tryWithSuspend {
-            val url = "https://api.kenjitsu.workers.dev/api/meta/anilist/$anilistId?platform=tmdb"
-            val response = client.get(url, timeout = 15L)
+            val url = "${hostUrl}/api/anilist/anime/$anilistId/meta"
+            val response = client.get(url, timeout = 20L, headers = mapOf("x-api-key" to apiKey))
             response.parsed<TmdbMetaResponse>()
         }
     }
@@ -49,7 +52,7 @@ object TheMovieDatabase {
         val episodes = data.parsedEpisodes ?: return null
 
         return episodes.mapNotNull { ep ->
-            val key = ep.absoluteEpisodeNumber?.toString()
+            val key = ep.episodeNumber?.toString()
                 ?: return@mapNotNull null
 
             key to Episode(
@@ -57,7 +60,7 @@ object TheMovieDatabase {
                 title = ep.title,
                 desc = ep.summary,
                 seasonNumber = ep.seasonNumber,
-                seasonEpisodeNumber = ep.episodeNumber,
+                seasonEpisodeNumber = ep.seasonEpisodeNumber,
                 thumb = FileUrl[ep.images],
             )
         }.toMap()
@@ -88,7 +91,7 @@ object TheMovieDatabase {
         durationMs: Long?
     ): List<PlayerRepository.SkipInterval>? {
         val url = buildString {
-            append("https://api.theintrodb.org/v3/media?tmdb_id=$tmdbId")
+            append("https://api.theintrodb.org/v4/media?tmdb_id=$tmdbId")
             if (season != null && episode != null) {
                 append("&season=$season&episode=$episode")
             }
@@ -133,7 +136,6 @@ object TheMovieDatabase {
 
     @Serializable
     data class SkipTimeResponse(
-        @SerialName("tmdb_id") val tmdbId: Int,
         val type: String,
         val season: Int? = null,
         val episode: Int? = null,
@@ -173,18 +175,15 @@ object TheMovieDatabase {
     )
 
 
-
-
-
     @Serializable
     data class Episodes(
         val airDate: String? = null,
-        val episodeNumber: Int? = null,
+        val seasonEpisodeNumber: Int? = null,
         val tmdbId: Int? = null,
         val title: String? = null,
         val summary: String? = null,
         val seasonNumber: Int? = null,
         val images: String? = null,
-        val absoluteEpisodeNumber: Int? = null
+        val episodeNumber: Int? = null
     )
 }

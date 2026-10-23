@@ -368,7 +368,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             totalEpisodes = currentMedia.anime?.totalEpisodes?.toString(),
             coverUrl = currentMedia.banner ?: currentMedia.cover,
             shareLink = currentMedia.shareLink ?: "https://anilist.co/anime/${currentMedia.id}",
-            episodeThumbnail = ep.thumb?.url
+            episodeThumbnail = ep.thumb?.url?:currentMedia.cover?: currentMedia.banner,
         )
     }
 

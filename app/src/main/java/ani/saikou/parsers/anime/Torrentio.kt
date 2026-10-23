@@ -61,7 +61,7 @@ class Torrentio : AnimeParser() {
 
             val episodes = client.get(
                 kitsuUrl,
-                headers = mapOf("x-api-key" to apiKey), timeout = 15L
+                headers = mapOf("x-api-key" to apiKey), timeout = 20L
             ).parsed<EpisodesResponse>()
 
             episodes.data.map { ep ->
@@ -96,12 +96,15 @@ class Torrentio : AnimeParser() {
                 return@tryWithSuspend emptyList()
             }
 
+            val kitsuStreamId: String? = kitsuId?.let {
+                if (type == "movie") "kitsu:$it" else "kitsu:$it:$episodeNumber"
+            }
+
             var activeStreamId: String? = null
             var torrentioResponse: TorrentioResponse? = null
 
             // 1. Try Kitsu ID
-            if (kitsuId != null) {
-                val kitsuStreamId = if (type == "movie") "kitsu:$kitsuId" else "kitsu:$kitsuId:$episodeNumber"
+            if (kitsuStreamId != null) {
                 activeStreamId = kitsuStreamId
                 torrentioResponse = fetchTorrentioStreams(type, kitsuStreamId)
             } else {
@@ -110,15 +113,29 @@ class Torrentio : AnimeParser() {
 
             // 2. Fallback to IMDb ID directly as provided
             if ((torrentioResponse == null || torrentioResponse.streams.isEmpty()) && imdbId != null) {
-                if (kitsuId != null) {
+                if (kitsuStreamId != null) {
                     Log.d("Torrentio", "kitsu id returned no streams, falling back to imdb id: $imdbId")
                 }
                 activeStreamId = imdbId
                 torrentioResponse = fetchTorrentioStreams(type, imdbId)
             }
 
+            // 3. Cache-bust retry: only reached when the kitsu and imdb fetches both failed
             if (torrentioResponse == null || torrentioResponse.streams.isEmpty()) {
-                Log.d("Torrentio", "Torrentio returned 0 streams for both kitsu and imdb ids")
+                Log.d("Torrentio", "kitsu and imdb fetches failed, retrying with cache bust")
+
+                for (candidate in listOfNotNull(kitsuStreamId, imdbId)) {
+                    val retry = fetchTorrentioStreams(type, candidate, cacheBust = true)
+                    if (retry != null && retry.streams.isNotEmpty()) {
+                        torrentioResponse = retry
+                        activeStreamId = candidate
+                        break
+                    }
+                }
+            }
+
+            if (torrentioResponse == null || torrentioResponse.streams.isEmpty()) {
+                Log.d("Torrentio", "Torrentio returned 0 streams for kitsu, imdb and cache-busted retries")
                 return@tryWithSuspend emptyList()
             }
 
@@ -156,10 +173,11 @@ class Torrentio : AnimeParser() {
         } ?: emptyList()
     }
 
-    suspend fun buildEmbedUrl(type: String, streamId: String): String {
+    suspend fun buildEmbedUrl(type: String, streamId: String, cacheBust: Boolean = false): String {
         val segments = TorrentioConfig.load().toSegments().toMutableList()
         activeDebridSegment()?.let { segments += it }
-        return "https://torrentio.strem.fun/${segments.joinToString("|")}/stream/$type/$streamId.json"
+        val base = "https://torrentio.strem.fun/${segments.joinToString("|")}/stream/$type/$streamId.json"
+        return if (cacheBust) "$base?t=${System.currentTimeMillis()}" else base
     }
 
     private suspend fun activeDebridSegment(): String? {
@@ -180,10 +198,14 @@ class Torrentio : AnimeParser() {
     private fun redact(url: String): String =
         Regex("(${DebridRepository.CONFIG_KEYS.joinToString("|")})=[^|/]+").replace(url, "\$1=***")
 
-    suspend fun fetchTorrentioStreams(type: String, streamId: String): TorrentioResponse? {
-        val embedUrl = buildEmbedUrl(type, streamId)
+    suspend fun fetchTorrentioStreams(
+        type: String,
+        streamId: String,
+        cacheBust: Boolean = false
+    ): TorrentioResponse? {
+        val embedUrl = buildEmbedUrl(type, streamId, cacheBust)
 
-        Log.d("Torrentio", "Stream id: $streamId")
+        Log.d("Torrentio", "Stream id: $streamId (cacheBust=$cacheBust)")
         Log.d("Torrentio", "Final URL: ${redact(embedUrl)}")
 
         return try {
