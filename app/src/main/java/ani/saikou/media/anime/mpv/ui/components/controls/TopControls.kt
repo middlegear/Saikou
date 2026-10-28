@@ -48,7 +48,7 @@ import ani.saikou.media.anime.mpv.VideoTrack
 import ani.saikou.torrserver.models.TorrentStats
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
-
+import androidx.compose.material3.ripple
 @Composable
 fun TopControlsBar(
     mainTitle: String,
@@ -90,7 +90,7 @@ fun TopControlsBar(
                     .clickable(
                         enabled = enabled,
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = rememberRipple(
+                        indication = ripple(
                             bounded = true,
                             color = feedbackColor,
                             radius = 24.dp
@@ -140,7 +140,7 @@ fun TopControlsBar(
                     .clickable(
                         enabled = enabled,
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = rememberRipple(
+                        indication = ripple(
                             bounded = true,
                             color = feedbackColor,
                             radius = 22.dp
@@ -164,7 +164,7 @@ fun TopControlsBar(
                         .clickable(
                             enabled = enabled,
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = rememberRipple(
+                            indication = ripple(
                                 bounded = true,
                                 color = feedbackColor,
                                 radius = 22.dp
@@ -189,7 +189,7 @@ fun TopControlsBar(
                         .clickable(
                             enabled = enabled,
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = rememberRipple(
+                            indication = ripple(
                                 bounded = true,
                                 color = feedbackColor,
                                 radius = 22.dp
@@ -214,7 +214,7 @@ fun TopControlsBar(
                         .clickable(
                             enabled = enabled,
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = rememberRipple(
+                            indication = ripple(
                                 bounded = true,
                                 color = feedbackColor,
                                 radius = 22.dp
@@ -238,7 +238,7 @@ fun TopControlsBar(
                     .clickable(
                         enabled = enabled,
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = rememberRipple(
+                        indication = ripple(
                             bounded = true,
                             color = feedbackColor,
                             radius = 22.dp

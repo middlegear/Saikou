@@ -16,7 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.ripple
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,7 +56,7 @@ fun BottomLeftControls(
                 .clip(CircleShape)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = rememberRipple(bounded = true, color = feedbackColor, radius = 24.dp),
+                    indication = ripple(bounded = true, color = feedbackColor, radius = 24.dp),
                     onClick = { onLockToggled(!isLocked) }
                 ),
             contentAlignment = Alignment.Center
@@ -84,7 +84,7 @@ fun BottomLeftControls(
                 .clickable(
                     enabled = !isLocked,
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = rememberRipple(bounded = true, color = feedbackColor),
+                    indication = ripple(bounded = true, color = feedbackColor),
                     onClick = onSpeedChanged
                 ),
             contentAlignment = Alignment.Center

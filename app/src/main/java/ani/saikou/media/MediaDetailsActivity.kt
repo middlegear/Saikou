@@ -18,7 +18,10 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
 import androidx.core.text.bold
 import androidx.core.text.color
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
@@ -38,7 +41,6 @@ import ani.saikou.initActivity
 import ani.saikou.loadData
 import ani.saikou.loadImage
 import ani.saikou.media.manga.MangaReadFragment
-import ani.saikou.navBarHeight
 import ani.saikou.media.novel.NovelReadFragment
 import ani.saikou.openLinkInBrowser
 import ani.saikou.others.ImageViewDialog
@@ -85,8 +87,11 @@ class MediaDetailsActivity : AppCompatActivity(), AppBarLayout.OnOffsetChangedLi
         binding.mediaClose.updateLayoutParams<ViewGroup.MarginLayoutParams> { topMargin += statusBarHeight }
         binding.mediaCollapsing.minimumHeight = statusBarHeight
 
-        if (binding.mediaTab is CustomBottomNavBar) binding.mediaTab.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-            bottomMargin = navBarHeight
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.mediaTab) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.updatePadding(bottom = insets.bottom)
+            windowInsets
         }
 
         binding.mediaTitle.isSelected = true
@@ -100,7 +105,7 @@ class MediaDetailsActivity : AppCompatActivity(), AppBarLayout.OnOffsetChangedLi
 
         if (uiSettings.bannerAnimations) {
             val adi = AccelerateDecelerateInterpolator()
-            val generator = RandomTransitionGenerator((10000 + 15000 * (uiSettings.animationSpeed)).toLong(), adi)
+            val generator = RandomTransitionGenerator((10000 + 15000 * uiSettings.animationSpeed).toLong(), adi)
             binding.mediaBanner.setTransitionGenerator(generator)
         }
         val banner = if (uiSettings.bannerAnimations) binding.mediaBanner else binding.mediaBannerNoKen
@@ -452,4 +457,3 @@ class MediaDetailsActivity : AppCompatActivity(), AppBarLayout.OnOffsetChangedLi
         }
     }
 }
-

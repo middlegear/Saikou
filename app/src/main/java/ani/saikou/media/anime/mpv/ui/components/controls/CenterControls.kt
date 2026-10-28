@@ -19,7 +19,7 @@ import androidx.compose.material.icons.Icons
 
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.ripple
 
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -70,7 +70,7 @@ fun CenterControls(
                 .clickable(
                     enabled = hasPrevious,
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = rememberRipple(bounded = true, color = feedbackColor, radius = 42.dp),
+                    indication = ripple(bounded = true, color = feedbackColor, radius = 42.dp),
                     onClick = onPreviousEpisode
                 ),
             contentAlignment = Alignment.Center
@@ -98,7 +98,7 @@ fun CenterControls(
                         .clip(CircleShape)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = rememberRipple(bounded = true, color = feedbackColor, radius = 60.dp),
+                            indication = ripple(bounded = true, color = feedbackColor, radius = 60.dp),
                             onClick = onPlayPauseToggle
                         ),
                     contentAlignment = Alignment.Center
@@ -122,7 +122,7 @@ fun CenterControls(
                 .clickable(
                     enabled = hasNext,
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = rememberRipple(bounded = true, color = feedbackColor, radius = 42.dp),
+                    indication = ripple(bounded = true, color = feedbackColor, radius = 42.dp),
                     onClick = onNextEpisode
                 ),
             contentAlignment = Alignment.Center

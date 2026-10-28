@@ -14,12 +14,12 @@ def gitCommitHash = providers.exec {
 
 android {
     namespace 'ani.saikou'
-    compileSdk 36
+    compileSdk 37
 
     defaultConfig {
         applicationId "ani.saikou"
         minSdk 26
-        targetSdk 34
+        targetSdk 37
         versionCode((System.currentTimeMillis() / 60000).toInteger())
         versionName "1.2.5"
 
@@ -80,17 +80,16 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.browser:browser:1.10.0'
     implementation 'androidx.core:core-ktx:1.13.1'
-    implementation 'androidx.fragment:fragment-ktx:1.8.2'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'androidx.fragment:fragment-ktx:1.9.1'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.2.0'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation 'androidx.work:work-runtime-ktx:2.9.1'
 
+    implementation 'com.squareup.okhttp3:okhttp:5.5.1'
 
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-
-    // Kotlin 2.3.0 BOM
-    implementation platform("org.jetbrains.kotlin:kotlin-bom:2.3.0")
+    // Kotlin BOM
+    implementation platform("org.jetbrains.kotlin:kotlin-bom:2.4.0")
     implementation "org.jetbrains.kotlin:kotlin-reflect"
 
     implementation 'com.github.Blatzar:NiceHttp:0.4.11'
@@ -105,14 +104,14 @@ dependencies {
     ksp "androidx.room:room-compiler:$roomVersion"
 
     // Glide
-    implementation 'com.github.bumptech.glide:glide:4.16.0'
-    ksp 'com.github.bumptech.glide:ksp:4.16.0'
-    implementation 'com.github.bumptech.glide:okhttp3-integration:4.16.0'
+    implementation 'com.github.bumptech.glide:glide:5.0.9'
+    ksp 'com.github.bumptech.glide:ksp:5.0.9'
+    implementation 'com.github.bumptech.glide:okhttp3-integration:5.0.9'
     implementation 'jp.wasabeef:glide-transformations:4.3.0'
-    implementation "com.github.bumptech.glide:compose:1.0.0-beta08"
+    implementation "com.github.bumptech.glide:compose:1.0.0-beta10"
 
     // Media3
-    def exoVersion = '1.5.1'
+    def exoVersion = '1.11.1'
     implementation "androidx.media3:media3-session:$exoVersion"
 
     // UI
@@ -121,22 +120,25 @@ dependencies {
     implementation 'io.noties.markwon:core:4.6.2'
     implementation 'com.flaviofaria:kenburnsview:1.0.7'
     implementation 'com.davemorrissey.labs:subsampling-scale-image-view-androidx:3.10.0'
-    implementation 'com.alexvasilkov:gesture-views:2.8.3'
+    implementation 'com.alexvasilkov:gesture-views:2.10.0'
     implementation 'com.github.VipulOG:ebook-reader:0.1.6'
 
     // Lifecycle
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7"
 
-    // MPV Lib
+    // MPV + FFMpeg
+//    implementation files("libs/mpv-android-lib-0.1.15.aar")
+//    implementation files("libs/animiru-ffmpeg-kit-1.0.0.aar")
+
     implementation "io.github.secozzi:mpv-android-lib:0.1.14"
     implementation files("libs/aniyomi-ffmpeg-kit-1.18.aar")
 
-    // Compose BOM
-    def composeBom = platform('androidx.compose:compose-bom:2024.04.01')
+    // --- Compose BOM  ---
+    def composeBom = platform('androidx.compose:compose-bom:2025.12.00')
     implementation composeBom
     androidTestImplementation composeBom
 
-    implementation 'androidx.activity:activity-compose:1.8.2'
+    implementation 'androidx.activity:activity-compose'
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.foundation:foundation'
