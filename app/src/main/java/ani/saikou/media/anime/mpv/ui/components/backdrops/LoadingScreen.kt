@@ -18,9 +18,7 @@ import androidx.compose.ui.unit.sp
 import ani.saikou.torrserver.models.TorrentStats
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
-import kotlinx.coroutines.delay
 import java.util.Locale
-import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
@@ -39,18 +37,11 @@ fun LoadingScreen(
         progress >= 0.99f
     }
 
-    val simulatedDirectProgress = rememberSimulatedProgress(
-        isComplete = isComplete,
-        key = logoUrl ?: backdropUrl
-    )
-
-
     val currentLogoProgress = if (showTorrentStats && stats != null) {
         maxOf(progress, stats.prebufferProgress).coerceIn(0f, 1f)
     } else {
-        if (progress > 0f) progress.coerceIn(0f, 1f) else simulatedDirectProgress
+        progress.coerceIn(0f, 1f)
     }
-
 
     val isInitialTorrentStage = stats?.stage == TorrentStats.Stage.RESOLVING_MAGNET ||
             stats?.stage == TorrentStats.Stage.METADATA_DOWNLOAD
@@ -73,14 +64,15 @@ fun LoadingScreen(
 
     val backdropScale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = 1.08f,
+        targetValue = 1.03f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 10000, easing = LinearEasing),
+            animation = tween(durationMillis = 15000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "BackdropScale"
     )
 
+    // Pulse alpha for torrent mode logo background
     val logoBaseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.20f,
         targetValue = 0.35f,
@@ -92,6 +84,16 @@ fun LoadingScreen(
     )
 
 
+    val nonTorrentLogoScale by infiniteTransition.animateFloat(
+        initialValue = 0.99f,
+        targetValue = 1.01f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "NonTorrentLogoScale"
+    )
+
     val statusText = when {
         !showTorrentStats || stats == null -> null
         stats.stage == TorrentStats.Stage.RESOLVING_MAGNET -> "Adding torrent..."
@@ -100,7 +102,6 @@ fun LoadingScreen(
         stats.stage == TorrentStats.Stage.ERROR -> "Failed to load torrent"
         else -> "Initializing..."
     }
-
 
     val showDetailedStats = showTorrentStats &&
             stats != null &&
@@ -128,57 +129,107 @@ fun LoadingScreen(
                 .background(Color.Black.copy(alpha = 0.6f))
         )
 
-        // 3. Center UI: Logo Fill (Prebuffer Progress)
+        // 3. Center UI
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth(0.5f)
-                .height(180.dp),
+                .wrapContentHeight(),
             contentAlignment = Alignment.Center
         ) {
-            if (!logoUrl.isNullOrBlank()) {
-                GlideImage(
-                    model = logoUrl,
-                    contentDescription = null,
+            if (showTorrentStats) {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = logoBaseAlpha },
-                    contentScale = ContentScale.Fit
-                )
-                GlideImage(
-                    model = logoUrl,
-                    contentDescription = "Movie/Show Logo",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .drawWithContent {
-                            clipRect(
-                                left = 0f,
-                                top = 0f,
-                                right = size.width * animatedProgress,
-                                bottom = size.height
-                            ) {
-                                this@drawWithContent.drawContent()
-                            }
-                        },
-                    contentScale = ContentScale.Fit
-                )
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!logoUrl.isNullOrBlank()) {
+                        GlideImage(
+                            model = logoUrl,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = logoBaseAlpha },
+                            contentScale = ContentScale.Fit
+                        )
+                        GlideImage(
+                            model = logoUrl,
+                            contentDescription = "Movie/Show Logo",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .drawWithContent {
+                                    clipRect(
+                                        left = 0f,
+                                        top = 0f,
+                                        right = size.width * animatedProgress,
+                                        bottom = size.height
+                                    ) {
+                                        this@drawWithContent.drawContent()
+                                    }
+                                },
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.graphicsLayer { alpha = (logoBaseAlpha + 0.65f).coerceAtMost(1f) }
+                        ) {
+                            Text(
+                                text = "${(animatedProgress * 100).toInt()}%",
+                                color = Color.White,
+                                fontSize = 52.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Buffering Stream",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
             } else {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.graphicsLayer { alpha = (logoBaseAlpha + 0.65f).coerceAtMost(1f) }
+                    verticalArrangement = Arrangement.Center
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .graphicsLayer {
+                                scaleX = nonTorrentLogoScale
+                                scaleY = nonTorrentLogoScale
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!logoUrl.isNullOrBlank()) {
+                            GlideImage(
+                                model = logoUrl,
+                                contentDescription = "Loading Logo",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Text(
+                                text = "Loading",
+                                color = Color.White,
+                                fontSize = 42.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
                     Text(
-                        text = "${(animatedProgress * 100).toInt()}%",
-                        color = Color.White,
-                        fontSize = 52.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = if (showTorrentStats) "Buffering Stream" else "Loading",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp,
+                        text = "Loading stream...",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -257,41 +308,6 @@ fun LoadingScreen(
             }
         }
     }
-}
-
-@Composable
-private fun rememberSimulatedProgress(isComplete: Boolean, key: Any?): Float {
-    var simulated by remember(key) { mutableFloatStateOf(0f) }
-
-    LaunchedEffect(key) {
-        simulated = 0f
-        val totalDurationMs = 3500f
-        var elapsedMs = 0f
-        val intervalMs = 16L
-
-        while (simulated < 0.92f) {
-            delay(intervalMs.milliseconds)
-            elapsedMs += intervalMs
-            val fraction = (elapsedMs / totalDurationMs).coerceIn(0f, 1f)
-
-            val easedFraction = if (fraction < 0.5f) {
-                4f * fraction * fraction * fraction
-            } else {
-                val p = -2f * fraction + 2f
-                1f - (p * p * p) / 2f
-            }
-
-            simulated = (easedFraction * 0.92f).coerceAtMost(0.92f)
-        }
-    }
-
-    val target = if (isComplete) 1f else simulated.coerceAtMost(0.92f)
-    val animated by animateFloatAsState(
-        targetValue = target,
-        animationSpec = tween(if (isComplete) 250 else 60),
-        label = "simulatedProgress"
-    )
-    return animated
 }
 
 private fun formatSpeed(bytesPerSecond: Long): String {

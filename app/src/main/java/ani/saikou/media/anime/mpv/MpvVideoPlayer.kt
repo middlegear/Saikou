@@ -151,6 +151,20 @@ class MpvVideoPlayer(
         return fontsDir.absolutePath
     }
 
+    private fun copyCaBundle(): String? {
+        return try {
+            val out = File(context.filesDir, "mpv_config/cacert.pem")
+            out.parentFile?.mkdirs()
+            context.assets.open("cacert.pem").use { input ->
+                out.outputStream().use { output -> input.copyTo(output) }
+            }
+
+            out.absolutePath
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun init(surfaceHolder: Any) {
         if (isInitialized && !isShutdown.get()) {
             Log.w(TAG, "Player already initialized")
@@ -169,13 +183,18 @@ class MpvVideoPlayer(
         File(configDir).mkdirs()
 
         mpv = MPV(context) { mpv ->
+            copyCaBundle()?.let { path ->
+                mpv.setOptionString("tls-ca-file", path)
+                mpv.setOptionString("tls-verify", "yes")
+            }
+
             mpv.setOptionString("config", "yes")
             mpv.setOptionString("config-dir", configDir)
             mpv.setOptionString("gpu-shader-cache-dir", cacheDirPath)
             mpv.setOptionString("icc-cache-dir", cacheDirPath)
 
             mpv.setOptionString("profile", "fast")
-            mpv.setOptionString("msg-level", "all=no")
+            mpv.setOptionString("msg-level", "all=v")
             mpv.setOptionString("ytdl", "no")
 
             mpv.setOptionString("audio-channels", "auto-safe")

@@ -1,6 +1,5 @@
 package ani.saikou.media.anime.mpv.ui.components.sheets
 
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,7 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -65,13 +65,14 @@ fun <T> GenericTracksSheet(
 
     var selectedTrackInternal by remember(currentTrack) { mutableStateOf(currentTrack) }
 
+    val windowInfo = LocalWindowInfo.current
+    val density = LocalDensity.current
 
-    val configuration = LocalConfiguration.current
+    val screenHeightDp = with(density) { windowInfo.containerSize.height.toDp() }
+    val screenWidthDp = with(density) { windowInfo.containerSize.width.toDp() }
 
-    val screenHeightDp = configuration.screenHeightDp.dp
     val minSheetHeight = screenHeightDp * 0.80f
-    val maxSheetWidth = configuration.screenWidthDp.dp * 0.65f
-
+    val maxSheetWidth = screenWidthDp * 0.65f
 
     LaunchedEffect(Unit) {
         if (!isPreview) {
@@ -170,12 +171,12 @@ fun <T> GenericTracksSheet(
 
                             Row(
                                 modifier = Modifier
-                                    .fillMaxWidth(0.9f)
+                                    .fillMaxWidth(0.85f)
                                     .clickable {
                                         selectedTrackInternal = track
                                         onTrackSelected(track)
                                     }
-                                    .padding(vertical = 4.dp, horizontal = 12.dp),
+                                   ,
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
@@ -191,7 +192,8 @@ fun <T> GenericTracksSheet(
                                     )
                                 )
 
-                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Spacer(modifier = Modifier.weight(0.15f))
 
                                 Text(
                                     text = trackToText(track),
@@ -199,7 +201,7 @@ fun <T> GenericTracksSheet(
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                     textAlign = TextAlign.Start,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(0.8f)
                                 )
                             }
                         }
@@ -214,7 +216,7 @@ fun <T> GenericTracksSheet(
 @Preview(
     showSystemUi = true,
     showBackground = true,
-    device = "spec:width=800dp, height=360dp, dpi=480, orientation=landscape"
+    device = "spec:width=900dp, height=700dp, dpi=480, orientation=landscape"
 )
 @Composable
 fun AudioTrackSelectorSheetPreview() {

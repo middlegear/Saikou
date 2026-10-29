@@ -152,7 +152,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var extractor: VideoExtractor? = null
 
     private val sourceMpvOptions: Map<String, String> = mapOf(
-        "anikoto" to "demuxer-lavf-o=force_mpegts=1,stream-lavf-o=force_mpegts=1"
+//        "anikoto" to "demuxer-lavf-o=force_mpegts=1,stream-lavf-o=force_mpegts=1"
     )
     private var video: Video? = null
 
@@ -1041,7 +1041,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             var result: List<PlayerRepository.SkipInterval>? = null
 
-            if (settings.useAlternativeTimestampProvider) {
+            val malId = media.idMAL
+
+            if (malId != null && episodeNumber != null) {
+                Log.d(
+                    "SkipTimes",
+                    "Fetching from AniSkip (primary): malId=$malId, episode=$episodeNumber, durationSec=${durationMs / 1000}"
+                )
+
+                result = repository.fetchAniSkipTimes(
+                    malId, episodeNumber, durationMs / 1000
+                ).also { res ->
+                    Log.d("SkipTimes", "AniSkip result: $res")
+                }
+            }
+
+
+            if (result.isNullOrEmpty() && settings.useAlternativeTimestampProvider) {
                 val tmdbId = media.idTMDB?.toIntOrNull()
 
                 if (tmdbId != null) {
@@ -1050,7 +1066,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                     Log.d(
                         "SkipTimes",
-                        "Fetching from TheIntroDB (alternative): tmdbId=$tmdbId, isMovie=$isMovie, season=$seasonParam, episode=$episodeParam, durationMs=$durationMs"
+                        "Fetching from TheIntroDB (fallback): tmdbId=$tmdbId, isMovie=$isMovie, season=$seasonParam, episode=$episodeParam, durationMs=$durationMs"
                     )
 
                     result = TheMovieDatabase.fetchSkipTimes(
@@ -1059,24 +1075,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         episode = episodeParam,
                         durationMs = durationMs
                     ).also {
-                        Log.d("SkipTimes", "TheIntroDB result: $it")
-                    }
-                }
-            }
-
-            if (result.isNullOrEmpty()) {
-                val malId = media.idMAL
-
-                if (malId != null && episodeNumber != null) {
-                    Log.d(
-                        "SkipTimes",
-                        "Fetching from AniSkip (fallback): malId=$malId, episode=$episodeNumber, durationSec=${durationMs / 1000}"
-                    )
-
-                    result = repository.fetchAniSkipTimes(
-                        malId, episodeNumber, durationMs / 1000
-                    ).also { res ->
-                        Log.d("SkipTimes", "AniSkip fallback result: $res")
+                        Log.d("SkipTimes", "TheIntroDB fallback result: $it")
                     }
                 }
             }

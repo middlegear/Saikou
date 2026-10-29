@@ -127,11 +127,9 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7"
 
     // MPV + FFMpeg
-//    implementation files("libs/mpv-android-lib-0.1.15.aar")
-//    implementation files("libs/animiru-ffmpeg-kit-1.0.0.aar")
+    implementation files("libs/mpv-android-lib-0.1.15.aar")
+    implementation files("libs/animiru-ffmpeg-kit-1.0.0.aar")
 
-    implementation "io.github.secozzi:mpv-android-lib:0.1.14"
-    implementation files("libs/aniyomi-ffmpeg-kit-1.18.aar")
 
     // --- Compose BOM  ---
     def composeBom = platform('androidx.compose:compose-bom:2025.12.00')
