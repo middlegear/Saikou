@@ -1,27 +1,16 @@
 package ani.saikou.updater.ui.components
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.mikepenz.markdown.m3.Markdown
-import com.mikepenz.markdown.m3.markdownColor
-import com.mikepenz.markdown.m3.markdownTypography
 
 @Composable
-
 fun ChangelogSection(
     version: String,
     changelog: String,
@@ -30,7 +19,6 @@ fun ChangelogSection(
     val cleanedChangelog = remember(changelog) {
         changelog
             .replace(Regex("^#+\\s*Version.*$", setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)), "")
-            .replace(Regex("\n{3,}"), "\n\n")
             .trim()
     }
 
@@ -48,25 +36,122 @@ fun ChangelogSection(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 100.dp, max = 300.dp)
+                .weight(1f)
                 .verticalScroll(scrollState)
         ) {
-            Markdown(
-                content = cleanedChangelog.ifEmpty { "No release notes provided." },
-                colors = markdownColor(
-                    text = MaterialTheme.colorScheme.onSurface,
-                    codeText = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                typography = markdownTypography(
-                    h1 = MaterialTheme.typography.titleLarge,
-                    h2 = MaterialTheme.typography.titleMedium,
-                    h3 = MaterialTheme.typography.titleSmall,
-                    paragraph = MaterialTheme.typography.bodyMedium,
-                    text = MaterialTheme.typography.bodyMedium,
-                    list = MaterialTheme.typography.bodyMedium
-                ),
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (cleanedChangelog.isBlank()) {
+                    Text(
+                        text = "No release notes provided.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    val sections = remember(cleanedChangelog) { parseGitHubChangelog(cleanedChangelog) }
+
+                    sections.forEach { section ->
+                        ChangelogSectionBlock(section = section)
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class ChangelogSectionData(
+    val categoryTitle: String?,
+    val items: List<String>
+)
+
+private fun parseGitHubChangelog(rawText: String): List<ChangelogSectionData> {
+    val normalizedText = rawText.replace(Regex("\r\n?") , "\n")
+    val lines = normalizedText.lines().map { it.trim() }.filter { it.isNotBlank() }
+
+    val sections = mutableListOf<ChangelogSectionData>()
+    var currentCategory: String? = null
+    var currentItems = mutableListOf<String>()
+
+    for (line in lines) {
+        when {
+
+            line.startsWith("##") -> {
+                if (currentItems.isNotEmpty() || currentCategory != null) {
+                    sections.add(ChangelogSectionData(currentCategory, currentItems))
+                    currentItems = mutableListOf()
+                }
+                currentCategory = line.trimStart('#').trim()
+            }
+
+            line.startsWith("- ") || line.startsWith("* ") -> {
+                var bulletContent = line.removePrefix("- ").removePrefix("* ").trim()
+
+                bulletContent = bulletContent
+                    .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+                    .replace(Regex("\\*(.*?)\\*"), "$1")
+                currentItems.add(bulletContent)
+            }
+            else -> {
+                if (currentItems.isNotEmpty()) {
+                    val lastIndex = currentItems.size - 1
+
+                    val cleanedLine = line
+                        .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+                        .replace(Regex("\\*(.*?)\\*"), "$1")
+                    currentItems[lastIndex] = "${currentItems[lastIndex]} $cleanedLine"
+                } else {
+                    currentItems.add(line)
+                }
+            }
+        }
+    }
+
+    if (currentItems.isNotEmpty() || currentCategory != null) {
+        sections.add(ChangelogSectionData(currentCategory, currentItems))
+    }
+
+    if (sections.isEmpty()) {
+        sections.add(ChangelogSectionData(null, listOf(rawText)))
+    }
+
+    return sections
+}
+
+@Composable
+private fun ChangelogSectionBlock(section: ChangelogSectionData) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (!section.categoryTitle.isNullOrBlank()) {
+            Text(
+                text = section.categoryTitle,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
             )
+        }
+
+        section.items.forEach { item ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "•",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = item,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
