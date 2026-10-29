@@ -2,4 +2,8 @@
 
 ### Deps
 
-- **MPV & FFMpeg:** Bump versions to improve playback stability especially hwdec. 
+MPV & FFmpeg: Bump versions with cURL support.
+
+## Enhancements
+
+* **MPV:** Enabled TLS stream verification.

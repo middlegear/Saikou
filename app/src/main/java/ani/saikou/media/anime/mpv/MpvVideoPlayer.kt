@@ -194,7 +194,7 @@ class MpvVideoPlayer(
             mpv.setOptionString("icc-cache-dir", cacheDirPath)
 
             mpv.setOptionString("profile", "fast")
-            mpv.setOptionString("msg-level", "all=v")
+            mpv.setOptionString("msg-level", "all=no")
             mpv.setOptionString("ytdl", "no")
 
             mpv.setOptionString("audio-channels", "auto-safe")
