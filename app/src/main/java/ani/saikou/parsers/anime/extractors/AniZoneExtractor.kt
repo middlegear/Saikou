@@ -8,76 +8,68 @@ import ani.saikou.parsers.VideoContainer
 import ani.saikou.parsers.VideoExtractor
 import ani.saikou.parsers.VideoServer
 import ani.saikou.parsers.VideoType
+import ani.saikou.parsers.anime.Anizone
+import ani.saikou.parsers.anime.Anizone.Companion.string
 import ani.saikou.tryWithSuspend
-import kotlinx.serialization.InternalSerializationApi
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import org.jsoup.nodes.Document
+import java.net.URI
 
-@OptIn(InternalSerializationApi::class)
 class AniZoneExtractor(override val server: VideoServer) : VideoExtractor() {
 
-
-    @Serializable
-    data class SourceItem(
-        val url: String,
-        val isM3u8: Boolean,
-        val type: String
-    )
-
-    @Serializable
-
-    data class Subtitles(
-        val url: String,
-        val lang: String,
-//        val kind:String, fix the api stuff
-        val default: Boolean
-    )
-
-    @Serializable
-    data class SourceData(
-        val subtitles: List<Subtitles> = emptyList(),
-        val sources: List<SourceItem> = emptyList()
-    )
-
-    @Serializable
-    data class SourceResponse(
-        val headers: Headers,
-        val data: SourceData
-    )
-
-    @Serializable
-    data class Headers(
-        @SerialName("Referer")
-        val referer: String? = null
+    private val playerRegex = Regex(
+        """vidstackPlayer\(JSON\.parse\('(.*?)'\)\)""",
+        RegexOption.DOT_MATCHES_ALL
     )
 
     override suspend fun extract(): VideoContainer {
         return tryWithSuspend(post = false, snackbar = true) {
-            val response = client.get(server.embed.url,headers = mapOf("x-api-key" to apiKey))
-                .parsed<SourceResponse>()
+            val document = client.get(server.embed.url).document
+            val data = parsePlayerData(document)
+                ?: return@tryWithSuspend VideoContainer(emptyList())
 
+            val referer = URI(server.embed.url).resolve("/").toString()
 
-            val videos = response.data.sources.map {
-                val videoType = if (it.isM3u8) VideoType.M3U8 else VideoType.CONTAINER
-                Video(
-                    quality = null,
-                    format = videoType,
-                    file = FileUrl(it.url),
-                    extraNote = it.type
-                )
+            val videos = buildList {
+                data["src"].string()?.takeIf { it.isNotBlank() }?.let { src ->
+                    val isM3u8 = src.contains("m3u8")
+                    add(
+                        Video(
+                            quality = null,
+                            format = if (isM3u8) VideoType.M3U8 else VideoType.CONTAINER,
+                            file = FileUrl(
+                                url = src,
+                                headers = mapOf("Referer" to referer)
+                            ),
+                            extraNote = "M3u8"
+                        )
+                    )
+                }
             }
 
-            val realSubtitles = response.data.subtitles.filter { it.lang != "thumbnails" }
+            val subtitles = (data["subtitles"] as? JsonArray).orEmpty()
+                .filterIsInstance<JsonObject>()
+                .filter { it["language"].string() == "en" }
+                .mapNotNull { sub ->
+                    val file = sub["file"].string() ?: return@mapNotNull null
+                    Subtitle(
+                        language = sub["title"].string() ?: "n/a",
+                        url = file
+                    )
+                }
 
-            val subs = realSubtitles.map { sub ->
-                Subtitle(
-                    language = sub.lang,
-                    url = sub.url
-                )
-            }
-            VideoContainer(videos,subs)
-
+            VideoContainer(videos, subtitles)
         } ?: VideoContainer(emptyList())
+    }
 
+    private fun parsePlayerData(document: Document): JsonObject? {
+        val attr = document.selectFirst("""div[x-data^="vidstackPlayer("]""")
+            ?.attr("x-data")
+            ?: return null
+
+        val raw = playerRegex.find(attr)?.groupValues?.get(1) ?: return null
+
+        return Anizone.parseAlpineJson(raw) as? JsonObject
     }
 }

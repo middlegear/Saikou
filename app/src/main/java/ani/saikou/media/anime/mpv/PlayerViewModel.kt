@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.database.ContentObserver
+import android.media.AudioManager
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
@@ -77,7 +78,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
-    private val _volume = MutableStateFlow(100)
+    private val _isPaused = MutableStateFlow(false)
+    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+    private val _volume = MutableStateFlow(readSystemVolumePercent(application))
     val volume: StateFlow<Int> = _volume.asStateFlow()
 
     private val _volumeChangeEvent = MutableSharedFlow<Int>(extraBufferCapacity = 1)
@@ -103,6 +106,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentAudioTrack = MutableStateFlow(loadingAudioTrack)
     val currentAudioTrack: StateFlow<AudioTrack> = _currentAudioTrack.asStateFlow()
 
+    private val _chapters = MutableStateFlow<List<Chapter>>(emptyList())
+    val chapters: StateFlow<List<Chapter>> = _chapters.asStateFlow()
+
+    private val _currentChapter = MutableStateFlow<Chapter?>(null)
+    val currentChapter: StateFlow<Chapter?> = _currentChapter.asStateFlow()
     private val defaultSubtitleTrack = SubtitleTrack(id = -1, name = "None/Off", language = "")
     private val _currentSubtitleTrack = MutableStateFlow(defaultSubtitleTrack)
     val currentSubtitleTrack: StateFlow<SubtitleTrack> = _currentSubtitleTrack.asStateFlow()
@@ -210,7 +218,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     @Volatile
     private var lastKnownVolumeStep = -1
-    private var volumeUpdateJob: Job? = null
 
     private val playbackConnection = object : ServiceConnection {
 
@@ -447,6 +454,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 _currentAudioTrack.value = it
             }
         }
+        stateJobs += viewModelScope.launch {
+            playerInstance.currentChapter.collect {
+                _currentChapter.value = it
+            }
+        }
+        stateJobs += viewModelScope.launch {
+            playerInstance.chapters.collect {
+                _chapters.value = it
+            }
+        }
 
         stateJobs += viewModelScope.launch {
             playerInstance.subtitleTracks.collect {
@@ -586,6 +603,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         playerInstance.setVolume(100)
 
+        lastKnownVolumeStep = -1
         syncVolumeFromSystem()
     }
 
@@ -626,53 +644,45 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
 
-    private fun applySystemVolumeStep(step: Int) {
-        volumeUpdateJob?.cancel()
+    fun systemVolumePercent(): Int = readSystemVolumePercent(getApplication())
 
-        volumeUpdateJob = viewModelScope.launch(Dispatchers.Default) {
 
-            playbackService?.setVolumeStep(step)
-        }
+    private fun currentSystemStep(): Int =
+        playbackService?.getCurrentVolumeStep() ?: lastKnownVolumeStep.coerceAtLeast(0)
+
+
+    private fun applyStep(step: Int, maxSteps: Int) {
+        lastKnownVolumeStep = step
+        playbackService?.setVolumeStep(step)
+
+        val percent = ((step.toFloat() / maxSteps) * 100f).roundToInt()
+        _volume.value = percent
+        _volumeChangeEvent.tryEmit(percent)
     }
 
 
     fun setVolume(level: Int) {
         val maxSteps = maxVolumeSteps()
         val step = ((level.coerceIn(0, 100) / 100f) * maxSteps).roundToInt().coerceIn(0, maxSteps)
-        if (step == lastKnownVolumeStep) {
+        if (step == currentSystemStep()) {
             return
         }
-        lastKnownVolumeStep = step
-
-        val quantizedPercent = ((step.toFloat() / maxSteps) * 100f).roundToInt()
-
-        _volume.value = quantizedPercent
-        _volumeChangeEvent.tryEmit(
-            quantizedPercent
-        )
-        applySystemVolumeStep(step)
+        applyStep(step, maxSteps)
     }
 
 
     fun adjustVolumeStep(deltaSteps: Int) {
         val maxSteps = maxVolumeSteps()
-        val current = if (lastKnownVolumeStep >= 0) {
-            lastKnownVolumeStep
-        } else {
-            ((volume.value / 100f) * maxSteps).roundToInt()
-        }
+        val current = currentSystemStep()
         val newStep = (current + deltaSteps).coerceIn(0, maxSteps)
 
-        if (newStep == lastKnownVolumeStep) {
+        if (newStep == current) {
+            // Still show the slider when the user hits the min/max limit.
+            _volumeChangeEvent.tryEmit(((current.toFloat() / maxSteps) * 100f).roundToInt())
             return
         }
 
-        lastKnownVolumeStep = newStep
-
-        val quantizedPercent = ((newStep.toFloat() / maxSteps) * 100f).roundToInt()
-        _volume.value = quantizedPercent
-        _volumeChangeEvent.tryEmit(quantizedPercent)
-        applySystemVolumeStep(newStep)
+        applyStep(newStep, maxSteps)
     }
 
     fun onSurfaceReady(activity: AppCompatActivity, mediaDetailsModel: MediaDetailsViewModel) {
@@ -837,6 +847,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _audioTracks.value = emptyList()
             _subtitleTracks.value = emptyList()
             _videoTracks.value = emptyList()
+            _chapters.value = emptyList()
+            _currentChapter.value = null
+
+            _audioTracks.value = emptyList()
+            _subtitleTracks.value = emptyList()
+            _videoTracks.value = emptyList()
             _currentAudioTrack.value = loadingAudioTrack
             _currentSubtitleTrack.value = defaultSubtitleTrack
             _currentVideoTrack.value = loadingVideoTrack
@@ -848,6 +864,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             currentEpisodeIndex = targetIndex
             currentEpisode = ep
 
+            discordRPC.updateEpisode(buildRPCConfig(), isCurrentlyPlaying = false)
             currentMedia.anime?.selectedEpisode = ep.number
             mediaDetailsModel.setMedia(currentMedia)
 
@@ -900,9 +917,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                         startTorrentStatsMonitoring()
                         val showTitle = currentMedia.userPreferredName
-                            ?: currentMedia.nameRomaji
-                            ?: currentMedia.name
-                            ?: "Anime Stream"
 
                         val streamUrl = service.resolveStreamUrl(
                             magnetOrUrl = resolvedVideo.file.url,
@@ -976,18 +990,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
 
-                    if (loadSucceeded) {
-                        var waited = 0L
-                        while (waited < 5000L) {
-                            val state = _playbackState.value
-                            if (state == PlaybackState.BUFFERING || state == PlaybackState.PLAYING) {
-                                Log.d("mpv", "[PlayerViewModel] MPV state $state after ${waited}ms")
-                                break
-                            }
-                            delay(100)
-                            waited += 100
-                        }
-                    }
 
                 } catch (e: Exception) {
                     Log.e("mpv", "[PlayerViewModel] Error loading episode ${ep.number}", e)
@@ -1189,9 +1191,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         } ?: ""
 
         val state = PlayerEpisodeUiState(
-            mainTitle = media?.let { it.userPreferredName ?: it.nameRomaji ?: it.name }
+            mainTitle = media?.let { it.userPreferredName }
                 ?: "Unknown",
             episodeTitle = builtEpisodeTitle,
+            description = currentEpisode?.desc,
             episodeTitles = episodeArr.mapNotNull { episodes[it]?.number },
             currentEpisodeIndex = currentEpisodeIndex,
             hasNextEpisode = currentEpisodeIndex + 1 < episodeArr.size,
@@ -1246,18 +1249,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         return playerInstance.loadMedia(videoUrl, headers, startPositionMs, audioTracks, subtitles, perFileOptions)
     }
 
-    fun play() {
-        player?.play()
-    }
+
 
     fun pause() {
         saveCurrentPosition()
         player?.pause()
+        _isPaused.value = true
+    }
+
+    fun play() {
+        player?.play()
+        _isPaused.value = false
     }
 
     fun stop() {
         saveCurrentPosition()
         player?.stop()
+    }
+
+    fun seekToChapter(index: Int) {
+        player?.seekToChapter(index)
     }
 
     fun seekTo(positionMs: Long) {
@@ -1301,8 +1312,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         clearStateJobs()
         timestampCollectionJob?.cancel()
         removeVolumeObserver()
-        volumeUpdateJob?.cancel()
-        volumeUpdateJob = null
         strongPlayer = null
         _playerRef?.clear()
         _playerRef = null
@@ -1323,8 +1332,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         clearStateJobs()
         timestampCollectionJob?.cancel()
         removeVolumeObserver()
-        volumeUpdateJob?.cancel()
-        volumeUpdateJob = null
         release(mediaDetailsModel)
         discordRPC.close()
         torrServerService?.releaseStream()
@@ -1348,11 +1355,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _playerRef = null
         _attachedPlayerView.value = null
         _mediaLoaded.value = false
+
+        _videoTracks.value = emptyList()
+        _chapters.value = emptyList()
+        _currentChapter.value = null
     }
 
     override fun onCleared() {
-        volumeUpdateJob?.cancel()
-        volumeUpdateJob = null
         torrServerService?.releaseStream()
         removeVolumeObserver()
         super.onCleared()
@@ -1390,6 +1399,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun destroyViewModel(mediaDetailsModel: MediaDetailsViewModel) {
         release(mediaDetailsModel)
+        discordRPC.close()
         detachPlayerState()
+    }
+
+    fun onActivityResumed() {
+        discordRPC.ensureConnected()
+        lastKnownVolumeStep = -1
+        syncVolumeFromSystem()
+    }
+
+
+    private fun readSystemVolumePercent(context: Context): Int {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val cur = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        return ((cur.toFloat() / max) * 100f).roundToInt()
     }
 }

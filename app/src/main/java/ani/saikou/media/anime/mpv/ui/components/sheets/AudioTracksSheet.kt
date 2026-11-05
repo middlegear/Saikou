@@ -6,7 +6,7 @@ import ani.saikou.media.anime.mpv.AudioTrack
 @Composable
 
 fun AudioTracksSheet(
-    title: String = "Select Audio Track",
+    title: String = "Audio Language",
     trackList: List<AudioTrack>,
     currentTrack: AudioTrack,
     onTrackSelected: (AudioTrack) -> Unit,

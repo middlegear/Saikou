@@ -63,6 +63,13 @@ class MpvVideoPlayer(
     private val _currentVideoTrack = MutableStateFlow(defaultVideoTrack)
     val currentVideoTrack: StateFlow<VideoTrack> = _currentVideoTrack.asStateFlow()
 
+    private val _chapters = MutableStateFlow<List<Chapter>>(emptyList())
+    val chapters: StateFlow<List<Chapter>> = _chapters.asStateFlow()
+
+    private val _currentChapter = MutableStateFlow<Chapter?>(null)
+    val currentChapter: StateFlow<Chapter?> = _currentChapter.asStateFlow()
+
+
     private val _volume = MutableStateFlow(100)
     val volume: StateFlow<Int> = _volume.asStateFlow()
 
@@ -261,6 +268,8 @@ class MpvVideoPlayer(
         mpv.observeProperty("vid", MPV.mpvFormat.MPV_FORMAT_STRING)
         mpv.observeProperty("edition-list", MPV.mpvFormat.MPV_FORMAT_NODE)
         mpv.observeProperty("current-edition", MPV.mpvFormat.MPV_FORMAT_INT64)
+        mpv.observeProperty("chapter-list", MPV.mpvFormat.MPV_FORMAT_NODE)
+        mpv.observeProperty("chapter", MPV.mpvFormat.MPV_FORMAT_INT64)
         mpv.observeProperty("eof-reached", MPV.mpvFormat.MPV_FORMAT_FLAG)
         mpv.observeProperty("demuxer-cache-duration", MPV.mpvFormat.MPV_FORMAT_DOUBLE)
         mpv.observeProperty("paused-for-cache", MPV.mpvFormat.MPV_FORMAT_FLAG)
@@ -346,6 +355,7 @@ class MpvVideoPlayer(
         }
         refreshTracks()
         forceUpdateDurationAndPosition()
+        refreshChapters()
         if ((pendingMediaState?.startPositionMs ?: 0) > 0) {
             seekTo(pendingMediaState!!.startPositionMs)
         }
@@ -380,6 +390,8 @@ class MpvVideoPlayer(
         initialBufferingDone = false
         _bufferingProgress.value = 0f
         _mediaLoaded.value = false
+        _chapters.value = emptyList()
+        _currentChapter.value = null
         editionMode = false
         isShutdown.set(true)
 
@@ -421,14 +433,17 @@ class MpvVideoPlayer(
             "duration" -> {
                 val durSeconds = mpv.getPropertyDouble("duration") ?: 0.0
                 _duration.value = (durSeconds * 1000).toLong()
+                if (_chapters.value.isNotEmpty()) refreshChapters()
             }
             "volume" -> _volume.value = mpv.getPropertyInt("volume") ?: 100
             "speed" -> _playbackSpeed.value = (mpv.getPropertyDouble("speed") ?: 1.0).toFloat()
-            "track-list", "edition-list", "current-edition" -> { // CHANGED
+            "track-list", "edition-list", "current-edition" -> {
                 removeCallbacks(refreshTracksRunnable)
                 postDelayed(refreshTracksRunnable, 120L)
                 if (property == "track-list") detectAndUpdateAudioChannel()
             }
+            "chapter-list" -> refreshChapters()
+            "chapter" -> updateCurrentChapter()
             "vid" -> {
                 if (!editionMode) {
                     val activeId = mpv.getPropertyInt("vid") ?: 0
@@ -632,7 +647,45 @@ class MpvVideoPlayer(
         } else {
             _currentVideoTrack.value = defaultVideoTrack
         }
+
+
+        refreshChapters()
     }
+
+    private fun refreshChapters() {
+        val mpv = player ?: return
+        val node = mpv.getPropertyNode("chapter-list")
+        val parsed = TrackParser.parseChapterList(node, _duration.value)
+        _chapters.value = parsed
+
+        if (parsed.isEmpty()) {
+            Log.d(TAG, "Chapters: none")
+        } else {
+            Log.d(TAG, "Chapters: ${parsed.size} found (duration=${_duration.value}ms)")
+            parsed.forEach { c ->
+                Log.d(TAG, "  [${c.index}] \"${c.title}\" ${c.startMs}ms -> ${c.endMs ?: "?"}ms skippable=${c.isSkippable}")
+            }
+        }
+
+        updateCurrentChapter()
+    }
+
+    private fun updateCurrentChapter() {
+        val mpv = player ?: return
+        val idx = mpv.getPropertyInt("chapter") ?: -1
+        val chapter = _chapters.value.getOrNull(idx)
+        _currentChapter.value = chapter
+
+        Log.d(TAG, "Current chapter: idx=$idx -> ${chapter?.let { "\"${it.title}\" (${it.startMs}ms)" } ?: "none"}")
+    }
+
+    fun seekToChapter(index: Int) {
+        if (!isInitialized || isShutdown.get()) return
+        val chapter = _chapters.value.getOrNull(index) ?: return
+        seekTo(chapter.startMs)
+    }
+
+
 
     private fun releaseInternal() {
         mpv?.close()
@@ -663,6 +716,8 @@ class MpvVideoPlayer(
         _bufferingProgress.value = 0f
         _mediaLoaded.value = false
         _audioChannel.value = AudioChannels.Auto
+        _chapters.value = emptyList()
+        _currentChapter.value = null
 
         isInitialized = false
         surfaceReady = false
@@ -706,6 +761,8 @@ class MpvVideoPlayer(
         _mediaLoaded.value = false
         _bufferingProgress.value = 0f
         _playbackState.value = PlaybackState.IDLE
+        _chapters.value = emptyList()
+        _currentChapter.value = null
 
         player?.command("stop")
     }
@@ -764,6 +821,8 @@ class MpvVideoPlayer(
         _currentAudioTrack.value = defaultAudioTrack
         _currentSubtitleTrack.value = defaultSubtitleTrack
         _currentVideoTrack.value = defaultVideoTrack
+        _chapters.value = emptyList()
+        _currentChapter.value = null
         _duration.value = 0L
         _currentPosition.value = 0L
         _audioChannel.value = AudioChannels.Auto

@@ -47,10 +47,11 @@ class PlaybackService : Service() {
 
     private var resumeOnFocusGain = false
 
-    private var preDuckStep: Int? = null
-
     private var pendingPauseJob: Job? = null
     private val transientPauseDebounceMs = 250L
+
+    private val duckedMpvVolume = 35
+    private val normalMpvVolume = 100
 
     private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
@@ -60,7 +61,7 @@ class PlaybackService : Service() {
                 pendingPauseJob = null
                 hasAudioFocus = false
                 resumeOnFocusGain = false
-                preDuckStep = null
+                player.setVolume(normalMpvVolume)
                 player.pause()
                 publishState(PlaybackStateCompat.STATE_PAUSED)
             }
@@ -79,17 +80,12 @@ class PlaybackService : Service() {
                 }
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                Log.d(TAG, "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK — ducking to half volume")
+                Log.d(TAG, "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK — ducking mpv volume only")
 
                 pendingPauseJob?.cancel()
                 pendingPauseJob = null
 
-                if (preDuckStep == null) {
-                    preDuckStep = getCurrentVolumeStep()
-                }
-                val duckedStep = ((preDuckStep ?: getMaxVolumeStep()) / 2).coerceIn(0, getMaxVolumeStep())
-                setVolumeStep(duckedStep)
-                player.setVolume(100)
+                player.setVolume(duckedMpvVolume)
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
                 Log.d(TAG, "AUDIOFOCUS_GAIN")
@@ -99,12 +95,7 @@ class PlaybackService : Service() {
 
                 hasAudioFocus = true
 
-                preDuckStep?.let { originalStep ->
-                    setVolumeStep(originalStep)
-                    preDuckStep = null
-                }
-
-                player.setVolume(100)
+                player.setVolume(normalMpvVolume)
 
                 if (resumeOnFocusGain) {
                     resumeOnFocusGain = false
@@ -166,8 +157,8 @@ class PlaybackService : Service() {
         focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
         hasAudioFocus = false
         resumeOnFocusGain = false
-        preDuckStep = null
         focusRequest = null
+        if (::player.isInitialized) player.setVolume(normalMpvVolume)
     }
 
     private val becomingNoisyReceiver = object : BroadcastReceiver() {
@@ -187,7 +178,7 @@ class PlaybackService : Service() {
 
         player = MpvVideoPlayer(this)
         player.init(Unit)
-        player.setVolume(100)
+        player.setVolume(normalMpvVolume)
 
         mediaSession = MediaSessionCompat(this, "SaikouSession").apply {
             setCallback(sessionCallback)

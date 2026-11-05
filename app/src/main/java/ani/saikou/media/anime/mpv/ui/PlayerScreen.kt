@@ -5,12 +5,10 @@ import android.content.ContextWrapper
 import android.util.Log
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -28,7 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,7 +44,9 @@ import ani.saikou.media.anime.mpv.PlayerScreenActions
 import ani.saikou.media.anime.mpv.PlayerViewModel
 import ani.saikou.media.anime.mpv.ui.components.PlayerControlsLayout
 import ani.saikou.media.anime.mpv.ui.components.backdrops.LoadingScreen
+import ani.saikou.media.anime.mpv.ui.components.backdrops.PausedScreen
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val TAG = "mpv_ui"
@@ -73,6 +72,23 @@ fun PlayerScreen(
     val torrentStats by viewModel.torrentStats.collectAsState()
     val isMediaLoaded by viewModel.mediaLoaded.collectAsState()
 
+    val isPaused by viewModel.isPaused.collectAsState()
+
+
+    var shouldShowPausedScreen by remember { mutableStateOf(false) }
+    var pauseDismissCount by remember { mutableStateOf(0) }
+
+    LaunchedEffect(isPaused, pauseDismissCount) {
+        if (isPaused) {
+            shouldShowPausedScreen = false
+            delay(10.seconds)
+            shouldShowPausedScreen = true
+        } else {
+            shouldShowPausedScreen = false
+            pauseDismissCount = 0
+        }
+    }
+
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
 
@@ -84,6 +100,16 @@ fun PlayerScreen(
             !episodeUiState.logo.isNullOrEmpty()
 
     val showArtworkLoadingScreen = showCustomLoadingScreen && hasArtwork && !isPlayerReady
+
+    val logoUrl = episodeUiState.logo
+    val title = episodeUiState.episodeTitle
+    val description = episodeUiState.description
+
+    val hasAllPausedParams = !logoUrl.isNullOrEmpty() &&
+            title.isNotEmpty() &&
+            !description.isNullOrEmpty()
+
+    val showPausedScreen = shouldShowPausedScreen && showCustomLoadingScreen && hasAllPausedParams
 
     Box(
         modifier = Modifier
@@ -114,7 +140,7 @@ fun PlayerScreen(
             )
         }
 
-        // 1. Artwork Backdrop Overlay Layer
+        // 1. Artwork Backdrop Overlay Layer (Loading)
         AnimatedVisibility(
             visible = showArtworkLoadingScreen,
             enter = fadeIn(animationSpec = tween(200)),
@@ -130,10 +156,10 @@ fun PlayerScreen(
             )
         }
 
-        // 2. UI Controls Layer
+        // 2. UI Controls Layer (Hidden when PausedScreen is active)
         if (!isDialogShowing) {
             AnimatedVisibility(
-                visible = isPlayerReady || !showCustomLoadingScreen || !hasArtwork,
+                visible = (isPlayerReady || !showCustomLoadingScreen || !hasArtwork) && !showPausedScreen,
                 enter = fadeIn(animationSpec = tween(250)),
                 exit = fadeOut(animationSpec = tween(250))
             ) {
@@ -201,6 +227,32 @@ fun PlayerScreen(
                     }
                 }
             }
+        }
+
+        // 3. Paused Screen Overlay Layer (Clicking dismisses controls & restarts timer if still paused)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (showPausedScreen) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            // Dismisses paused screen and restarts the 20s pause countdown timer
+                            pauseDismissCount++
+                        }
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
+            PausedScreen(
+                isVisible = showPausedScreen,
+                logoUrl = logoUrl,
+                title = title,
+                description = description
+            )
         }
     }
 }

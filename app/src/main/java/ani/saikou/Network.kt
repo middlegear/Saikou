@@ -27,9 +27,16 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 
 val defaultHeaders = mapOf(
-    "User-Agent" to
-            "Mozilla/5.0 (Linux; Android %s; %s) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Mobile Safari/537.36"
-                .format(Build.VERSION.RELEASE, Build.MODEL)
+    "User-Agent" to "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Mobile Safari/537.36",
+    "Sec-CH-UA" to "\"Not:A-Brand\";v=\"99\", \"Chromium\";v=\"156\", \"Google Chrome\";v=\"156\"",
+    "Sec-CH-UA-Mobile" to "?1",
+    "Sec-CH-UA-Platform" to "\"Android\"",
+    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language" to "en-US,en;q=0.9",
+    "Sec-Fetch-Site" to "none",
+    "Sec-Fetch-Mode" to "navigate",
+    "Sec-Fetch-User" to "?1",
+    "Sec-Fetch-Dest" to "document"
 )
 lateinit var cache: Cache
 

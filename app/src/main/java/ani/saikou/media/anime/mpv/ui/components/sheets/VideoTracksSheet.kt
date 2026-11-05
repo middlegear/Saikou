@@ -5,7 +5,7 @@ import ani.saikou.media.anime.mpv.VideoTrack
 
 @Composable
 fun VideoTracksSheet(
-    title: String = "Select Video Track",
+    title: String = "Video Quality",
     trackList: List<VideoTrack>,
     currentTrack: VideoTrack,
     onTrackSelected: (VideoTrack) -> Unit,

@@ -2,7 +2,6 @@ package ani.saikou.parsers
 
 import ani.saikou.Lazier
 import ani.saikou.lazyList
-import ani.saikou.parsers.anime.AniBD
 import ani.saikou.parsers.anime.Anikoto
 import ani.saikou.parsers.anime.AnimeHeaven
 import ani.saikou.parsers.anime.Anizone
@@ -17,7 +16,6 @@ object AnimeSources : WatchSources() {
     override val list: List<Lazier<BaseParser>> = lazyList(
         "Torrentio" to ::Torrentio,
         "Anikoto" to ::Anikoto,
-//        "AniBD" to ::AniBD,
         "AnimeHeaven" to ::AnimeHeaven,
         "Anizone" to ::Anizone,
 

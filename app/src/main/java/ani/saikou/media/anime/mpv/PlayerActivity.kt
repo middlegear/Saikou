@@ -220,6 +220,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        playerModel.onActivityResumed()
         hideSystemUi()
         playerModel.play()
     }

@@ -8,7 +8,7 @@ import ani.saikou.parsers.Episode
 import ani.saikou.parsers.ShowResponse
 import ani.saikou.parsers.VideoExtractor
 import ani.saikou.parsers.VideoServer
-import ani.saikou.parsers.anime.extractors.AniZoneExtractor
+import ani.saikou.parsers.anime.extractors.ApiParser
 import ani.saikou.tryWithSuspend
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
@@ -85,7 +85,7 @@ class AnimeHeaven : AnimeParser() {
     }
 
     override suspend fun getVideoExtractor(server: VideoServer): VideoExtractor {
-        return AniZoneExtractor(server)
+        return ApiParser(server)
     }
 
 

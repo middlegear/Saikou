@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,7 +38,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -71,7 +71,7 @@ fun <T> GenericTracksSheet(
     val screenHeightDp = with(density) { windowInfo.containerSize.height.toDp() }
     val screenWidthDp = with(density) { windowInfo.containerSize.width.toDp() }
 
-    val minSheetHeight = screenHeightDp * 0.80f
+    val minSheetHeight = screenHeightDp * 0.65f
     val maxSheetWidth = screenWidthDp * 0.65f
 
     LaunchedEffect(Unit) {
@@ -163,22 +163,22 @@ fun <T> GenericTracksSheet(
                             .fillMaxWidth()
                             .weight(1f, fill = false)
                             .selectableGroup()
-                            .padding(horizontal = 20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(horizontal = 24.dp),
+                        horizontalAlignment = Alignment.Start
                     ) {
                         items(trackList) { track ->
                             val isSelected = track == selectedTrackInternal
 
                             Row(
                                 modifier = Modifier
-                                    .fillMaxWidth(0.85f)
+                                    .fillMaxWidth()
                                     .clickable {
                                         selectedTrackInternal = track
                                         onTrackSelected(track)
                                     }
-                                   ,
+                                    .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                                horizontalArrangement = Arrangement.Start
                             ) {
                                 RadioButton(
                                     selected = isSelected,
@@ -192,16 +192,14 @@ fun <T> GenericTracksSheet(
                                     )
                                 )
 
-
-                                Spacer(modifier = Modifier.weight(0.15f))
+                                Spacer(modifier = Modifier.width(12.dp))
 
                                 Text(
                                     text = trackToText(track),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.Start,
-                                    modifier = Modifier.weight(0.8f)
+                                    textAlign = TextAlign.Start
                                 )
                             }
                         }
@@ -211,7 +209,6 @@ fun <T> GenericTracksSheet(
         }
     }
 }
-
 
 @Preview(
     showSystemUi = true,

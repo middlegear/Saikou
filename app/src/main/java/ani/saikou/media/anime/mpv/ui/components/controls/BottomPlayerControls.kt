@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import ani.saikou.media.anime.mpv.PlayerRepository
 import ani.saikou.media.anime.mpv.PlayerViewModel
 
-
 @Composable
 fun BottomPlayerControls(
     isLocked: Boolean,
@@ -33,25 +32,35 @@ fun BottomPlayerControls(
     skipSegmentDuration: Int?,
     onSkipSegmentClicked: () -> Unit,
     onAspectRatioClicked: () -> Unit,
+    onChaptersClicked: () -> Unit,
     positionMs: Long,
     durationMs: Long,
     readAheadMs: Long,
-    onSeekFinished: (Long) -> Unit, skipStamps: List<PlayerRepository.SkipInterval>? = null,
+    onSeekFinished: (Long) -> Unit,
+    skipStamps: List<PlayerRepository.SkipInterval>? = null,
     viewModel: PlayerViewModel,
     modifier: Modifier = Modifier
 ) {
     val elementTint = Color.White
     val feedbackColor = MaterialTheme.colorScheme.primary
 
-    val isSegmentAvailable = skipSegmentDuration != null
+    val chapters by viewModel.chapters.collectAsState(initial = emptyList())
+    val hasChapters = (chapters?.size ?: 0) > 1
+
+    val isSegmentAvailable = !hasChapters && skipSegmentDuration != null
+
     val speedOptions = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
-    val current = viewModel.playbackSpeed.collectAsState().value
+    val currentSpeed = viewModel.playbackSpeed.collectAsState().value
+
+    val currentChapter by viewModel.currentChapter.collectAsState()
+    val currentChapterTitle = currentChapter?.title ?: "Chapter"
+    val currentChapterStartMs = currentChapter?.startMs ?: 0L
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .wrapContentHeight()
     ) {
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -67,13 +76,18 @@ fun BottomPlayerControls(
             BottomLeftControls(
                 isLocked = isLocked,
                 onLockToggled = onLockToggled,
-                currentSpeed = current,
+                currentSpeed = currentSpeed,
                 onSpeedChanged = {
                     onUserInteraction()
-
-                    val nextIndex =
-                        (speedOptions.indexOf(current) + 1) % speedOptions.size
+                    val nextIndex = (speedOptions.indexOf(currentSpeed) + 1) % speedOptions.size
                     viewModel.setPlaybackSpeed(speedOptions[nextIndex])
+                },
+                hasChapters = hasChapters,
+                currentChapterTitle = currentChapterTitle,
+                currentChapterStartMs = currentChapterStartMs,
+                onChaptersClick = {
+                    onUserInteraction()
+                    onChaptersClicked()
                 },
                 elementTint = elementTint,
                 feedbackColor = feedbackColor,
@@ -104,7 +118,6 @@ fun BottomPlayerControls(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-
         val seekBarAlpha by animateFloatAsState(
             targetValue = if (isControlsVisible) 1f else 0f,
             animationSpec = tween(200),
@@ -117,6 +130,7 @@ fun BottomPlayerControls(
             readAheadMs = readAheadMs,
             onSeekFinished = onSeekFinished,
             skipStamps = skipStamps,
+            chapters = chapters,
             modifier = Modifier
                 .fillMaxWidth()
                 .wrapContentHeight()

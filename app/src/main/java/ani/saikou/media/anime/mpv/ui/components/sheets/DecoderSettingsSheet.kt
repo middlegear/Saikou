@@ -190,7 +190,7 @@ fun DecoderSettingsSheet(
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = "Hardware decoding mode",
+                            text = "Decoder",
                             style = MaterialTheme.typography.labelLarge,
                             color = onSurfaceColor.copy(alpha = 0.5f),
                             fontWeight = FontWeight.SemiBold,

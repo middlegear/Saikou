@@ -11,6 +11,9 @@ import ani.saikou.parsers.VideoExtractor
 import ani.saikou.parsers.VideoServer
 import ani.saikou.parsers.anime.extractors.MegaPlay
 import ani.saikou.tryWithSuspend
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import java.net.URLEncoder
@@ -24,7 +27,6 @@ class Anikoto : AnimeParser() {
     val apiKey: String = BuildConfig.MY_CUSTOM_API_KEY
     override val isDubAvailableSeparately = false
 
-
     override suspend fun search(query: String): List<ShowResponse> {
         return tryWithSuspend(post = true, snackbar = true) {
             if (query.isBlank()) return@tryWithSuspend emptyList()
@@ -33,8 +35,7 @@ class Anikoto : AnimeParser() {
             val res = client.get(
                 "$hostUrl/api/anikoto/anime/search?q=$encoded",
                 headers = mapOf("x-api-key" to apiKey)
-            )
-                .parsed<SearchApiResponse>()
+            ).parsed<SearchApiResponse>()
 
             res.data.map {
                 ShowResponse(
@@ -51,12 +52,12 @@ class Anikoto : AnimeParser() {
         extra: Map<String, String>?
     ): List<Episode> {
         return tryWithSuspend(post = true, snackbar = true) {
-
             if (animeLink.isBlank()) return@tryWithSuspend emptyList()
 
-            val url = "$hostUrl/api/anikoto/anime/$animeLink"
-            val res =
-                client.get(url, headers = mapOf("x-api-key" to apiKey)).parsed<EpisodesResponse>()
+            val res = client.get(
+                "$hostUrl/api/anikoto/anime/$animeLink",
+                headers = mapOf("x-api-key" to apiKey)
+            ).parsed<EpisodesResponse>()
 
             res.providerEpisodes.map { ep ->
                 Episode(
@@ -66,7 +67,6 @@ class Anikoto : AnimeParser() {
                 )
             }
         } ?: emptyList()
-
     }
 
     override suspend fun loadVideoServers(
@@ -75,67 +75,59 @@ class Anikoto : AnimeParser() {
     ): List<VideoServer> {
         return tryWithSuspend(post = false, snackbar = true) {
             if (episodeLink.isBlank()) return@tryWithSuspend emptyList()
+
             val res = client.get(
                 "$hostUrl/api/anikoto/episode/$episodeLink/servers",
                 headers = mapOf("x-api-key" to apiKey)
             ).parsed<EpisodeServersResponse>()
 
-            val allServers = mutableListOf<VideoServer>()
-            val allowedServers = setOf( "hd-1","hd-2","vidstream-2")
-
-            fun addServers(version: String, list: List<ServerItem>) {
-                list.filter { item ->
-                    allowedServers.any {
-                        it.equals(
-                            item.serverName,
-                            ignoreCase = true
-                        )
-                    }
+            val candidates = listOf("sub" to res.data.sub, "dub" to res.data.dub)
+                .flatMap { (version, list) ->
+                    list.map { item -> version to item }
                 }
-                    .forEach { item ->
-                        val serverName = "${version.uppercase()} - ${item.serverName}"
-                        val embedUrl =
-                            "$hostUrl/api/anikoto/sources/$episodeLink?version=$version&server=${item.serverName}"
 
-                        allServers += VideoServer(
-                            name = serverName,
-                            embed = FileUrl(embedUrl),
-                            extraData = null
-                        )
+            coroutineScope {
+                candidates.map { (version, item) ->
+                    async {
+                        runCatching {
+                            val resolved = client.get(
+                                "$SITE_URL/ajax/server",
+                                headers = mapOf(
+                                    "Accept" to "application/json, text/javascript, */*; q=0.01",
+                                    "X-Requested-With" to "XMLHttpRequest"
+                                ),
+                                params = mapOf("get" to item.eid)
+                            ).parsed<EmbedResponse>()
+
+                            VideoServer(
+                                name = "${version.uppercase()} - ${item.serverName}",
+                                embed = FileUrl(resolved.result.url, mapOf("Referer" to "$SITE_URL/")),
+                            )
+                        }.getOrNull()
                     }
+                }.awaitAll().filterNotNull()
             }
-
-            addServers("sub", res.data.sub)
-            addServers("dub", res.data.dub)
-
-            allServers
         } ?: emptyList()
     }
 
+    override suspend fun getVideoExtractor(server: VideoServer): VideoExtractor = MegaPlay(server)
 
-    override suspend fun getVideoExtractor(server: VideoServer): VideoExtractor {
-
-        return MegaPlay(server)
+    companion object {
+        private const val SITE_URL = "https://anikototv.to"
     }
 
-
     @Serializable
-    private data class SearchApiResponse(
-        val data: List<SearchItems>
-    )
+    private data class SearchApiResponse(val data: List<SearchItems>)
 
     @Serializable
     private data class SearchItems(
         val id: String,
         val name: String,
         val posterImage: String
-
     )
 
     @Serializable
-    private data class EpisodesResponse(
-        val providerEpisodes: List<EpisodeItem>
-    )
+    private data class EpisodesResponse(val providerEpisodes: List<EpisodeItem>)
 
     @Serializable
     private data class EpisodeItem(
@@ -145,9 +137,7 @@ class Anikoto : AnimeParser() {
     )
 
     @Serializable
-    private data class EpisodeServersResponse(
-        val data: EpisodeServers
-    )
+    private data class EpisodeServersResponse(val data: EpisodeServers)
 
     @Serializable
     private data class ServerItem(
@@ -165,5 +155,9 @@ class Anikoto : AnimeParser() {
         val episodeNumber: Int
     )
 
+    @Serializable
+    private data class EmbedResponse(val result: EmbedResult)
 
+    @Serializable
+    private data class EmbedResult(val url: String)
 }

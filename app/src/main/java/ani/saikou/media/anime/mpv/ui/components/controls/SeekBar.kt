@@ -1,20 +1,3 @@
-/*
- * Copyright 2024 Abdallah Mehiz
- * https://github.com/abdallahmehiz/mpvKt
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package ani.saikou.media.anime.mpv.ui.components.controls
 
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -40,6 +23,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import ani.saikou.media.anime.mpv.Chapter
 import ani.saikou.media.anime.mpv.PlayerRepository
 import dev.vivvvek.seeker.Segment
 import dev.vivvvek.seeker.Seeker
@@ -48,7 +32,6 @@ import `is`.xyz.mpv.Utils
 import kotlin.math.abs
 
 @Composable
-
 fun SeekBar(
     positionMs: Long,
     durationMs: Long,
@@ -56,6 +39,7 @@ fun SeekBar(
     onSeekFinished: (Long) -> Unit,
     modifier: Modifier = Modifier,
     skipStamps: List<PlayerRepository.SkipInterval>? = null,
+    chapters: List<Chapter>? = null,
 ) {
     var dragPositionMs by remember { mutableStateOf<Long?>(null) }
     var seekTargetMs by remember { mutableStateOf<Long?>(null) }
@@ -68,22 +52,51 @@ fun SeekBar(
         }
     }
 
-
-
     val unifiedTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
 
-    val seekerSegments = remember(skipStamps, durationMs) {
+    val seekerSegments = remember(skipStamps, chapters, durationMs) {
+        val list = mutableListOf<Segment>()
 
-        if (skipStamps.isNullOrEmpty() || durationMs <= 0L) {
-            emptyList()
-        } else {
-            val list = mutableListOf<Segment>()
-            list.add(Segment(name = "Start", start = 0f, color = unifiedTrackColor))
+        if (!chapters.isNullOrEmpty() && durationMs > 0L) {
+            val sortedChapters = chapters.sortedBy { it.startMs }
+
+            if (sortedChapters.first().startMs > 0L) {
+                list.add(
+                    Segment(
+                        name = "",
+                        start = 0f,
+                        color = unifiedTrackColor
+                    )
+                )
+            }
+
+            sortedChapters.forEach { chapter ->
+                val startMs = chapter.startMs.toFloat()
+                if (startMs < durationMs) {
+                    list.add(
+                        Segment(
+                            name = chapter.title,
+                            start = startMs,
+                            color = unifiedTrackColor
+                        )
+                    )
+                }
+            }
+        } else if (!skipStamps.isNullOrEmpty() && durationMs > 0L) {
             val sortedStamps = skipStamps.sortedBy { it.startTimeMs }
+
+            if (sortedStamps.first().startTimeMs > 0L) {
+                list.add(
+                    Segment(
+                        name = "",
+                        start = 0f,
+                        color = unifiedTrackColor
+                    )
+                )
+            }
+
             sortedStamps.forEach { stamp ->
                 val startMs = stamp.startTimeMs.toFloat()
-                val endMs = (stamp.endTimeMs ?: durationMs).toFloat()
-
                 if (startMs < durationMs) {
                     list.add(
                         Segment(
@@ -92,20 +105,11 @@ fun SeekBar(
                             color = unifiedTrackColor
                         )
                     )
-
-                    if (endMs < durationMs) {
-                        list.add(
-                            Segment(
-                                name = "${stamp.type}_End",
-                                start = endMs,
-                                color = unifiedTrackColor
-                            )
-                        )
-                    }
                 }
             }
-            list.distinctBy { it.start }.sortedBy { it.start }
         }
+
+        list.distinctBy { it.start }.sortedBy { it.start }
     }
 
     Row(
@@ -116,6 +120,7 @@ fun SeekBar(
                 awaitEachGesture {
                     val firstDown = awaitFirstDown(pass = PointerEventPass.Initial)
                     val localBottomExclusionLine = size.height - exclusionHeightPx
+
                     if (firstDown.position.y > localBottomExclusionLine) {
                         firstDown.consume()
                     }
@@ -135,7 +140,6 @@ fun SeekBar(
         Seeker(
             value = clampedDisplay,
             thumbValue = clampedDisplay,
-
             range = 0f..durationFloat,
             readAheadValue = readAheadMs.toFloat().coerceIn(0f, durationFloat),
             segments = seekerSegments,

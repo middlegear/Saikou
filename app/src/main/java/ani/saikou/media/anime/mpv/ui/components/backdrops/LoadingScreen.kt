@@ -31,13 +31,8 @@ fun LoadingScreen(
 ) {
     val showTorrentStats = stats != null && isTorrentEnabled
 
-    val isComplete = if (showTorrentStats && stats != null) {
-        maxOf(progress, stats.prebufferProgress) >= 0.99f
-    } else {
-        progress >= 0.99f
-    }
 
-    val currentLogoProgress = if (showTorrentStats && stats != null) {
+    val currentLogoProgress = if (showTorrentStats) {
         maxOf(progress, stats.prebufferProgress).coerceIn(0f, 1f)
     } else {
         progress.coerceIn(0f, 1f)
@@ -95,7 +90,7 @@ fun LoadingScreen(
     )
 
     val statusText = when {
-        !showTorrentStats || stats == null -> null
+        !showTorrentStats -> null
         stats.stage == TorrentStats.Stage.RESOLVING_MAGNET -> "Adding torrent..."
         stats.stage == TorrentStats.Stage.METADATA_DOWNLOAD -> "Fetching metadata..."
         stats.stage == TorrentStats.Stage.HTTP_HANDOFF -> "Preparing stream..."
@@ -103,9 +98,7 @@ fun LoadingScreen(
         else -> "Initializing..."
     }
 
-    val showDetailedStats = showTorrentStats &&
-            stats != null &&
-            stats.stage == TorrentStats.Stage.READY
+    val showDetailedStats = showTorrentStats && stats.stage == TorrentStats.Stage.READY
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. Fullscreen Backdrop Banner

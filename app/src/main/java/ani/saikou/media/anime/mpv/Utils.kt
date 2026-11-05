@@ -82,6 +82,40 @@ data class ExternalAudio(
     val language: String? = null
 )
 
+
+data class Chapter(
+    val index: Int,
+    val title: String,
+    val startMs: Long,
+    val endMs: Long? = null
+) {
+
+   val isOpening: Boolean
+        get() = title.matches(OPENING_REGEX)
+
+    val isEnding: Boolean
+        get() = title.matches(ENDING_REGEX)
+
+    val isRecap: Boolean
+        get() = title.matches(RECAP_REGEX)
+
+    val isPreview: Boolean
+        get() = title.matches(PREVIEW_REGEX)
+
+    val isSkippable: Boolean
+        get() = isOpening || isEnding || isRecap || isPreview
+
+    fun contains(positionMs: Long): Boolean =
+        positionMs >= startMs && (endMs == null || positionMs < endMs)
+
+    private companion object {
+        val OPENING_REGEX = Regex("(?i)^\\s*(op|opening|intro)(\\s*\\d+)?\\b.*")
+        val ENDING_REGEX = Regex("(?i)^\\s*(ed|ending|outro|credits)(\\s*\\d+)?\\b.*")
+        val RECAP_REGEX = Regex("(?i)^\\s*(recap|previously)\\b.*")
+        val PREVIEW_REGEX = Regex("(?i)^\\s*(preview|next( episode)?)\\b.*")
+    }
+}
+
 object TrackParser {
 
     fun parseTrackList(node: MPVNode?): Triple<List<AudioTrack>, List<SubtitleTrack>, List<VideoTrack>> {
@@ -304,6 +338,25 @@ object TrackParser {
         }.sortedByDescending { it.first }.map { it.second }
     }
 
+
+    fun parseChapterList(node: MPVNode?, durationMs: Long): List<Chapter> {
+        val array = node?.asArray() ?: return emptyList()
+
+        val raw = array.mapIndexedNotNull { i, n ->
+            val map = n.asMap() ?: return@mapIndexedNotNull null
+            val time = map["time"]?.asDouble() ?: return@mapIndexedNotNull null
+            val title = map["title"]?.asString()?.trim().takeUnless { it.isNullOrBlank() }
+                ?: "Chapter ${i + 1}"
+            Triple(i, title, (time * 1000).toLong())
+        }
+
+        return raw.mapIndexed { idx, (i, title, start) ->
+            val end = raw.getOrNull(idx + 1)?.third
+                ?: durationMs.takeIf { it > start }
+            Chapter(index = i, title = title, startMs = start, endMs = end)
+        }
+    }
+
     private fun heightToLabel(height: Int): String? = when {
         height >= 2160 -> "4K"
         height >= 1440 -> "1440p"
@@ -352,7 +405,7 @@ object TrackParser {
     }
 }
 
- data class PendingMediaState(
+data class PendingMediaState(
     val videoUrl: String,
     val headers: Map<String, String>,
     val startPositionMs: Long,
@@ -365,13 +418,14 @@ data class PlayerEpisodeUiState(
     val mainTitle: String = "",
     val episodeTitle: String = "",
     val episodeTitles: List<String> = emptyList(),
+    val description:String ? = null,
     val currentEpisodeIndex: Int = 0,
     val subtitleTracks: List<Subtitle> = listOf(),
     val audioTracks: List<AudioTrack> = listOf(),
     var hasNextEpisode: Boolean = false,
     var hasPreviousEpisode: Boolean = false,
     val backdropUrl: String? = null,
-    val logo:String?= null
+    val logo: String? = null,
 )
 
 data class PlayerScreenActions(
@@ -387,4 +441,4 @@ data class TrackEpisode(
     val currentPosition: Long,
     val hasNextEpisode: Boolean,
 
-)
+    )

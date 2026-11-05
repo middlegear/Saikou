@@ -66,11 +66,11 @@ import ani.saikou.media.anime.mpv.ui.components.sheets.DecoderSettingsSheet
 
 import ani.saikou.media.anime.mpv.ui.components.controls.TopControlsBar
 import ani.saikou.media.anime.mpv.ui.components.controls.TopControlsPopups
-//import ani.saikou.media.anime.mpv.ui.components.controls.TopControlsPopups
 import ani.saikou.media.anime.mpv.ui.components.controls.VerticalSlider
 import ani.saikou.media.anime.mpv.ui.components.sheets.AudioTracksSheet
 import ani.saikou.media.anime.mpv.ui.components.sheets.SubtitlesTracksSheet
 import ani.saikou.media.anime.mpv.ui.components.sheets.VideoTracksSheet
+import ani.saikou.media.anime.mpv.ui.components.sheets.GenericChaptersSheet
 import ani.saikou.others.AniSkip.getType
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -103,12 +103,15 @@ fun PlayerControlsLayout(
     val currentEnginePos by viewModel.currentPosition.collectAsState()
     val torrentStats by viewModel.torrentStats.collectAsState()
 
+    val chapters by viewModel.chapters.collectAsState()
+
 
     var isControlsVisible by remember { mutableStateOf(true) }
     var controlsHideResetToken by remember { mutableLongStateOf(0L) }
     var showAudioTracksSheet by remember { mutableStateOf(false) }
     var showVideoTracksSheet by remember { mutableStateOf(false) }
     var showSubtitleTracksSheet by remember { mutableStateOf(false) }
+    var showChaptersSheet by remember { mutableStateOf(false) }
     var openSheetState by remember { mutableStateOf(false) }
     var showVolumeSlider by remember { mutableStateOf(false) }
     var showBrightnessSlider by remember { mutableStateOf(false) }
@@ -138,8 +141,16 @@ fun PlayerControlsLayout(
         val validBrightness = if (initialBrightness < 0f) 0.5f else initialBrightness
         mutableFloatStateOf(validBrightness)
     }
+
     var volumeSliderValue by remember {
-        mutableFloatStateOf(volume.toFloat() / 100f)
+        mutableFloatStateOf(viewModel.systemVolumePercent() / 100f)
+    }
+
+    var gestureVolume by remember { mutableFloatStateOf(viewModel.systemVolumePercent() / 100f) }
+
+
+    LaunchedEffect(volume) {
+        volumeSliderValue = volume / 100f
     }
 
 
@@ -318,19 +329,19 @@ fun PlayerControlsLayout(
                 }
             },
             onVolumeGestureStart = {
+                gestureVolume = viewModel.systemVolumePercent() / 100f
+                volumeSliderValue = gestureVolume
                 showVolumeSlider = true
                 sliderDismissToken = System.currentTimeMillis()
             },
             onVolumeChanged = { deltaFraction ->
                 showVolumeSlider = true
                 sliderDismissToken = System.currentTimeMillis()
-                val newVolumeFraction = (volumeSliderValue + deltaFraction).coerceIn(0.0f, 1.0f)
-                volumeSliderValue = newVolumeFraction
-                viewModel.setVolume((newVolumeFraction * 100f).roundToInt())
+                gestureVolume = (gestureVolume + deltaFraction).coerceIn(0.0f, 1.0f)
+                viewModel.setVolume((gestureVolume * 100f).roundToInt())
             },
             onSpeedChanged = { targetSpeed ->
                 viewModel.setPlaybackSpeed(targetSpeed)
-                viewModel.settings.holdToFastForward // this is the 2x fast forward when longpress
                 is2xActive = targetSpeed > 1.0f
                 if (is2xActive) isControlsVisible = false
             }
@@ -477,7 +488,7 @@ fun PlayerControlsLayout(
                     val skipDurationMs = viewModel.settings.skipTime.toLong() * 1000L
 
                     val targetMs = if (hasActiveStamp) {
-                        currentStamp!!.endTimeMs ?: durationMs
+                        currentStamp.endTimeMs ?: durationMs
                     } else {
                         (currentMs + skipDurationMs).coerceAtMost(durationMs)
                     }
@@ -491,6 +502,10 @@ fun PlayerControlsLayout(
                     val nextModeIndex = (modes.indexOf(currentScaleMode) + 1) % modes.size
                     val nextMode = modes[nextModeIndex]
                     viewModel.setVideoScaleMode(nextMode)
+                },
+                onChaptersClicked = {
+                    isControlsVisible = true
+                    showChaptersSheet = true
                 },
                 positionMs = displayPositionMs,
                 durationMs = durationMs,
@@ -529,6 +544,7 @@ fun PlayerControlsLayout(
                     onValueChange = { newFraction ->
                         sliderDismissToken = System.currentTimeMillis()
                         volumeSliderValue = newFraction
+                        gestureVolume = newFraction
                         val newVolume = (newFraction * 100f).roundToInt()
                         viewModel.setVolume(newVolume)
                     },
@@ -591,7 +607,7 @@ fun PlayerControlsLayout(
         // SHEETS etc
         if (showAudioTracksSheet) {
             AudioTracksSheet(
-                title = "Select Audio Track",
+                title = "Audio Language",
                 trackList = audioTracks,
                 currentTrack = currentAudioTrack,
                 onTrackSelected = { track ->
@@ -615,7 +631,7 @@ fun PlayerControlsLayout(
         }
         if (showVideoTracksSheet) {
             VideoTracksSheet(
-                title = "Select Video Track",
+                title = "Video Quality",
                 trackList = videoTracks,
                 currentTrack = currentVideoTrack,
                 onTrackSelected = { track ->
@@ -623,6 +639,18 @@ fun PlayerControlsLayout(
                     showVideoTracksSheet = false
                 },
                 onDismissRequest = { showVideoTracksSheet = false }
+            )
+        }
+        if (showChaptersSheet) {
+            GenericChaptersSheet(
+                title = "Chapters",
+                chapterList = chapters,
+                currentPositionMs = currentEnginePos,
+                onChapterSelected = { chapter ->
+                    viewModel.seekToChapter(chapter.index)
+                    showChaptersSheet = false
+                },
+                onDismissRequest = { showChaptersSheet = false }
             )
         }
         if (openSheetState) {
