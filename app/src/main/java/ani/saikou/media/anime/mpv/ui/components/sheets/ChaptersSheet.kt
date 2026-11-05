@@ -51,8 +51,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
-
-
 @SuppressLint("DefaultLocale")
 fun Long.formatTimestamp(): String {
     val totalSeconds = this / 1000
@@ -190,10 +188,12 @@ fun GenericChaptersSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                // Chapter Title / Segment Name on the Left + Optional Skippable Tag
+                                // Left side: Title + Tag with constrained weight so it truncates instead of pushing out layout
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f, fill = false)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 16.dp)
                                 ) {
                                     Text(
                                         text = chapter.title,
@@ -201,7 +201,8 @@ fun GenericChaptersSheet(
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
 
                                     if (chapter.isSkippable) {
@@ -225,16 +226,21 @@ fun GenericChaptersSheet(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.size(16.dp))
-
-
-                                Text(
-                                    text = chapter.startMs.formatTimestamp(),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.End
-                                )
+                                // Right side: Monospaced Tabular Timestamp anchored inside a fixed minimum width Box
+                                Box(
+                                    modifier = Modifier.widthIn(min = 60.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        text = chapter.startMs.formatTimestamp(),
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFeatureSettings = "tnum"
+                                        ),
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        textAlign = TextAlign.End
+                                    )
+                                }
                             }
                         }
                     }
