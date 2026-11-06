@@ -65,7 +65,7 @@ fun Long.formatTimestamp(): String {
 }
 
 @Composable
-fun GenericChaptersSheet(
+fun ChaptersSheet(
     title: String = "Chapters",
     chapterList: List<Chapter>,
     currentPositionMs: Long,
@@ -277,7 +277,7 @@ fun ChaptersSheetPreview() {
                 contentAlignment = Alignment.Center
             ) {
                 if (showSheet) {
-                    GenericChaptersSheet(
+                   ChaptersSheet(
                         chapterList = sampleChapters,
                         currentPositionMs = currentPos,
                         title = "Chapters",

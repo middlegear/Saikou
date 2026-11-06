@@ -1,7 +1,12 @@
-## Version 1.2.5-beta (29/10/2026)
 
-### Deps
-* **MPV & FFmpeg:** Bump versions with cURL support.
+## Version 1.2.5-beta (6/11/2026)
 
-## Enhancements
-* **MPV:** Enabled TLS stream verification.
+### Features
+* **Anime:** Add KAA source.
+
+### Enhancements
+* **Player:** Add chapter parsing.
+
+### Fixes
+* **RPC:** Make it more resilient.
+* **Miscellaneous:** Various changes and performance improvements.

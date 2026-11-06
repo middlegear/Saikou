@@ -70,7 +70,7 @@ import ani.saikou.media.anime.mpv.ui.components.controls.VerticalSlider
 import ani.saikou.media.anime.mpv.ui.components.sheets.AudioTracksSheet
 import ani.saikou.media.anime.mpv.ui.components.sheets.SubtitlesTracksSheet
 import ani.saikou.media.anime.mpv.ui.components.sheets.VideoTracksSheet
-import ani.saikou.media.anime.mpv.ui.components.sheets.GenericChaptersSheet
+import ani.saikou.media.anime.mpv.ui.components.sheets.ChaptersSheet
 import ani.saikou.others.AniSkip.getType
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -642,7 +642,7 @@ fun PlayerControlsLayout(
             )
         }
         if (showChaptersSheet) {
-            GenericChaptersSheet(
+            ChaptersSheet(
                 title = "Chapters",
                 chapterList = chapters,
                 currentPositionMs = currentEnginePos,

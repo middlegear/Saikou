@@ -37,7 +37,6 @@ fun PausedScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-
                     brush = Brush.horizontalGradient(
                         colors = listOf(
                             Color(0xFF0A0B0E).copy(alpha = 0.98f),
@@ -60,6 +59,17 @@ fun PausedScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.Start
             ) {
+                // 0. "YOU'RE WATCHING" Label
+                Text(
+                    text = "YOU'RE WATCHING",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
                 // 1. Logo
                 if (!logoUrl.isNullOrEmpty()) {
                     GlideImage(

@@ -49,6 +49,10 @@ abstract class BaseParser {
     /**
      * Finds the best matching ShowResponse using fuzzy title comparison
      * against AniList media metadata. Reads saved entries first.
+     *
+     * Searches with season-stripped titles first (so every season of a franchise
+     * shows up), then falls back to the original titles. Scoring is always done
+     * against the ORIGINAL titles so the correct season is still picked.
      **/
     open suspend fun autoSearch(mediaObj: Media): ShowResponse? {
         var response = loadSavedShowResponse(mediaObj.id)
@@ -58,21 +62,24 @@ abstract class BaseParser {
             return response
         }
 
-        val searchTitles = listOfNotNull(
-            mediaObj.name,
+        val rawTitles = listOfNotNull(
             mediaObj.userPreferredName,
             mediaObj.nameRomaji
         ).filter { it.isNotBlank() }.distinct()
 
-        if (searchTitles.isEmpty()) return null
+        if (rawTitles.isEmpty()) return null
+
 
         val targetTitles = AnilistTitles(
-            (searchTitles + mediaObj.synonyms).filter { it.isNotBlank() }.distinct()
+            (rawTitles + mediaObj.synonyms).filter { it.isNotBlank() }.distinct()
         )
 
 
+        val searchTitles = (rawTitles.map { cleanTitle(it) } + rawTitles)
+            .filter { it.isNotBlank() }
+            .distinct()
+
         var searchResults: List<ShowResponse> = emptyList()
-        // ddos who cares
         for (title in searchTitles) {
             setUserText("Searching : $title")
             searchResults = search(title)
@@ -92,6 +99,30 @@ abstract class BaseParser {
         }
 
         return response
+    }
+
+    /**
+     * Strips season / cour / part markers and trailing roman numerals so the
+     * title is the bare franchise name. Falls back to the original title if
+     * stripping would leave nothing.
+     *
+     * Override and return `title` unchanged if a site searches poorly with stripped titles.
+     **/
+    private fun cleanTitle(title: String): String {
+        val cleaned = title
+            // "2nd Season", "Final Season", "Third Cour", "Second Part"
+            .replace(ordinalMarker, " ")
+            // "Season 2", "Cour 2", "Part 4", "Season II"
+            .replace(numberedMarker, " ")
+            // "S2", "S02"
+            .replace(shortSeason, " ")
+            // Trailing roman numeral: "Overlord IV", "Overlord IV: ..." (uppercase only)
+            .replace(trailingRoman, "")
+            // Dangling punctuation left behind
+            .replace(danglingPunct, "")
+            .replace(multiSpace, " ")
+            .trim()
+        return cleaned.ifEmpty { title.trim() }
     }
 
     /**
@@ -133,6 +164,18 @@ abstract class BaseParser {
     fun decode(input: String): String = URLDecoder.decode(input, "utf-8")
 
     val defaultImage = "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/default.jpg"
+
+    private companion object {
+        const val ORDINAL = "(?:\\d+(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|final)"
+        const val ROMAN = "(?:II|III|IV|V|VI|VII|VIII|IX|X)"
+
+        val ordinalMarker = Regex("\\b$ORDINAL\\s+(?:season|cour|part)\\b", RegexOption.IGNORE_CASE)
+        val numberedMarker = Regex("\\b(?:season|cour|part)\\s*(?:\\d+|$ROMAN)\\b", RegexOption.IGNORE_CASE)
+        val shortSeason = Regex("\\bS\\d{1,2}\\b")                      // case-sensitive
+        val trailingRoman = Regex("\\s+$ROMAN(?=\\s*(?:[:\\-–]|$))")    // uppercase only
+        val danglingPunct = Regex("\\s*[:\\-–,]+\\s*$")
+        val multiSpace = Regex("\\s{2,}")
+    }
 }
 
 /**

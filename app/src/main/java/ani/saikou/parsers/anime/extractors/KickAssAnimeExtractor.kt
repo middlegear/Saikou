@@ -47,8 +47,6 @@ class KickAssAnimeExtractor(override val server: VideoServer) : VideoExtractor()
 
 
             val videoHeaders = mapOf("Origin" to "https://$host")
-
-
             val fixUrl: (String) -> String = { rawUrl ->
                 val trimmed = rawUrl.trim()
                 when {
@@ -66,7 +64,7 @@ class KickAssAnimeExtractor(override val server: VideoServer) : VideoExtractor()
 
             val playlistUrl: String
             val isHls: Boolean
-            val subtitleList = mutableListOf<Pair<String, String>>() // url to label
+            val subtitleList = mutableListOf<Triple<String, String, String>>() // url, name, language
 
             if (cleanHtml.contains("manifest\":[0,\"")) {
                 val rawManifest = MANIFEST_REGEX.find(cleanHtml)?.groupValues?.get(1) ?: return VideoContainer(emptyList())
@@ -76,11 +74,10 @@ class KickAssAnimeExtractor(override val server: VideoServer) : VideoExtractor()
                 TRACK_REGEX.findAll(cleanHtml).forEach { match ->
                     val subUrl = fixUrl(match.groupValues[3].replace("\\/", "/"))
                     if (subUrl.toHttpUrlOrNull() != null) {
-                        subtitleList += subUrl to "${match.groupValues[2]} (${match.groupValues[1]})"
+                        subtitleList += Triple(subUrl, match.groupValues[2], match.groupValues[1])
                     }
                 }
             } else {
-
                 if (!html.contains("cid: '")) return VideoContainer(emptyList())
 
                 val isBird = name == "BirdStream"
@@ -95,11 +92,9 @@ class KickAssAnimeExtractor(override val server: VideoServer) : VideoExtractor()
                 }
                 val key = keyText.toByteArray()
 
-
                 val cid = String(decodeHex(html.substringAfter("cid: '").substringBefore("'"))).split("|")
                 val timeStamp = (System.currentTimeMillis() / 1000 + 60).toString()
                 val route = cid[1].replace("player.php", "source.php")
-
 
                 val signatureInput = cid[0] + USER_AGENT + route + query + (if (isBird) "" else timeStamp) + keyText
                 val signature = MessageDigest.getInstance("SHA-1")
@@ -121,7 +116,6 @@ class KickAssAnimeExtractor(override val server: VideoServer) : VideoExtractor()
                         "Origin" to "https://$host"
                     )
                 ).text
-
 
                 val (encryptedData, ivHex) = response.substringAfter(":\"")
                     .substringBefore('"')
@@ -147,7 +141,7 @@ class KickAssAnimeExtractor(override val server: VideoServer) : VideoExtractor()
                     .mapNotNull { it as? JsonObject }
                     .forEach { sub ->
                         val src = sub["src"].string() ?: return@forEach
-                        subtitleList += fixUrl(src) to "${sub["name"].string().orEmpty()} (${sub["language"].string().orEmpty()})"
+                        subtitleList += Triple(fixUrl(src), sub["name"].string().orEmpty(), sub["language"].string().orEmpty())
                     }
             }
 
@@ -162,20 +156,23 @@ class KickAssAnimeExtractor(override val server: VideoServer) : VideoExtractor()
                 )
             )
 
-            val subtitles = subtitleList.map { (url, label) ->
-                val path = url.lowercase().substringBefore('?')
-                Subtitle(
-                    language = label,
-                    url = url,
-                    type = when {
-                        path.endsWith(".ass") -> SubtitleType.ASS
-                        path.endsWith(".srt") -> SubtitleType.SRT
-                        else -> SubtitleType.VTT
-                    },
-                    headers = videoHeaders,
-                    isDefault = false
-                )
-            }
+
+            val subtitles = subtitleList
+                .filter { (_, subName, lang) -> lang.startsWith("en", ignoreCase = true) || subName.contains("english", ignoreCase = true) }
+                .map { (url, subName, lang) ->
+                    val path = url.lowercase().substringBefore('?')
+                    Subtitle(
+                        language = "$subName ($lang)",
+                        url = url,
+                        type = when {
+                            path.endsWith(".ass") -> SubtitleType.ASS
+                            path.endsWith(".srt") -> SubtitleType.SRT
+                            else -> SubtitleType.VTT
+                        },
+                        headers = videoHeaders,
+                        isDefault = false
+                    )
+                }
 
             return VideoContainer(videos, subtitles)
         } catch (e: Exception) {
