@@ -78,8 +78,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
+
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+
     private val _volume = MutableStateFlow(readSystemVolumePercent(application))
     val volume: StateFlow<Int> = _volume.asStateFlow()
 
@@ -419,6 +421,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 )
             }
         }
+
+        stateJobs += viewModelScope.launch {
+            playerInstance.isPaused.collect {
+                _isPaused.value = it
+            }
+        }
+
         stateJobs += viewModelScope.launch {
             playerInstance.currentPosition.collect {
                 _currentPosition.value = it
@@ -1250,16 +1259,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
 
-
     fun pause() {
         saveCurrentPosition()
         player?.pause()
-        _isPaused.value = true
     }
 
     fun play() {
         player?.play()
-        _isPaused.value = false
     }
 
     fun stop() {
@@ -1339,6 +1345,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         player?.release()
         _playbackState.value = PlaybackState.ENDED
         _isPlaying.value = false
+        _isPaused.value = false
         _currentPosition.value = 0L
         _duration.value = 0L
         _audioTracks.value = emptyList()

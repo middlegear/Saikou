@@ -30,6 +30,9 @@ class MpvVideoPlayer(
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    private val _isPaused = MutableStateFlow(false)
+    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
 
@@ -386,6 +389,7 @@ class MpvVideoPlayer(
         Log.d(TAG, "EVENT_SHUTDOWN")
         _playbackState.value = PlaybackState.IDLE
         _isPlaying.value = false
+        _isPaused.value = false
         isFileLoaded = false
         initialBufferingDone = false
         _bufferingProgress.value = 0f
@@ -471,7 +475,12 @@ class MpvVideoPlayer(
                 _currentDecoder.value = matchedDecoder
                 Log.d(TAG, "Decoder changed ($property): $currentMpvValue -> $matchedDecoder")
             }
-            "cache-buffering-state", "pause", "paused-for-cache", "core-idle" -> {
+            "pause" -> {
+                _isPaused.value = mpv.getPropertyBoolean("pause") ?: false
+                if (!initialBufferingDone) updateBufferingProgress()
+                refreshPlayerState()
+            }
+            "cache-buffering-state", "paused-for-cache", "core-idle" -> {
                 if (!initialBufferingDone) updateBufferingProgress()
                 refreshPlayerState()
             }
@@ -709,6 +718,7 @@ class MpvVideoPlayer(
         editionMode = false
 
         _isPlaying.value = false
+        _isPaused.value = false
         _playbackState.value = PlaybackState.IDLE
         _currentPosition.value = 0L
         _duration.value = 0L
@@ -763,8 +773,8 @@ class MpvVideoPlayer(
         _playbackState.value = PlaybackState.IDLE
         _chapters.value = emptyList()
         _currentChapter.value = null
-
         player?.command("stop")
+        player?.command("set", "pause", "no")
     }
 
     fun loadMedia(
