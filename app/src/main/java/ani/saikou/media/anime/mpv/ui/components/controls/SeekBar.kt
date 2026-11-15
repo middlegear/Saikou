@@ -61,13 +61,7 @@ fun SeekBar(
             val sortedChapters = chapters.sortedBy { it.startMs }
 
             if (sortedChapters.first().startMs > 0L) {
-                list.add(
-                    Segment(
-                        name = "",
-                        start = 0f,
-                        color = unifiedTrackColor
-                    )
-                )
+                list.add(Segment(name = "Start", start = 0f, color = unifiedTrackColor))
             }
 
             sortedChapters.forEach { chapter ->
@@ -83,20 +77,13 @@ fun SeekBar(
                 }
             }
         } else if (!skipStamps.isNullOrEmpty() && durationMs > 0L) {
+            list.add(Segment(name = "Start", start = 0f, color = unifiedTrackColor))
+
             val sortedStamps = skipStamps.sortedBy { it.startTimeMs }
-
-            if (sortedStamps.first().startTimeMs > 0L) {
-                list.add(
-                    Segment(
-                        name = "",
-                        start = 0f,
-                        color = unifiedTrackColor
-                    )
-                )
-            }
-
             sortedStamps.forEach { stamp ->
                 val startMs = stamp.startTimeMs.toFloat()
+                val endMs = (stamp.endTimeMs ?: durationMs).toFloat()
+
                 if (startMs < durationMs) {
                     list.add(
                         Segment(
@@ -105,6 +92,16 @@ fun SeekBar(
                             color = unifiedTrackColor
                         )
                     )
+
+                    if (endMs < durationMs) {
+                        list.add(
+                            Segment(
+                                name = "${stamp.type}_End",
+                                start = endMs,
+                                color = unifiedTrackColor
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -120,7 +117,6 @@ fun SeekBar(
                 awaitEachGesture {
                     val firstDown = awaitFirstDown(pass = PointerEventPass.Initial)
                     val localBottomExclusionLine = size.height - exclusionHeightPx
-
                     if (firstDown.position.y > localBottomExclusionLine) {
                         firstDown.consume()
                     }

@@ -222,6 +222,13 @@ fun PlayerControlsLayout(
             volumeSliderValue = percent / 100f
         }
     }
+
+    LaunchedEffect(Unit) {
+        viewModel.remoteControlEvent.collect {
+            resetControlsVisibilityTimer()
+        }
+    }
+
     LaunchedEffect(sliderDismissToken) {
         if (sliderDismissToken > 0L) {
             delay(1300.milliseconds)
@@ -435,7 +442,7 @@ fun PlayerControlsLayout(
                 isLoading = areYouReadyToRumble,
                 onPlayPauseToggle = {
                     isControlsVisible = true
-                    if (activelyPlaying) viewModel.pause() else viewModel.play()
+                    if (activelyPlaying) viewModel.pause(showPausedScreen = true) else viewModel.play()
                 },
                 onNextEpisode = actions.onNextEpisode,
                 onPreviousEpisode = actions.onPreviousEpisode,

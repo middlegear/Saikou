@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -72,16 +73,16 @@ fun PlayerScreen(
     val torrentStats by viewModel.torrentStats.collectAsState()
     val isMediaLoaded by viewModel.mediaLoaded.collectAsState()
 
-    val isPaused by viewModel.isPaused.collectAsState()
+    val isPaused by viewModel.showPausedScreen.collectAsState()
 
 
     var shouldShowPausedScreen by remember { mutableStateOf(false) }
-    var pauseDismissCount by remember { mutableStateOf(0) }
+    var pauseDismissCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(isPaused, pauseDismissCount) {
         if (isPaused) {
             shouldShowPausedScreen = false
-            delay(10.seconds)
+            delay(40.seconds)
             shouldShowPausedScreen = true
         } else {
             shouldShowPausedScreen = false

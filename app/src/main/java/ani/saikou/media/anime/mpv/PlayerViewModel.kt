@@ -79,8 +79,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
 
-    private val _isPaused = MutableStateFlow(false)
-    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+    private val _showPausedScreen = MutableStateFlow(false)
+    val showPausedScreen: StateFlow<Boolean> = _showPausedScreen.asStateFlow()
 
     private val _volume = MutableStateFlow(readSystemVolumePercent(application))
     val volume: StateFlow<Int> = _volume.asStateFlow()
@@ -88,6 +88,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _volumeChangeEvent = MutableSharedFlow<Int>(extraBufferCapacity = 1)
 
     val volumeChangeEvent: SharedFlow<Int> = _volumeChangeEvent.asSharedFlow()
+
+    // Headset / Bluetooth / notification remote control events
+    private val _remoteControlEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val remoteControlEvent: SharedFlow<Unit> = _remoteControlEvent.asSharedFlow()
+
+    private val _remoteNextEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val remoteNextEvent: SharedFlow<Unit> = _remoteNextEvent.asSharedFlow()
+
+    private val _remotePreviousEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val remotePreviousEvent: SharedFlow<Unit> = _remotePreviousEvent.asSharedFlow()
 
     private val _playbackSpeed = MutableStateFlow(1.0f)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
@@ -238,16 +248,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 return
             }
             setPlayerInstance(service.player)
-            service.onNext = {
-                Log.d(
-                    "mpv", "Service requested next episode"
-                )
-            }
-            service.onPrev = {
-                Log.d(
-                    "mpv", "Service requested previous episode"
-                )
-            }
+
+            service.onNext = { _remoteNextEvent.tryEmit(Unit) }
+            service.onPrev = { _remotePreviousEvent.tryEmit(Unit) }
+            service.onRemoteControl = { _remoteControlEvent.tryEmit(Unit) }
 
             pendingMediaSessionActive?.let { active ->
                 pendingMediaSessionActive = null
@@ -335,6 +339,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
 
     fun unbindService(context: Context) {
+        playbackService?.apply {
+            onNext = null
+            onPrev = null
+            onRemoteControl = null
+        }
+
         try {
             context.unbindService(playbackConnection)
         } catch (_: IllegalArgumentException) {
@@ -377,7 +387,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             totalEpisodes = currentMedia.anime?.totalEpisodes?.toString(),
             coverUrl = currentMedia.banner ?: currentMedia.cover,
             shareLink = currentMedia.shareLink ?: "https://anilist.co/anime/${currentMedia.id}",
-            episodeThumbnail = ep.thumb?.url?:currentMedia.cover?: currentMedia.banner,
+            episodeThumbnail = ep.thumb?.url ?: currentMedia.cover ?: currentMedia.banner,
         )
     }
 
@@ -423,8 +433,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         stateJobs += viewModelScope.launch {
-            playerInstance.isPaused.collect {
-                _isPaused.value = it
+            playerInstance.showPausedScreen.collect {
+                _showPausedScreen.value = it
             }
         }
 
@@ -568,7 +578,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                     if (ep != null && currentMedia != null) {
                         isTimeStampsLoaded = true
-
                         loadSkipTimes(
                             currentMedia, ep, dur
                         )
@@ -773,8 +782,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val currentMedia = media ?: return
         val selected = currentMedia.selected ?: return
         val episodeNumber = episodeArr.getOrNull(currentEpisodeIndex) ?: return
-
-        saveCurrentPosition()
+        pause(showPausedScreen = false)
         selected.server = null
         mediaDetailsModel.saveSelected(currentMedia.id, selected, activity)
         mediaDetailsModel.onEpisodeClick(currentMedia, episodeNumber, activity.supportFragmentManager, launch = false)
@@ -934,9 +942,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         if (streamUrl == null) {
                             Log.e("TorrServer", "[PlayerViewModel] Failed to resolve torrent for episode ${ep.number}")
                             stopTorrentStatsMonitoring()
-                            withContext(Dispatchers.Main) {
-                                snackString(service.getLastStartError() ?: "Failed to resolve torrent")
-                            }
+                            withContext(Dispatchers.Main) { snackString(service.getLastStartError() ?: "Failed to resolve torrent") }
                             return@launch
                         }
                         playbackUrl = streamUrl
@@ -1047,6 +1053,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun loadSkipTimes(media: Media, episode: Episode, durationMs: Long) {
         viewModelScope.launch(Dispatchers.IO) {
 
+            if (chapters.value.size > 1) {
+                Log.d("SkipTimes", "Found ${chapters.value.size} chapters, skipping skip-time fetch")
+                return@launch
+            }
+
             val episodeNumber = episode.number.trim().toIntOrNull()
             val isMovie = media.format == "MOVIE"
 
@@ -1066,7 +1077,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     Log.d("SkipTimes", "AniSkip result: $res")
                 }
             }
-
 
             if (result.isNullOrEmpty() && settings.useAlternativeTimestampProvider) {
                 val tmdbId = media.idTMDB?.toIntOrNull()
@@ -1164,7 +1174,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             currentMedia, targetEpisodeNumber, activity.supportFragmentManager, launch = false
         )
 
-        pause()
+        pause(showPausedScreen = false)
     }
 
     private fun saveContinueState(currentMedia: Media, ep: Episode) {
@@ -1259,9 +1269,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
 
-    fun pause() {
+    fun pause(showPausedScreen: Boolean = false) {
         saveCurrentPosition()
-        player?.pause()
+        player?.pause(showPausedScreen)
     }
 
     fun play() {
@@ -1345,7 +1355,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         player?.release()
         _playbackState.value = PlaybackState.ENDED
         _isPlaying.value = false
-        _isPaused.value = false
+        _showPausedScreen.value = false
         _currentPosition.value = 0L
         _duration.value = 0L
         _audioTracks.value = emptyList()

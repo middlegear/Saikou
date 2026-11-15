@@ -213,31 +213,43 @@ class PlaybackService : Service() {
                 Log.d(TAG, "Ignoring onPlay: session inactive")
                 return
             }
-            player.play(); publishState(PlaybackStateCompat.STATE_PLAYING)
+            player.play()
+            publishState(PlaybackStateCompat.STATE_PLAYING)
+            onRemoteControl?.invoke()
         }
+
         override fun onPause() {
             if (!mediaSession.isActive) {
                 Log.d(TAG, "Ignoring onPause: session inactive")
                 return
             }
-            player.pause(); publishState(PlaybackStateCompat.STATE_PAUSED)
+            player.pause(showPausedScreen = true)
+            publishState(PlaybackStateCompat.STATE_PAUSED)
+            onRemoteControl?.invoke()
         }
+
         override fun onSeekTo(pos: Long) {
             if (!mediaSession.isActive) return
             player.seekTo(pos)
+            onRemoteControl?.invoke()
         }
+
         override fun onSkipToNext() {
             if (!mediaSession.isActive) return
             onNext?.invoke()
+            onRemoteControl?.invoke()
         }
+
         override fun onSkipToPrevious() {
             if (!mediaSession.isActive) return
             onPrev?.invoke()
+            onRemoteControl?.invoke()
         }
     }
 
     var onNext: (() -> Unit)? = null
     var onPrev: (() -> Unit)? = null
+    var onRemoteControl: (() -> Unit)? = null
 
     fun setSessionActive(active: Boolean) {
         mediaSession.isActive = active
@@ -272,6 +284,9 @@ class PlaybackService : Service() {
     fun teardown() {
         pendingPauseJob?.cancel()
         pendingPauseJob = null
+        onNext = null
+        onPrev = null
+        onRemoteControl = null
         abandonAudioFocus()
         mediaSession.isActive = false
         mediaSession.release()

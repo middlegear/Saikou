@@ -113,7 +113,7 @@ class Anikoto : AnimeParser() {
     override suspend fun getVideoExtractor(server: VideoServer): VideoExtractor = MegaPlay(server)
 
     companion object {
-        private const val SITE_URL = "https://anikototv.to"
+        private const val SITE_URL = "https://anikototv.bz"
     }
 
     @Serializable

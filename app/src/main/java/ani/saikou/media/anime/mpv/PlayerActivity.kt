@@ -125,10 +125,10 @@ class PlayerActivity : AppCompatActivity() {
                     val hasNextEpisode = track.hasNextEpisode
 
                     val remainingTime = if (duration > 0L) {
-                            duration - currentPosition
-                        } else {
-                            -1L
-                        }
+                        duration - currentPosition
+                    } else {
+                        -1L
+                    }
 
                     val isAtTrackEnd =
                         state == PlaybackState.ENDED || (duration > 0L && state == PlaybackState.PLAYING && remainingTime <= 1000L)
@@ -145,7 +145,7 @@ class PlayerActivity : AppCompatActivity() {
                                 autoNextFired = false
                             }
                         } else {
-                            playerModel.pause()
+                            playerModel.pause(showPausedScreen = false)
                         }
                     }
                     if (autoNextFired && state == PlaybackState.PLAYING && currentPosition > 2000L) {
@@ -155,6 +155,23 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         }
+
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.CREATED) {
+                launch {
+                    playerModel.remoteNextEvent.collect {
+                        playerModel.handleNextEpisodeClick(this@PlayerActivity, mediaDetailsModel)
+                    }
+                }
+                launch {
+                    playerModel.remotePreviousEvent.collect {
+                        playerModel.previousEpisode(this@PlayerActivity, mediaDetailsModel)
+                    }
+                }
+            }
+        }
+
         setContent {
             SaikouTheme {
                 val uiState by playerModel.uiState.collectAsState()

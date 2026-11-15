@@ -30,8 +30,8 @@ class MpvVideoPlayer(
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
-    private val _isPaused = MutableStateFlow(false)
-    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+    private val _showPausedScreen = MutableStateFlow(false)
+    val showPausedScreen : StateFlow<Boolean> = _showPausedScreen .asStateFlow()
 
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
@@ -130,6 +130,8 @@ class MpvVideoPlayer(
     private var lastGoodPositionMs = 0L
     private val refreshTracksRunnable = Runnable { refreshTracks() }
 
+    @Volatile
+    private var suppressPausedScreen = false
 
     private var editionMode = false
 
@@ -389,7 +391,7 @@ class MpvVideoPlayer(
         Log.d(TAG, "EVENT_SHUTDOWN")
         _playbackState.value = PlaybackState.IDLE
         _isPlaying.value = false
-        _isPaused.value = false
+        _showPausedScreen.value = false
         isFileLoaded = false
         initialBufferingDone = false
         _bufferingProgress.value = 0f
@@ -476,10 +478,11 @@ class MpvVideoPlayer(
                 Log.d(TAG, "Decoder changed ($property): $currentMpvValue -> $matchedDecoder")
             }
             "pause" -> {
-                _isPaused.value = mpv.getPropertyBoolean("pause") ?: false
+                if (mpv.getPropertyBoolean("pause") == false) _showPausedScreen.value = false
                 if (!initialBufferingDone) updateBufferingProgress()
                 refreshPlayerState()
             }
+
             "cache-buffering-state", "paused-for-cache", "core-idle" -> {
                 if (!initialBufferingDone) updateBufferingProgress()
                 refreshPlayerState()
@@ -718,7 +721,7 @@ class MpvVideoPlayer(
         editionMode = false
 
         _isPlaying.value = false
-        _isPaused.value = false
+        _showPausedScreen.value = false
         _playbackState.value = PlaybackState.IDLE
         _currentPosition.value = 0L
         _duration.value = 0L
@@ -740,8 +743,9 @@ class MpvVideoPlayer(
         player?.command("set", "pause", "no")
     }
 
-    fun pause() {
+    fun pause(showPausedScreen: Boolean = false) {
         if (!isInitialized || isShutdown.get()) return
+        if (showPausedScreen) _showPausedScreen.value = true
         player?.command("set", "pause", "yes")
     }
 
@@ -767,7 +771,8 @@ class MpvVideoPlayer(
         wasBackgrounded = false
         lastGoodPositionMs = 0L
         editionMode = false
-
+        _isPlaying.value = false
+        _showPausedScreen.value = false
         _mediaLoaded.value = false
         _bufferingProgress.value = 0f
         _playbackState.value = PlaybackState.IDLE

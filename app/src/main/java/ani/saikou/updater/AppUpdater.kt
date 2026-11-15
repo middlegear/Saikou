@@ -44,9 +44,7 @@ object AppUpdater {
     private var downloadJob: Job? = null
     private val okHttpClient = OkHttpClient()
 
-
     private var lastAvailableState: UpdateState.Available? = null
-
     private var dismissedVersion: String? = null
 
     fun dismissCurrentUpdate() {
@@ -60,6 +58,7 @@ object AppUpdater {
         return dismissedVersion != version
     }
 
+
     suspend fun check(context: Context, force: Boolean = false) {
 
         dismissedVersion = null
@@ -67,87 +66,75 @@ object AppUpdater {
 
         val startTime = System.currentTimeMillis()
         val minDelay = 2000L
-
         val repo = context.getString(R.string.repo)
 
-
         try {
-            var remoteTime = 0L
-            val (md, version) = if (BuildConfig.DEBUG) {
+            val response = client.get("https://api.github.com/repos/$repo/releases")
+            val responseText = response.text
 
-                val response = client.get("https://api.github.com/repos/$repo/releases")
-                val responseText = response.text
-
-                if (responseText.contains("rate limit exceeded", ignoreCase = true)) {
-                    throw Exception("GitHub API rate limit exceeded. Please try again later.")
-                }
-
-                val jsonElements = ani.saikou.Mapper.json.parseToJsonElement(responseText)
-                if (jsonElements !is JsonArray) {
-                    throw Exception("GitHub API response is not a valid list (possible rate limit or invalid repo)")
-                }
-
-                val releases = jsonElements.mapNotNull {
-                    try {
-                        ani.saikou.Mapper.json.decodeFromJsonElement<GithubResponse>(it)
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-
-                if (releases.isEmpty()) {
-                    throw Exception("No releases found for repository '$repo'")
-                }
-
-                val selectedRelease = releases.filter { it.prerelease }
-                    .maxByOrNull { it.createdAt?.toTimestamp() ?: 0L }
-                    ?: releases.maxByOrNull { it.createdAt?.toTimestamp() ?: 0L }
-                    ?: throw Exception("No valid releases available")
-
-                remoteTime = selectedRelease.createdAt?.toTimestamp() ?: 0L
-                val rawTag = selectedRelease.tagName ?: ""
-                val v = rawTag.substringAfter("v", "").ifEmpty { rawTag }
-
-                if (v.isBlank()) throw Exception("Invalid Version tag: '$rawTag'")
-
-                (selectedRelease.body ?: "") to v
-            } else {
-                val res = client.get("https://raw.githubusercontent.com/$repo/main/stable.md").text
-                res to res.substringAfter("# ").substringBefore("\n").trim()
+            if (responseText.contains("rate limit exceeded", ignoreCase = true)) {
+                throw Exception("GitHub API rate limit exceeded. Please try again later.")
             }
 
-            val dontShow = loadData<Boolean>("dont_ask_for_update_$version") ?: false
+            val jsonElements = ani.saikou.Mapper.json.parseToJsonElement(responseText)
+            if (jsonElements !is JsonArray) {
+                throw Exception("GitHub API response is not a valid list (possible rate limit or invalid repo)")
+            }
+
+            val releases = jsonElements.mapNotNull {
+                try {
+                    ani.saikou.Mapper.json.decodeFromJsonElement<GithubResponse>(it)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            if (releases.isEmpty()) {
+                throw Exception("No releases found for repository '$repo'")
+            }
+
+            val selectedRelease: GithubResponse = if (BuildConfig.DEBUG) {
+                releases.filter { it.prerelease && !it.draft }
+                    .maxByOrNull { it.createdAt?.toTimestamp() ?: 0L }
+                    ?: throw Exception("No beta releases available")
+            } else {
+                releases.filter { !it.prerelease && !it.draft }
+                    .maxByOrNull { it.createdAt?.toTimestamp() ?: 0L }
+                    ?: throw Exception("No stable releases available")
+            }
+
+            val changelog = selectedRelease.body ?: ""
+            val rawTag = selectedRelease.tagName ?: ""
+            val version = rawTag.substringAfter("v", "").ifEmpty { rawTag }
+            if (version.isBlank()) throw Exception("Invalid version tag: '$rawTag'")
+
+            val remoteTime = selectedRelease.createdAt?.toTimestamp() ?: 0L
+
+            val downloadUrl = selectedRelease.assets
+                ?.firstOrNull {
+                    it.browserDownloadURL?.endsWith(".apk", ignoreCase = true) == true
+                }
+                ?.browserDownloadURL
+                ?: "https://github.com/$repo/releases/tag/v$version"
 
             val isActualUpdate = if (BuildConfig.DEBUG) {
                 remoteTime > BuildConfig.BUILD_TIME && BuildConfig.VERSION_NAME != version
             } else {
+
                 compareVersion(version)
             }
-//            val isActualUpdate = true
+
+            val dontShow = loadData<Boolean>("dont_ask_for_update_$version") ?: false
+
             val elapsedTime = System.currentTimeMillis() - startTime
             if (elapsedTime < minDelay) {
                 delay((minDelay - elapsedTime).milliseconds)
             }
 
             if (isActualUpdate && (!dontShow || force)) {
-                val downloadUrl = try {
-                    val tagUrl = "https://api.github.com/repos/$repo/releases/tags/v$version"
-                    val tagRespText = client.get(tagUrl).text
-                    if (tagRespText.contains("rate limit exceeded", ignoreCase = true)) {
-                        throw Exception("GitHub API rate limit exceeded.")
-                    }
-                    val tagJson = ani.saikou.Mapper.json.parseToJsonElement(tagRespText)
-                    val tagRelease = ani.saikou.Mapper.json.decodeFromJsonElement<GithubResponse>(tagJson)
-                    tagRelease.assets?.find {
-                        it.browserDownloadURL?.endsWith(".apk", ignoreCase = true) == true
-                    }?.browserDownloadURL ?: "https://github.com/$repo/releases/tag/v$version"
-                } catch (e: Exception) {
-                    "https://github.com/$repo/releases/tag/v$version"
-                }
-
                 val availableState = UpdateState.Available(
                     version = version,
-                    changelog = md,
+                    changelog = changelog,
                     downloadUrl = downloadUrl
                 )
                 lastAvailableState = availableState
@@ -160,7 +147,6 @@ object AppUpdater {
             if (elapsedTime < minDelay) {
                 delay((minDelay - elapsedTime).milliseconds)
             }
-
 
             val errorMessage = if (e.message?.contains("rate limit", ignoreCase = true) == true) {
                 "GitHub API rate limit exceeded. Try again later."
@@ -199,11 +185,7 @@ object AppUpdater {
                 progressPercentage = 0
             )
 
-            val request = Request.Builder()
-                .url(url)
-                .build()
-
-
+            val request = Request.Builder().url(url).build()
             val response = okHttpClient.newCall(request).execute()
             if (!response.isSuccessful) {
                 throw IOException("HTTP ${response.code}: ${response.message}")
@@ -231,7 +213,9 @@ object AppUpdater {
                         } else 0
 
                         val currentTime = System.currentTimeMillis()
-                        if (percent != lastEmittedPercent && (currentTime - lastEmittedTime >= 100 || percent == 100)) {
+                        if (percent != lastEmittedPercent &&
+                            (currentTime - lastEmittedTime >= 100 || percent == 100)
+                        ) {
                             lastEmittedPercent = percent
                             lastEmittedTime = currentTime
                             _updateState.value = UpdateState.Downloading(
@@ -255,24 +239,19 @@ object AppUpdater {
         } catch (e: Exception) {
             if (tempFile.exists()) tempFile.delete()
 
-            if (e is CancellationException) {
-                throw e
-            }
-
+            if (e is CancellationException) throw e
 
             _updateState.value = UpdateState.Error(e.localizedMessage ?: "Download failed")
         }
     }
 
     fun cancelDownload() {
-
         downloadJob?.cancel()
         downloadJob = null
         _updateState.value = lastAvailableState ?: UpdateState.Idle
     }
 
     fun installApk(context: Context, file: File) {
-
         try {
             val contentUri: Uri = FileProvider.getUriForFile(
                 context,
@@ -292,24 +271,24 @@ object AppUpdater {
         }
     }
 
+
     private fun compareVersion(version: String): Boolean {
-        if (BuildConfig.DEBUG) return true
+        fun parse(v: String): List<Int> =
+            v.substringBefore('-')
+                .substringBefore('+')
+                .split('.')
+                .take(3)
+                .map { it.toIntOrNull() ?: 0 }
+                .let { it + List(3 - it.size) { 0 } }
 
-        fun toDouble(list: List<String>): Double {
-            return list.mapIndexed { i, s ->
-                val num = s.toDoubleOrNull() ?: 0.0
-                when (i) {
-                    0 -> num * 100
-                    1 -> num * 10
-                    else -> num
-                }
-            }.sum()
+        val remote = parse(version)
+        val current = parse(BuildConfig.VERSION_NAME)
+
+        for (i in 0 until 3) {
+            if (remote[i] > current[i]) return true
+            if (remote[i] < current[i]) return false
         }
-
-        val newVer = toDouble(version.split("."))
-        val currVer = toDouble(BuildConfig.VERSION_NAME.split("."))
-        val isNewer = newVer > currVer
-        return isNewer
+        return false
     }
 
     private fun String.toTimestamp(): Long {
@@ -318,7 +297,6 @@ object AppUpdater {
                 timeZone = TimeZone.getTimeZone("UTC")
             }.parse(this)?.time ?: 0L
         } catch (e: Exception) {
-
             0L
         }
     }
@@ -328,6 +306,7 @@ object AppUpdater {
         @SerialName("html_url") val htmlUrl: String? = null,
         @SerialName("tag_name") val tagName: String? = null,
         val prerelease: Boolean = false,
+        val draft: Boolean = false,
         @SerialName("created_at") val createdAt: String? = null,
         val body: String? = null,
         val assets: List<Asset>? = null

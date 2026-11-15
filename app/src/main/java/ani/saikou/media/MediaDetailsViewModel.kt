@@ -111,7 +111,7 @@ class MediaDetailsViewModel : ViewModel() {
 
             if (needsLoad) {
                 val result = TheMovieDatabase.getTmdbEpisodesDetails(s)
-                if (!result.isNullOrEmpty()) {
+                if (result != null && result.isNotEmpty()) {
                     tmdbEpisodesMediaId = s.id
                     tmdbEpisodes.postValue(result)
                     if (epsLoaded.isNotEmpty()) {
@@ -134,7 +134,7 @@ class MediaDetailsViewModel : ViewModel() {
 
             if (needsLoad) {
                 val result = Jikan.getEpisodes(malId)
-                if (!result.isNullOrEmpty()) {
+                if (result != null && result.isNotEmpty()) {
                     fillerEpisodesMediaId = malId
                     fillerEpisodes.postValue(result)
                     if (epsLoaded.isNotEmpty()) {
