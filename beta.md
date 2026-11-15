@@ -1,5 +1,5 @@
 
-## Version 1.3.0-beta (17/11/2026)
+## Version 1.3.1-beta (17/11/2026)
 
 ### Fixes
 * **Player:** Paused screen now shows only when you press the pause button or pause from headset/Bluetooth controls; focus loss, backgrounding, auto-next and episode switches no longer trigger it.
@@ -10,4 +10,4 @@
 * **Anime:** Updated Anikoto domain.
 
 ### Misc
-* **Version:** Bumped app version to `1.3.0-beta`.
+* **Version:** Bumped app version to `1.3.1-beta`.
