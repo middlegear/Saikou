@@ -1,4 +1,4 @@
-name: Android Release APK
+name: Stable Release APK
 
 on:
   workflow_dispatch:

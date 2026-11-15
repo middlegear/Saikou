@@ -1,4 +1,4 @@
-## Version 1.3.0-Stable (17/11/2026)
+## Version 1.3.1-Stable (17/11/2026)
 
 ### Features
 * **Anime:** Add KAA source.
