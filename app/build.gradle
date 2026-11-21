@@ -8,9 +8,20 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
-def gitCommitHash = providers.exec {
-    commandLine("git", "rev-parse", "--verify", "--short", "HEAD")
-}.standardOutput.asText.getOrElse("").trim()
+// Only used as a debug version suffix. Never let a missing/failing git
+// (zip downloads, sandboxed build dirs, "dubious ownership") break configuration.
+def gitCommitHash = "unknown"
+try {
+    def hash = providers.exec {
+        commandLine("git", "rev-parse", "--verify", "--short", "HEAD")
+        ignoreExitValue = true
+    }.standardOutput.asText.getOrElse("").trim()
+    if (hash) {
+        gitCommitHash = hash
+    }
+} catch (Exception ignored) {
+    // git is unavailable: fall back to the placeholder suffix
+}
 
 android {
     namespace 'ani.saikou'
