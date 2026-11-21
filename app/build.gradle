@@ -8,21 +8,6 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
-// Only used as a debug version suffix. Never let a missing/failing git
-// (zip downloads, sandboxed build dirs, "dubious ownership") break configuration.
-def gitCommitHash = "unknown"
-try {
-    def hash = providers.exec {
-        commandLine("git", "rev-parse", "--verify", "--short", "HEAD")
-        ignoreExitValue = true
-    }.standardOutput.asText.getOrElse("").trim()
-    if (hash) {
-        gitCommitHash = hash
-    }
-} catch (Exception ignored) {
-    // git is unavailable: fall back to the placeholder suffix
-}
-
 android {
     namespace 'ani.saikou'
     compileSdk 37
@@ -58,7 +43,6 @@ android {
         debug {
             applicationIdSuffix ".beta"
             debuggable true
-            versionNameSuffix "." + gitCommitHash
             buildConfigField "String", "MY_CUSTOM_API_KEY", "\"${project.findProperty('API_KEY') ?: ""}\""
             buildConfigField "String", "SERVER_URL", "\"${project.findProperty('HOST_URL') ?: ""}\""
             buildConfigField "long", "BUILD_TIME", "${System.currentTimeMillis()}L"
