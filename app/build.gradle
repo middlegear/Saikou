@@ -79,6 +79,9 @@ android {
 }
 
 dependencies {
+    // Bundled AnyMeX extension runtime (Aniyomi/Tachiyomi, CloudStream, Kotatsu)
+    implementation project(':extension-runtime')
+
     // Core
     implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.browser:browser:1.10.0'

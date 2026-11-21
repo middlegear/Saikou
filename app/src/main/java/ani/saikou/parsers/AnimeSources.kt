@@ -1,6 +1,7 @@
 package ani.saikou.parsers
 
 import ani.saikou.Lazier
+import ani.saikou.extensions.ExtensionSourceRegistry
 import ani.saikou.lazyList
 import ani.saikou.parsers.anime.Anikoto
 import ani.saikou.parsers.anime.AnimeHeaven
@@ -14,13 +15,16 @@ import ani.saikou.parsers.anime.Torrentio
 
 object AnimeSources : WatchSources() {
 
-    override val list: List<Lazier<BaseParser>> = lazyList(
+    private val builtIn: List<Lazier<BaseParser>> = lazyList(
         "Torrentio" to ::Torrentio,
         "Anikoto" to ::Anikoto,
         "KickAssAnime" to :: KickAssAnime,
         "AnimeHeaven" to ::AnimeHeaven,
         "Anizone" to ::Anizone,
     )
+
+    override val list: List<Lazier<BaseParser>>
+        get() = builtIn + ExtensionSourceRegistry.animeSources()
 }
 
 object HAnimeSources : WatchSources() {
@@ -33,5 +37,5 @@ object HAnimeSources : WatchSources() {
     )
 
     override val list: List<Lazier<BaseParser>>
-        get() = hList + AnimeSources.list
+        get() = hList + ExtensionSourceRegistry.nsfwAnimeSources() + AnimeSources.list
 }
