@@ -8,10 +8,6 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
-def gitCommitHash = providers.exec {
-    commandLine("git", "rev-parse", "--verify", "--short", "HEAD")
-}.standardOutput.asText.getOrElse("").trim()
-
 android {
     namespace 'ani.saikou'
     compileSdk 37
@@ -47,7 +43,6 @@ android {
         debug {
             applicationIdSuffix ".beta"
             debuggable true
-            versionNameSuffix "." + gitCommitHash
             buildConfigField "String", "MY_CUSTOM_API_KEY", "\"${project.findProperty('API_KEY') ?: ""}\""
             buildConfigField "String", "SERVER_URL", "\"${project.findProperty('HOST_URL') ?: ""}\""
             buildConfigField "long", "BUILD_TIME", "${System.currentTimeMillis()}L"
