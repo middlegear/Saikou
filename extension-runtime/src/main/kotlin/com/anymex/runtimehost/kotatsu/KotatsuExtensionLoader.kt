@@ -341,7 +341,7 @@ object KotatsuExtensionLoader {
                         val names = mutableListOf<String>()
                         try {
                             if (bytes.size < 112) return emptyList()
-                            if (bytes[0].toChar() != 'd' || bytes[1].toChar() != 'e' || bytes[2].toChar() != 'x') {
+                            if (bytes[0].toInt().toChar() != 'd' || bytes[1].toInt().toChar() != 'e' || bytes[2].toInt().toChar() != 'x') {
                                 return emptyList()
                             }
                             fun readInt(offset: Int): Int {

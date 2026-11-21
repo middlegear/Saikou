@@ -26,6 +26,10 @@ android {
 
     kotlinOptions {
         jvmTarget = '17'
+        freeCompilerArgs += [
+                '-opt-in=org.koitharu.kotatsu.parsers.InternalParsersApi',
+                '-opt-in=kotlin.contracts.ExperimentalContracts',
+        ]
     }
 
     buildFeatures {
