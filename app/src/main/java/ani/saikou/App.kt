@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Bundle
 import androidx.multidex.MultiDex
 import androidx.multidex.MultiDexApplication
+import ani.saikou.extensions.ExtensionRuntime
 //import ani.saikou.others.DisabledReports
 
 @SuppressLint("StaticFieldLeak")
@@ -27,6 +28,8 @@ class App : MultiDexApplication() {
 
         initializeNetwork(baseContext)
 
+        // Boots the bundled AnyMeX extension runtime (Aniyomi/Tachiyomi, CloudStream, Kotatsu).
+        ExtensionRuntime.init(this)
     }
 
     inner class FTActivityLifecycleCallbacks : ActivityLifecycleCallbacks {

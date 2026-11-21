@@ -1,11 +1,12 @@
 package ani.saikou.parsers
 
 import ani.saikou.Lazier
+import ani.saikou.extensions.ExtensionSourceRegistry
 import ani.saikou.lazyList
 import ani.saikou.parsers.manga.*
 
 object MangaSources : MangaReadSources() {
-    override val list: List<Lazier<BaseParser>> = lazyList(
+    private val builtIn: List<Lazier<BaseParser>> = lazyList(
 
 //        "AllManga" to ::AllManga,
         "MangaK" to ::MangaK,
@@ -17,6 +18,9 @@ object MangaSources : MangaReadSources() {
 //        "Toonily" to ::Toonily,  //stubborn ass provider returning wrong results idk why
 //        "MangaKatana" to ::MangaKatana,  // host url isnot resolving
     )
+
+    override val list: List<Lazier<BaseParser>>
+        get() = builtIn + ExtensionSourceRegistry.mangaSources()
 }
 
 object HMangaSources : MangaReadSources() {
@@ -25,5 +29,6 @@ object HMangaSources : MangaReadSources() {
         "Manhwa18" to ::Manhwa18,
 
     )
-    override val list = listOf(aList,MangaSources.list).flatten()
+    override val list: List<Lazier<BaseParser>>
+        get() = listOf(aList, ExtensionSourceRegistry.nsfwMangaSources(), MangaSources.list).flatten()
 }
