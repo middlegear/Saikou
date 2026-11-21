@@ -388,7 +388,60 @@
                 </androidx.cardview.widget.CardView>
             </RelativeLayout>
 
-            <!-- 5. Notifications Row -->
+            <!-- 5. Extensions Row -->
+            <RelativeLayout
+                android:id="@+id/settingsExtensionsRow"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginBottom="12dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/iconExtensions"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_round_source_24"
+                    app:tint="?attr/colorPrimary"
+                    tools:ignore="ContentDescription" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="16dp"
+                    android:layout_toEndOf="@id/iconExtensions"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="Extensions"
+                    android:textColor="@color/bg_opp"
+                    android:textSize="16sp"
+                    tools:ignore="HardcodedText" />
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_alignParentEnd="true"
+                    android:duplicateParentState="true"
+                    app:cardBackgroundColor="@color/nav_bg_inv"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <ImageButton
+                        android:id="@+id/btnExtensionsChevron"
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:background="@color/nav_bg_inv"
+                        android:duplicateParentState="true"
+                        android:padding="16dp"
+                        app:srcCompat="@drawable/round_chevron_right_24"
+                        app:tint="@color/bg_opp"
+                        tools:ignore="ContentDescription,SpeakableTextPresentCheck" />
+                </androidx.cardview.widget.CardView>
+            </RelativeLayout>
+
+            <!-- 6. Notifications Row -->
 <!--            <RelativeLayout-->
 <!--                android:id="@+id/settingsNotificationsRow"-->
 <!--                android:layout_width="match_parent"-->

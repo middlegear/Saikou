@@ -184,11 +184,17 @@ data class FileUrl(
 }
 
 //Credits to leg
-data class Lazier<T>(
-    val lClass: KFunction<T>,
-    val name: String
+class Lazier<T> private constructor(
+    val name: String,
+    private val lClass: KFunction<T>?,
+    private val factory: (() -> T)?
 ) {
-    val get = lazy { lClass.call() }
+    constructor(lClass: KFunction<T>, name: String) : this(name, lClass, null)
+
+    /** Used by dynamically discovered sources (extensions) that have no constructor reference. */
+    constructor(name: String, factory: () -> T) : this(name, null, factory)
+
+    val get = lazy { factory?.invoke() ?: lClass!!.call() }
 }
 
 fun <T> lazyList(vararg objects: Pair<String, KFunction<T>>): List<Lazier<T>> {

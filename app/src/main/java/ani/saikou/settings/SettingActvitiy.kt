@@ -24,6 +24,7 @@ import ani.saikou.settings.about.AboutSettingsActivity
 import ani.saikou.settings.accounts.AccountsActivity
 import ani.saikou.settings.anime.AnimeSettingsActivity
 import ani.saikou.settings.common.CommonSettingsActivity
+import ani.saikou.settings.extensions.ExtensionsActivity
 import ani.saikou.settings.manga.MangaSettingsActivity
 import ani.saikou.settings.notifications.NotificationSettingsActivity
 import ani.saikou.snackString
@@ -142,7 +143,12 @@ class SettingActivity : AppCompatActivity() {
         binding.settingsMangaRow.setOnClickListener(openManga)
         binding.btnMangaChevron.setOnClickListener(openManga)
 
-        // 5. Notifications Row & Chevron(fix notifications then enable this)
+        // 5. Extensions Row & Chevron
+        val openExtensions = View.OnClickListener { navigateTo(ExtensionsActivity::class.java) }
+        binding.settingsExtensionsRow.setOnClickListener(openExtensions)
+        binding.btnExtensionsChevron.setOnClickListener(openExtensions)
+
+        // 6. Notifications Row & Chevron(fix notifications then enable this)
 //        val openNotifications = View.OnClickListener { navigateTo(NotificationSettingsActivity::class.java) }
 //        binding.settingsNotificationsRow.setOnClickListener(openNotifications)
 //        binding.btnNotificationsChevron.setOnClickListener(openNotifications)

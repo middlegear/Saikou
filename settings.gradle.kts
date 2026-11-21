@@ -19,3 +19,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Saikou"
 include(":app")
+include(":extension-runtime")

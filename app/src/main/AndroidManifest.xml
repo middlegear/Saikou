@@ -65,6 +65,10 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".settings.extensions.ExtensionsActivity"
+            android:parentActivityName=".MainActivity" />
+
         <activity android:name=".settings.FAQActivity" />
         <activity android:name=".settings.ReaderSettingsActivity" />
         <activity android:name=".settings.UserInterfaceSettingsActivity" />
